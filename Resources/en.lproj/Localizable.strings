@@ -1478,3 +1478,6 @@
 "Con sonido" = "With sound";
 "Sin sonido" = "Silent";
 "No avisar" = "Don’t alert";
+"Ocultar" = "Hide";
+"Ocultar la lista de modelos" = "Hide the model list";
+"Mostrar la lista de modelos" = "Show the model list";

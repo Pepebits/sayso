@@ -265,7 +265,11 @@ private struct LocalModelPicker: View {
     let localStatus: (text: String, kind: StatusTag.Kind)
     var navigate: (SettingsScreen) -> Void = { _ in }
     @State private var customRepo = ""
+    /// La lista de modelos, desplegada. Sin valor: plegada si ya hay uno instalado.
+    @State private var expanded: Bool?
     @Environment(\.openURL) private var openURL
+
+    private var isExpanded: Bool { expanded ?? (model.localDetector != .installed) }
 
     static func page(_ repo: String) -> URL { URL(string: "https://huggingface.co/\(repo)")! }
     static let tokens = URL(string: "https://huggingface.co/settings/tokens")!
@@ -280,10 +284,24 @@ private struct LocalModelPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.s) {
-            Text(tr("Modelo")).font(Theme.text(12, weight: .semibold)).foregroundStyle(Theme.ink)
-            VStack(spacing: Theme.Space.s) {
-                ForEach(LocalGuardModel.catalog) { candidate in card(candidate) }
-                customCard
+            HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
+                Text(tr("Modelo")).font(Theme.text(12, weight: .semibold)).foregroundStyle(Theme.ink)
+                if !isExpanded {
+                    Text(verbatim: selected.name).font(Theme.bodyStrong).foregroundStyle(Theme.ink).lineLimit(1)
+                    Text(verbatim: summary(selected)).font(Theme.mono(11)).foregroundStyle(Theme.secondary).lineLimit(1)
+                }
+                Spacer(minLength: Theme.Space.s)
+                BlockButton(isExpanded ? "Ocultar" : "Cambiar", systemImage: isExpanded ? "chevron.up" : "chevron.down",
+                            compact: true) {
+                    withAnimation(.easeInOut(duration: 0.15)) { expanded = !isExpanded }
+                }
+                .accessibilityLabel(isExpanded ? tr("Ocultar la lista de modelos") : tr("Mostrar la lista de modelos"))
+            }
+            if isExpanded {
+                VStack(spacing: Theme.Space.s) {
+                    ForEach(LocalGuardModel.catalog) { candidate in card(candidate) }
+                    customCard
+                }
             }
             HStack(spacing: Theme.Space.s) {
                 StatusTag(localStatus.text, kind: localStatus.kind)
@@ -315,6 +333,14 @@ private struct LocalModelPicker: View {
         .padding(Theme.Space.m)
         .background(Theme.paper)
         .overlay(RoundedRectangle(cornerRadius: Theme.radius).strokeBorder(Theme.border, lineWidth: 1))
+    }
+
+    /// «1,1 GB · Multilingüe»: lo que se ve con la lista plegada.
+    private func summary(_ m: LocalGuardModel) -> String {
+        var parts: [String] = []
+        if let size = m.sizeMB { parts.append(size >= 1000 ? String(format: "%.1f GB", Double(size) / 1000) : "\(size) MB") }
+        parts.append(tr(m.languages))
+        return parts.joined(separator: " · ")
     }
 
     /// Los tres pasos de un modelo de acceso restringido, cada uno con su botón.
