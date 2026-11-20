@@ -1,6 +1,6 @@
 import Foundation
 
-// Tareas programadas (ADR-0010).
+// Tareas programadas.
 
 /// Cuándo se repite una tarea.
 public enum TaskSchedule: Hashable, Codable, Sendable {

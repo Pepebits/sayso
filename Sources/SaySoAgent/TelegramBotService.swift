@@ -1,7 +1,7 @@
 import Foundation
 import SaySoCore
 
-/// Bot de Telegram por sondeo largo (ADR-0006). Solo atiende al dueño emparejado.
+/// Bot de Telegram por sondeo largo. Solo atiende al dueño emparejado.
 public actor TelegramBotService {
     public typealias LoopProvider = @Sendable () async throws -> AgentLoop
     /// Bucle con las pocas herramientas del modo invitado y la foto que adjunte.

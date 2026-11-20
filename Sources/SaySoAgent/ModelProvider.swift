@@ -90,7 +90,7 @@ public struct ModelResponse: Sendable, Hashable {
     }
 }
 
-/// Proveedor de modelos (ADR-0005). Sin streaming por ahora.
+/// Proveedor de modelos. Sin streaming por ahora.
 public protocol ModelProvider: Sendable {
     /// Modelo completo, para tareas con herramientas.
     var fullModel: String { get }

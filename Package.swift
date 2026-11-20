@@ -2,7 +2,7 @@
 import PackageDescription
 
 // SaySo — agente de IA para el Mac con dictado global.
-// Estructura de módulos: ver docs/PLAN.md y docs/adr/.
+// Módulos: Core, Store, Permissions, Agent, Dictation, VM, TDLib, UI y App.
 let swift5: [SwiftSetting] = [.swiftLanguageMode(.v5)]
 
 let package = Package(
@@ -22,25 +22,25 @@ let package = Package(
     targets: [
         // Contratos y modelos compartidos. Sin dependencias.
         .target(name: "SaySoCore", swiftSettings: swift5),
-        // SQLite: reglas, registro, memoria, ajustes, conversaciones (ADR-0010).
+        // SQLite: reglas, registro, memoria, ajustes, conversaciones.
         .target(
             name: "SaySoStore",
             dependencies: ["SaySoCore", .product(name: "GRDB", package: "GRDB.swift")],
             swiftSettings: swift5
         ),
-        // Motor de permisos, scripts del Mac, Llavero y redacción (ADR-0007, ADR-0008).
+        // Motor de permisos, scripts del Mac, Llavero y redacción.
         .target(name: "SaySoPermissions", dependencies: ["SaySoCore"], swiftSettings: swift5),
-        // Proveedores de IA, bucle del agente y bot de Telegram (ADR-0005, ADR-0006).
+        // Proveedores de IA, bucle del agente y bot de Telegram.
         .target(name: "SaySoAgent", dependencies: ["SaySoCore"], swiftSettings: swift5),
-        // Atajo global, audio, transcripción e inserción de texto (ADR-0003).
+        // Atajo global, audio, transcripción e inserción de texto.
         .target(
             name: "SaySoDictation",
             dependencies: ["SaySoCore", .product(name: "WhisperKit", package: "WhisperKit")],
             swiftSettings: swift5
         ),
-        // Máquina Linux del agente con Virtualization.framework (ADR-0004).
+        // Máquina Linux del agente con Virtualization.framework.
         .target(name: "SaySoVM", dependencies: ["SaySoCore"], swiftSettings: swift5),
-        // Sesión de usuario de Telegram con TDLib, opcional (ADR-0006).
+        // Sesión de usuario de Telegram con TDLib, opcional.
         .target(
             name: "SaySoTDLib",
             dependencies: ["SaySoCore", "SaySoAgent", .product(name: "TDLibFramework", package: "TDLibFramework")],

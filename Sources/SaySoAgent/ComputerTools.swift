@@ -1,7 +1,7 @@
 import Foundation
 import SaySoCore
 
-// Herramientas del ordenador Linux del agente (ADR-0004). Delegan en `AgentComputer`,
+// Herramientas del ordenador Linux del agente. Delegan en `AgentComputer`,
 // que ya pasa por el motor de permisos y deja registro.
 
 public enum ComputerTools {

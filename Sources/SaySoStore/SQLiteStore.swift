@@ -2,7 +2,7 @@ import Foundation
 import GRDB
 import SaySoCore
 
-/// Persistencia en SQLite con GRDB (ADR-0010). Las fechas se guardan como segundos desde 1970.
+/// Persistencia en SQLite con GRDB. Las fechas se guardan como segundos desde 1970.
 public final class SQLiteStore: SaySoStoring, TaskStoring {
     // DatabaseQueue es Sendable y serializa los accesos.
     private let db: DatabaseQueue

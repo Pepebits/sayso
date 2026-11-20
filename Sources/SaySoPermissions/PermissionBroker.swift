@@ -1,7 +1,7 @@
 import Foundation
 import SaySoCore
 
-/// Motor de permisos (ADR-0007). Único punto de paso de las acciones con efecto fuera de la VM.
+/// Motor de permisos. Único punto de paso de las acciones con efecto fuera de la VM.
 public final class PermissionBroker: PermissionBrokering, @unchecked Sendable {
     private let store: SaySoStoring
     private let presenter: ConfirmationPresenter

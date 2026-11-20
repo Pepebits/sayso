@@ -1,7 +1,7 @@
 import Foundation
 import SaySoCore
 
-/// Plugins del usuario (ADR-0009): guarda la lista, instala complementos en la VM, mantiene las
+/// Plugins del usuario: guarda la lista, instala complementos en la VM, mantiene las
 /// sesiones MCP y entrega al agente las herramientas de los que están activos.
 public actor PluginManager {
     /// Tope de herramientas por plugin, para no llenar el contexto del modelo.

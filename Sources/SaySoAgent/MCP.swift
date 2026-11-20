@@ -1,7 +1,7 @@
 import Foundation
 import SaySoCore
 
-// Cliente del Model Context Protocol (ADR-0009): JSON-RPC 2.0 sobre HTTP o sobre la entrada y
+// Cliente del Model Context Protocol: JSON-RPC 2.0 sobre HTTP o sobre la entrada y
 // salida de un proceso. Solo la parte de herramientas: initialize, tools/list y tools/call.
 
 public enum MCPError: Error, LocalizedError, Equatable, Sendable {

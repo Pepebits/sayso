@@ -112,7 +112,7 @@ public enum AgentPrompts {
     }
 }
 
-/// Bucle del agente (ADR-0005): historial, herramientas, redacción y contador de peticiones.
+/// Bucle del agente: historial, herramientas, redacción y contador de peticiones.
 public final class AgentLoop: Sendable {
     public let provider: ModelProvider
     public let tools: [AgentTool]

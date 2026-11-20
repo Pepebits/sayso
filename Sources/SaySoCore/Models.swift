@@ -2,7 +2,7 @@ import Foundation
 
 // Modelos compartidos entre módulos.
 
-// MARK: - Memoria (ADR-0010)
+// MARK: - Memoria
 
 public struct MemoryNote: Identifiable, Hashable, Codable, Sendable {
     /// Qué es la nota para el agente: algo que saber o algo que hacer.
@@ -37,7 +37,7 @@ public struct MemoryNote: Identifiable, Hashable, Codable, Sendable {
     }
 }
 
-// MARK: - Secretos (ADR-0008). El valor vive solo en el Llavero.
+// MARK: - Secretos. El valor vive solo en el Llavero.
 
 public enum SecretStatus: String, Codable, Sendable { case requested, stored }
 
@@ -70,7 +70,7 @@ public protocol SecretRedacting: Sendable {
     func redact(_ text: String) -> String
 }
 
-// MARK: - Cuentas de IA (ADR-0005)
+// MARK: - Cuentas de IA
 
 public enum ProviderKind: String, Codable, CaseIterable, Sendable {
     /// Messages API de Anthropic.
@@ -154,7 +154,7 @@ public struct ConversationTurn: Identifiable, Hashable, Codable, Sendable {
     }
 }
 
-// MARK: - Dictado (ADR-0003)
+// MARK: - Dictado
 
 public enum OptionKeySide: String, Codable, CaseIterable, Sendable { case left, any, right }
 
@@ -287,7 +287,7 @@ public enum ConnectionStatus: Hashable, Sendable {
     case failed(String)
 }
 
-/// Sesión de usuario de Telegram (TDLib), opcional (ADR-0006).
+/// Sesión de usuario de Telegram (TDLib), opcional.
 public enum TelegramUserState: Hashable, Sendable {
     /// Sin configurar.
     case off

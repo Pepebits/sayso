@@ -2,7 +2,7 @@ import Foundation
 import Security
 import SaySoCore
 
-// MARK: - Llavero (ADR-0008)
+// MARK: - Llavero
 
 public struct KeychainError: Error, LocalizedError, Sendable, Equatable {
     public let status: OSStatus

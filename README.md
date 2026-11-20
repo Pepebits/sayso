@@ -2,34 +2,60 @@
 
 <p align="center"><em>English · <a href="README.es.md">Español</a></em></p>
 
-**SaySo** is a native macOS app that turns your voice into actions. Hold a key, speak, and an
-AI agent does the rest: it answers on screen, writes to your Telegram chats, schedules tasks
-and works inside its own Linux machine, never on your Mac. Every action that leaves your Mac
-follows rules you set, and asks first when you want it to.
+**SaySo** is a native macOS app that turns what you say into things done. Hold a key and
+speak: an AI agent answers on screen, writes in your Telegram chats, schedules tasks and runs
+commands in a Linux machine of its own, away from your files. Anything that leaves your Mac
+goes through rules you set, and asks you first when you want it to.
 
-- 🎙️ **Local dictation**: hold ⌥ (or a shortcut you choose) and Whisper transcribes on your Mac, or switch to a continuous conversation with the agent
-- 💬 **Telegram, two ways**: talk to the agent through your own bot, and optionally let it read, search, reply to and send from your account (TDLib), voice notes and media included
-- 🐧 **An isolated Linux machine** (Virtualization.framework) where the agent runs commands, installs tools, browses the web and transcribes audio
-- 🧩 **Plugins** over MCP, plus the agent's own add-ons running in the Linux machine
-- ⏰ **Scheduled tasks** with recipients, a calendar for any day, and an option to send without asking
-- 🧠 **Editable memory**: notes typed as instructions or facts, used in every conversation
-- 🛡️ **Permissions and guardrails**: Allow / Ask / Never per action, secrets in the Keychain and redacted before they reach the model, and a review of outward actions after the agent has read third-party content, with an optional local prompt-injection classifier
-- 🔌 **Any model**: Claude, OpenAI, OpenRouter, Grok, or a local model with Ollama or LM Studio
-- 🌍 Spanish, English, Galician, French and Portuguese
+- 🎙️ **Dictation on your Mac**: hold ⌥, or a shortcut of your choice, and Whisper transcribes locally; or keep a spoken conversation going with the agent
+- 💬 **Telegram, two ways**: talk to the agent through your own bot, and if you want, let it read, search, reply, forward and send from your account, voice notes and media included
+- 🐧 **Its own Linux machine**, isolated with Virtualization.framework, to run commands, install tools, browse the web and transcribe audio
+- ⏰ **Scheduled tasks** for you or for other people, with several recipients and an option to send without asking
+- 🧠 **Memory you can edit**: notes marked as instructions or facts, applied in every conversation
+- 🧩 **Plugins** over MCP, plus add-ons that run inside the Linux machine
+- 🛡️ **Permissions and guardrails**: Allow, Ask or Never for each action, secrets kept in the Keychain and redacted before they reach the model, and a second check on outward actions after the agent has read someone else's content
+- 🔌 **Bring your own model**: Claude, OpenAI, OpenRouter, Grok, or a local one with Ollama or LM Studio
+- 🌍 In Spanish, English, Galician, French and Portuguese
 
 <p align="center">
-  <img src="docs/screenshots/modular/inicio.png" alt="Home" width="420">
-  <img src="docs/screenshots/modular/tareas.png" alt="Scheduled tasks" width="420">
+  <img src="docs/screenshots/en/inicio.png" alt="Home" width="400">
+  <img src="docs/screenshots/en/telegram.png" alt="Telegram permissions" width="400">
 </p>
 
 ## 🚀 Getting started
 
-You need **macOS 14 or later on Apple Silicon** and an account with a model provider (or a
-local model).
+You need **macOS 14 or later on Apple Silicon**, and an account with a model provider or a
+local model.
 
-1. 📥 Download the latest `SaySo-x.y.z.dmg` from [Releases](https://github.com/Pepebits/sayso/releases). It is signed and notarized.
-2. 📂 Drag SaySo to Applications and open it. The welcome guide asks for the microphone and Input Monitoring permissions, and walks you through the rest.
-3. 🤖 Optional: create a bot with [@BotFather](https://t.me/BotFather) and paste its token in **Telegram**, and sign in with your account if you want the agent to work on your chats. The account needs your own `api_id` and `api_hash` from [my.telegram.org](https://my.telegram.org).
+1. 📥 **Download** the latest `SaySo-x.y.z.dmg` from [Releases](https://github.com/Pepebits/sayso/releases). It is signed and notarized by Apple.
+2. 📂 **Install**: drag SaySo to Applications and open it. The welcome guide asks for the microphone and Input Monitoring, and takes you through the rest.
+3. 🔑 **Pick a model** under **Model**: paste an API key, which goes to the Keychain, or point it at Ollama or LM Studio.
+4. 🤖 **Optional, Telegram**: create a bot with [@BotFather](https://t.me/BotFather) and paste its token under **Telegram**. To let the agent work on your own chats, sign in with your account too, using an `api_id` and `api_hash` of your own from [my.telegram.org](https://my.telegram.org).
+
+## 🧭 How it works
+
+```
+ voice ─▶ Dictation ─┐                       ┌─▶ Telegram bot and account
+                     ├─▶ Agent ─▶ Permissions ┼─▶ Mac: calendar, reminders, notes
+ Telegram bot ───────┘     │                  └─▶ Linux machine: commands, web, plugins
+                           └─▶ model provider
+```
+
+The agent loop runs on the Mac and talks to the model provider you choose. Every action with an
+effect outside the Linux machine goes through one permission engine, which allows it, asks you
+on the Mac or refuses it, and logs what happened. Code the agent writes or downloads runs only in the Linux machine.
+
+| Module | What it does |
+|---|---|
+| `SaySoCore` | Shared models and contracts, no dependencies |
+| `SaySoStore` | SQLite with GRDB: rules, activity, memory, tasks, conversations |
+| `SaySoPermissions` | Permission engine, Mac scripts, Keychain and secret redaction |
+| `SaySoAgent` | Model providers, agent loop, tools, Telegram bot, MCP client, guardrails |
+| `SaySoDictation` | Global shortcut, audio capture and Whisper transcription |
+| `SaySoVM` | The Linux machine, with Virtualization.framework |
+| `SaySoTDLib` | Optional Telegram user session through TDLib |
+| `SaySoUI` | Design system and every screen |
+| `SaySoApp` | The app: wires it all together |
 
 ## 🛠️ Building from source
 
@@ -38,12 +64,14 @@ Requires Xcode 16 or later (Swift 6 toolchain).
 ```bash
 git clone https://github.com/Pepebits/sayso.git
 cd sayso
-scripts/make-app.sh          # builds build/SaySo.app (debug)
+scripts/make-app.sh
 open build/SaySo.app
 ```
 
-`scripts/make-app.sh release` builds a release version. `scripts/release.sh` signs it with
-Developer ID, notarizes it and packages the DMG; the script header lists what it needs once.
+`scripts/make-app.sh` builds `build/SaySo.app` in debug; pass `release` for an optimized
+build. It signs with your Developer ID if the Keychain has one, so macOS keeps the permissions
+you granted between builds. `scripts/release.sh` signs, notarizes and packages the DMG; its
+header lists what it needs the first time.
 
 ## 🧪 Tests
 
@@ -51,20 +79,21 @@ Developer ID, notarizes it and packages the DMG; the script header lists what it
 swift test
 ```
 
+To render every screen to PNG, in light and dark:
+
+```bash
+SAYSO_SCREENSHOTS=/tmp/sayso SAYSO_SCREENSHOTS_LANG=en swift test --filter ScreenSnapshotTests
+```
+
 `scripts/check-strings.py <code>` checks that a translation has every key and placeholder of
 the English one.
 
-## 📚 Documentation
-
-- 🗺️ **[Plan and status](docs/PLAN.md)**: features, phases and what is verified (in Spanish)
-- 🧭 **[Architecture decisions](docs/adr/README.md)**: why a native app, a Linux VM, TDLib, one permission engine… (in Spanish)
-
 ## 🔒 Privacy
 
-Dictation is transcribed on your Mac. Conversations, memory, tasks and the activity log are
-stored locally in SQLite, and secrets in the Keychain. What reaches the model provider is what
-you say to the agent and what its tools read for that request. SaySo has no server and sends
-no telemetry.
+Dictation is transcribed on your Mac. Conversations, memory, tasks and the activity log stay
+on it in SQLite, and secrets in the Keychain. The model provider receives what you ask the
+agent and what its tools read to answer you. SaySo has no server of its own and sends no
+telemetry.
 
 ## 📄 License
 

@@ -1,7 +1,7 @@
 import Foundation
 import SaySoCore
 
-// Protocolo host ↔ agente invitado por vsock (ADR-0004).
+// Protocolo host ↔ agente invitado por vsock.
 // Cada mensaje es una trama: 4 bytes de longitud (big endian) + un objeto JSON.
 
 /// Puerto vsock en el que escucha el agente invitado.

@@ -2,7 +2,7 @@ import Foundation
 import SaySoCore
 
 /// Sesión de consola persistente en la máquina Linux: un único bash que sigue vivo entre
-/// comandos, así `cd`, las variables y los entornos activados se conservan (ADR-0004).
+/// comandos, así `cd`, las variables y los entornos activados se conservan.
 ///
 /// No es un terminal completo: no hay pseudoterminal, así que los programas de pantalla completa
 /// (vim, top) no funcionan. Los comandos no reciben entrada de teclado.

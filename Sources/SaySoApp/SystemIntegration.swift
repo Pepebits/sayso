@@ -108,7 +108,7 @@ final class Speaker: NSObject, AVSpeechSynthesizerDelegate {
     }
 }
 
-/// Diálogo «Preguntar» del motor de permisos (ADR-0007). Siempre en el Mac.
+/// Diálogo «Preguntar» del motor de permisos. Siempre en el Mac.
 final class ConfirmationWindowPresenter: ConfirmationPresenter {
     func confirm(_ request: ActionRequest, descriptor: ActionDescriptor?) async -> ConfirmationResult {
         await withCheckedContinuation { continuation in

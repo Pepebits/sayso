@@ -1,6 +1,6 @@
 import Foundation
 
-// Contratos del motor de permisos (ADR-0007).
+// Contratos del motor de permisos.
 
 /// Regla aplicada a una acción con efecto fuera de la VM.
 public enum PermissionRule: String, Codable, CaseIterable, Sendable {

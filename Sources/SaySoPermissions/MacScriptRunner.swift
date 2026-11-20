@@ -20,7 +20,7 @@ public enum MacScriptError: Error, LocalizedError, Sendable, Equatable {
     }
 }
 
-/// Ejecuta la lista cerrada de scripts del Mac (ADR-0007). Cada llamada pasa por el motor de permisos.
+/// Ejecuta la lista cerrada de scripts del Mac. Cada llamada pasa por el motor de permisos.
 /// No admite AppleScript ni shell arbitrarios: los textos del usuario van siempre como argumentos.
 public final class MacScriptRunner: MacScriptRunning {
     private let broker: PermissionBrokering

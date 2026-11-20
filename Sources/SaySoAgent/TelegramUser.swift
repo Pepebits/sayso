@@ -1,7 +1,7 @@
 import Foundation
 import SaySoCore
 
-// Acceso del agente a los chats del usuario (ADR-0006). El agente no ve TDLib: ve estas
+// Acceso del agente a los chats del usuario. El agente no ve TDLib: ve estas
 // herramientas, cada una sujeta a su regla, y nunca los chats secretos ni los códigos de acceso.
 
 public struct TGUserChat: Hashable, Sendable {

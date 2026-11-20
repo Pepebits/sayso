@@ -1,7 +1,7 @@
 import Foundation
 import SaySoCore
 
-/// Herramientas con las que el agente programa tareas (ADR-0010).
+/// Herramientas con las que el agente programa tareas.
 public enum TaskTools {
     public static func all(tasks: TaskStoring, broker: PermissionBrokering, userAPI: TelegramUserAPI? = nil,
                            now: @escaping @Sendable () -> Date = { Date() }) -> [AgentTool] {

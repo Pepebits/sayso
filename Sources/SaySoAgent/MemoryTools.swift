@@ -31,7 +31,7 @@ public struct RememberTool: AgentTool {
     }
 }
 
-/// `request_secret(name, reason)`: pide un secreto por nombre. Nunca recibe ni devuelve valores (ADR-0008).
+/// `request_secret(name, reason)`: pide un secreto por nombre. Nunca recibe ni devuelve valores.
 public struct RequestSecretTool: AgentTool {
     let store: SaySoStoring
     public init(store: SaySoStoring) { self.store = store }

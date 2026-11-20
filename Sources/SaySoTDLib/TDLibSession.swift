@@ -35,7 +35,7 @@ public struct TDLibConfig: Sendable {
     }
 }
 
-/// Sesión de usuario de Telegram sobre TDLib (ADR-0006): inicio de sesión y las cinco operaciones
+/// Sesión de usuario de Telegram sobre TDLib: inicio de sesión y las cinco operaciones
 /// que ven las herramientas del agente. Los chats secretos están desactivados en TDLib.
 public actor TDLibSession: TelegramUserAPI {
     private let transport: TDTransport

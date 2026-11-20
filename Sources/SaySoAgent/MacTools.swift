@@ -2,7 +2,7 @@ import Foundation
 import SaySoCore
 
 // Herramientas del Mac: una por caso de `MacScriptCall`. Validan y delegan en
-// `MacScriptRunning`, que ya pasa por el motor de permisos (ADR-0007).
+// `MacScriptRunning`, que ya pasa por el motor de permisos.
 
 public enum MacTools {
     /// Las seis herramientas del Mac.

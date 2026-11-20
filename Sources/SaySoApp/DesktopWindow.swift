@@ -2,7 +2,7 @@ import SaySoCore
 import AppKit
 import Virtualization
 
-/// Ventana con la pantalla de la máquina Linux (ADR-0004). El teclado y el ratón del Mac pasan a
+/// Ventana con la pantalla de la máquina Linux. El teclado y el ratón del Mac pasan a
 /// la máquina mientras la ventana tiene el foco.
 @MainActor
 final class DesktopWindow: NSObject, NSWindowDelegate {

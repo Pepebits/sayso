@@ -2,7 +2,7 @@ import Foundation
 import SaySoCore
 import Virtualization
 
-/// Ciclo de vida de la máquina Linux del agente (ADR-0004): instalar, arrancar, pausar, apagar
+/// Ciclo de vida de la máquina Linux del agente: instalar, arrancar, pausar, apagar
 /// y hablar con el agente invitado por vsock.
 ///
 /// Requiere el entitlement `com.apple.security.virtualization` en la app firmada.

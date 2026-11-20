@@ -1,6 +1,6 @@
 import Foundation
 
-// Plugins (ADR-0009): todo plugin acaba exponiendo herramientas MCP al agente.
+// Plugins: todo plugin acaba exponiendo herramientas MCP al agente.
 
 public enum PluginKind: String, Codable, Sendable, CaseIterable {
     /// Servidor MCP remoto, por HTTP.

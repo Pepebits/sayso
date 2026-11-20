@@ -2,7 +2,7 @@ import SaySoCore
 import CryptoKit
 import Foundation
 
-/// Recursos de la máquina. Valores por defecto del ADR-0004.
+/// Recursos de la máquina. Valores por defecto.
 public struct VMConfig: Hashable, Sendable {
     public var cpuCount: Int
     public var memoryBytes: UInt64

@@ -1,6 +1,6 @@
 import Foundation
 
-// Contratos del ordenador Linux del agente (ADR-0004).
+// Contratos del ordenador Linux del agente.
 
 /// Estado de la máquina virtual.
 public enum ComputerState: Hashable, Sendable {
