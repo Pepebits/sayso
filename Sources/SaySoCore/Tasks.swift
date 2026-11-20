@@ -1,0 +1,169 @@
+import Foundation
+
+// Tareas programadas (ADR-0010).
+
+/// Cuándo se repite una tarea.
+public enum TaskSchedule: Hashable, Codable, Sendable {
+    /// Una sola vez.
+    case once(Date)
+    /// Cada día a una hora local. `weekdays` usa 1 = lunes … 7 = domingo; vacío significa todos.
+    case daily(hour: Int, minute: Int, weekdays: [Int])
+    /// Cada N minutos.
+    case every(minutes: Int)
+
+    public static let minimumInterval = 5
+
+    /// Próxima ejecución estrictamente posterior a `date`; `nil` si ya no hay ninguna.
+    public func next(after date: Date, calendar: Calendar = .current) -> Date? {
+        switch self {
+        case let .once(when):
+            return when > date ? when : nil
+        case let .every(minutes):
+            return date.addingTimeInterval(TimeInterval(max(minutes, Self.minimumInterval) * 60))
+        case let .daily(hour, minute, weekdays):
+            var components = DateComponents()
+            components.hour = hour
+            components.minute = minute
+            components.second = 0
+            var cursor = date
+            // Como mucho ocho saltos: una semana y el propio día.
+            for _ in 0..<8 {
+                guard let candidate = calendar.nextDate(after: cursor, matching: components,
+                                                        matchingPolicy: .nextTime) else { return nil }
+                if weekdays.isEmpty || weekdays.contains(Self.isoWeekday(candidate, calendar)) { return candidate }
+                cursor = candidate
+            }
+            return nil
+        }
+    }
+
+    /// 1 = lunes … 7 = domingo.
+    static func isoWeekday(_ date: Date, _ calendar: Calendar) -> Int {
+        (calendar.component(.weekday, from: date) + 5) % 7 + 1
+    }
+
+    /// Texto para la interfaz y para el agente: «Cada día a las 09:00».
+    public func summary(calendar: Calendar = .current) -> String {
+        switch self {
+        case let .once(when):
+            let f = DateFormatter()
+            f.locale = L10n.locale
+            f.timeZone = calendar.timeZone
+            f.dateFormat = tr("d 'de' MMMM 'a las' HH:mm")
+            return tr("Una vez, el %@", "\(f.string(from: when))")
+        case let .every(minutes):
+            if minutes % 60 == 0 { return minutes == 60 ? tr("Cada hora") : tr("Cada %@ horas", "\(minutes / 60)") }
+            return tr("Cada %@ minutos", "\(minutes)")
+        case let .daily(hour, minute, weekdays):
+            let time = String(format: "%02d:%02d", hour, minute)
+            let days = Set(weekdays)
+            if days.isEmpty || days.count == 7 { return tr("Cada día a las %@", "\(time)") }
+            if days == [1, 2, 3, 4, 5] { return tr("De lunes a viernes a las %@", "\(time)") }
+            if days == [6, 7] { return tr("Sábados y domingos a las %@", "\(time)") }
+            let names = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"].map { tr($0) }
+            let list = days.sorted().filter { (1...7).contains($0) }.map { names[$0 - 1] }.joined(separator: ", ")
+            return tr("Los %@ a las %@", "\(list)", "\(time)")
+        }
+    }
+}
+
+/// A quién va el resultado de una tarea cuando no es el propio usuario: una persona o un grupo de
+/// su Telegram, al que se escribe desde su cuenta.
+public struct TaskRecipient: Hashable, Codable, Sendable, Identifiable {
+    public var id: Int64
+    public var title: String
+    /// «privado», «grupo» o «canal», como lo da Telegram.
+    public var kind: String
+    /// Alias público (sin @), si lo tiene.
+    public var username: String?
+
+    public init(id: Int64, title: String, kind: String = "privado", username: String? = nil) {
+        self.id = id
+        self.title = title
+        self.kind = kind
+        self.username = username
+    }
+
+    /// «Lucas Moreno (@lucas_mor82)».
+    public var displayName: String { username.map { "\(title) (@\($0))" } ?? title }
+}
+
+public extension Array where Element == TaskRecipient {
+    /// «Lucas Moreno y Anna», «Lucas, Anna y Equipo».
+    var names: String {
+        let titles = map { "«\($0.title)»" }
+        guard titles.count > 1 else { return titles.first ?? "" }
+        return titles.dropLast().joined(separator: ", ") + " " + tr("y") + " " + titles.last!
+    }
+}
+
+public struct ScheduledTask: Identifiable, Hashable, Codable, Sendable {
+    public var id: Int64?
+    /// Lo que el agente debe hacer, con las palabras del usuario.
+    public var instruction: String
+    public var schedule: TaskSchedule
+    public var enabled: Bool
+    public var createdAt: Date
+    public var nextRun: Date?
+    public var lastRun: Date?
+    /// Respuesta o error de la última ejecución.
+    public var lastResult: String?
+    /// Si los hay, el resultado se les envía a esas personas o grupos en vez de al usuario.
+    public var recipients: [TaskRecipient]
+    /// Lo que la tarea manda a sus destinatarios sale sin pedir confirmación en el Mac. Solo lo
+    /// decide el usuario en la app; el agente no puede activarlo.
+    public var sendWithoutAsking: Bool
+
+    public init(id: Int64? = nil, instruction: String, schedule: TaskSchedule, enabled: Bool = true,
+                createdAt: Date = Date(), nextRun: Date? = nil, lastRun: Date? = nil, lastResult: String? = nil,
+                recipients: [TaskRecipient] = [], sendWithoutAsking: Bool = false) {
+        self.recipients = recipients
+        self.sendWithoutAsking = sendWithoutAsking
+        self.id = id
+        self.instruction = instruction
+        self.schedule = schedule
+        self.enabled = enabled
+        self.createdAt = createdAt
+        self.nextRun = nextRun
+        self.lastRun = lastRun
+        self.lastResult = lastResult
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, instruction, schedule, enabled, createdAt, nextRun, lastRun, lastResult, recipients, sendWithoutAsking
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(Int64.self, forKey: .id)
+        instruction = try c.decode(String.self, forKey: .instruction)
+        schedule = try c.decode(TaskSchedule.self, forKey: .schedule)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
+        nextRun = try c.decodeIfPresent(Date.self, forKey: .nextRun)
+        lastRun = try c.decodeIfPresent(Date.self, forKey: .lastRun)
+        lastResult = try c.decodeIfPresent(String.self, forKey: .lastResult)
+        recipients = try c.decodeIfPresent([TaskRecipient].self, forKey: .recipients) ?? []
+        sendWithoutAsking = try c.decodeIfPresent(Bool.self, forKey: .sendWithoutAsking) ?? false
+    }
+}
+
+/// Persistencia de las tareas programadas.
+public protocol TaskStoring: Sendable {
+    func tasks() throws -> [ScheduledTask]
+    @discardableResult func addTask(_ task: ScheduledTask) throws -> ScheduledTask
+    func updateTask(_ task: ScheduledTask) throws
+    func deleteTask(id: Int64) throws
+}
+
+public enum TaskAction {
+    public static let schedule: ActionID = "tasks.schedule"
+    public static let cancel: ActionID = "tasks.cancel"
+    public static let limit = 50
+
+    public static let descriptors: [ActionDescriptor] = [
+        .init(id: schedule, title: "Programar tareas",
+              detail: "El agente crea tareas que se repiten sin que estés delante.", defaultRule: .allow),
+        .init(id: cancel, title: "Cancelar tareas", defaultRule: .allow),
+    ]
+}

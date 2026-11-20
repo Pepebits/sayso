@@ -1,0 +1,169 @@
+import AVFoundation
+import AppKit
+import IOKit.pwr_mgt
+import SaySoCore
+import SaySoUI
+import ServiceManagement
+import SwiftUI
+
+/// Panel flotante de la píldora de dictado. No roba el foco a la app de destino.
+@MainActor
+final class DictationHUD {
+    private var panel: NSPanel?
+    private let state = DictationHUDState()
+
+    /// El atajo que se dibuja en la píldora.
+    var keySymbol: String {
+        get { state.keySymbol }
+        set { state.keySymbol = newValue }
+    }
+
+    func show(_ phase: DictationPhase, transcript: String = "") {
+        if case .idle = phase { return hide() }
+        state.phase = phase
+        state.transcript = transcript
+        let panel = self.panel ?? makePanel()
+        self.panel = panel
+        // Solo se coloca al aparecer, en la pantalla donde está el puntero; mientras está a la
+        // vista no se mueve ni cambia de tamaño.
+        if !panel.isVisible {
+            let mouse = NSEvent.mouseLocation
+            let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
+            if let frame = screen?.visibleFrame {
+                panel.setFrameOrigin(NSPoint(x: frame.midX - DictationHUDStage.size.width / 2, y: frame.minY + 48))
+            }
+            panel.orderFrontRegardless()
+        }
+    }
+
+    func hide() {
+        panel?.orderOut(nil)
+        state.phase = .idle
+        state.transcript = ""
+    }
+
+    private func makePanel() -> NSPanel {
+        let panel = NSPanel(contentRect: NSRect(origin: .zero, size: DictationHUDStage.size),
+                            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
+        panel.isFloatingPanel = true
+        panel.level = .statusBar
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = false
+        panel.ignoresMouseEvents = true
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+        let host = NSHostingView(rootView: DictationHUDStage(state: state).appLanguage())
+        host.frame = NSRect(origin: .zero, size: DictationHUDStage.size)
+        panel.contentView = host
+        return panel
+    }
+}
+
+/// Voz del agente: lee sus respuestas con la síntesis de macOS, sin red.
+@MainActor
+final class Speaker: NSObject, AVSpeechSynthesizerDelegate {
+    private let synthesizer = AVSpeechSynthesizer()
+    private var speaking = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    override init() {
+        super.init()
+        synthesizer.delegate = self
+    }
+
+    /// Vuelve cuando termina (o se corta) lo que se esté leyendo; enseguida si no se lee nada.
+    func waitUntilFinished() async {
+        guard speaking else { return }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    private func finished() {
+        speaking = false
+        let pending = waiters
+        waiters = []
+        pending.forEach { $0.resume() }
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        Task { @MainActor in self.finished() }
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        Task { @MainActor in self.finished() }
+    }
+
+    func speak(_ text: String, language: String?) {
+        stop()
+        speaking = true
+        let utterance = AVSpeechUtterance(string: text)
+        // La voz sigue el idioma del dictado; sin él, el de la app.
+        let code = language ?? L10n.speechCode
+        utterance.voice = AVSpeechSynthesisVoice(language: code)
+        synthesizer.speak(utterance)
+    }
+
+    func stop() {
+        if synthesizer.isSpeaking { synthesizer.stopSpeaking(at: .immediate) }
+        if speaking { finished() }
+    }
+}
+
+/// Diálogo «Preguntar» del motor de permisos (ADR-0007). Siempre en el Mac.
+final class ConfirmationWindowPresenter: ConfirmationPresenter {
+    func confirm(_ request: ActionRequest, descriptor: ActionDescriptor?) async -> ConfirmationResult {
+        await withCheckedContinuation { continuation in
+            Task { @MainActor in
+                var window: NSWindow?
+                var answered = false
+                let finish: (ConfirmationResult) -> Void = { result in
+                    guard !answered else { return }
+                    answered = true
+                    window?.orderOut(nil)
+                    window = nil
+                    continuation.resume(returning: result)
+                }
+                let view = ConfirmationView(request: request, descriptor: descriptor, onResult: finish)
+                let host = NSHostingController(rootView: view.appLanguage())
+                let win = NSWindow(contentViewController: host)
+                win.title = tr("SaySo necesita tu permiso")
+                win.styleMask = [.titled]
+                win.level = .modalPanel
+                win.isReleasedWhenClosed = false
+                win.center()
+                window = win
+                NSApp.activate(ignoringOtherApps: true)
+                win.makeKeyAndOrderFront(nil)
+            }
+        }
+    }
+}
+
+/// «Mantener el Mac activo»: evita el reposo del sistema; la pantalla puede apagarse.
+@MainActor
+final class KeepAwake {
+    private var assertion: IOPMAssertionID = 0
+    private var active = false
+
+    func set(_ enabled: Bool) {
+        guard enabled != active else { return }
+        if enabled {
+            let ok = IOPMAssertionCreateWithName(kIOPMAssertionTypePreventUserIdleSystemSleep as CFString,
+                                                 IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                                                 "SaySo mantiene el Mac activo para el agente" as CFString,
+                                                 &assertion)
+            active = ok == kIOReturnSuccess
+        } else {
+            IOPMAssertionRelease(assertion)
+            active = false
+        }
+    }
+}
+
+/// «Abrir al iniciar sesión». Solo funciona desde el paquete .app firmado.
+enum LoginItem {
+    static var isEnabled: Bool { SMAppService.mainApp.status == .enabled }
+
+    static func set(_ enabled: Bool) throws {
+        if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+    }
+}

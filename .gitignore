@@ -1,0 +1,14 @@
+.build*/
+.swiftpm/
+*.app
+DerivedData/
+.DS_Store
+build/
+*.dmg
+*.zip
+.stitch/
+tools/sandbox-probe/.build/
+*.xcuserstate
+xcuserdata/
+.env
+.env.*

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key><string>SaySo</string>
+	<key>CFBundleDisplayName</key><string>SaySo</string>
+	<key>CFBundleIdentifier</key><string>com.pepebits.sayso</string>
+	<key>CFBundleExecutable</key><string>SaySo</string>
+	<key>CFBundleIconFile</key><string>AppIcon</string>
+	<key>CFBundlePackageType</key><string>APPL</string>
+	<key>CFBundleShortVersionString</key><string>0.2.0</string>
+	<key>CFBundleVersion</key><string>6</string>
+	<key>CFBundleDevelopmentRegion</key><string>es</string>
+	<key>CFBundleLocalizations</key><array><string>es</string><string>en</string><string>gl</string><string>fr</string><string>pt</string></array>
+	<key>LSMinimumSystemVersion</key><string>14.0</string>
+	<key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
+	<key>NSHighResolutionCapable</key><true/>
+	<key>NSPrincipalClass</key><string>NSApplication</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>SaySo escucha el micrófono solo mientras mantienes el atajo de dictado.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>SaySo convierte en texto lo que dictas, en este Mac.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>SaySo ejecuta los scripts que has aprobado, como crear una nota o cambiar el volumen.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>SaySo añade los recordatorios que le pides.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>SaySo lee tu calendario de hoy cuando se lo pides.</string>
+</dict>
+</plist>

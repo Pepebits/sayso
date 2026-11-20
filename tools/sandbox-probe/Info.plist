@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key><string>com.pepebits.sayso.sandboxprobe</string>
+	<key>CFBundleName</key><string>SandboxProbe</string>
+	<key>CFBundleExecutable</key><string>SandboxProbe</string>
+	<key>CFBundlePackageType</key><string>APPL</string>
+	<key>CFBundleShortVersionString</key><string>0.1</string>
+	<key>CFBundleVersion</key><string>1</string>
+	<key>LSMinimumSystemVersion</key><string>14.0</string>
+	<key>NSPrincipalClass</key><string>NSApplication</string>
+	<key>NSHighResolutionCapable</key><true/>
+	<key>NSMicrophoneUsageDescription</key><string>Prueba de sandbox: comprobar que se puede pedir el micrófono.</string>
+	<key>NSAppleEventsUsageDescription</key><string>Prueba de sandbox: comprobar si se puede hablar con Notas.</string>
+	<key>NSRemindersFullAccessUsageDescription</key><string>Prueba de sandbox: comprobar el acceso a Recordatorios.</string>
+</dict>
+</plist>
