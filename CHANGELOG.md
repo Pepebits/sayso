@@ -6,6 +6,8 @@ All notable changes to SaySo are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-11-20
+
 ### Added
 
 - Telegram account: send albums, polls and quizzes (groups and channels), locations, contact cards and dice
@@ -74,5 +76,6 @@ First public version, signed and notarized.
 
 - "Type at the cursor", so SaySo no longer needs the Accessibility permission
 
-[Unreleased]: https://github.com/Pepebits/sayso/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Pepebits/sayso/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Pepebits/sayso/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Pepebits/sayso/releases/tag/v0.2.0
