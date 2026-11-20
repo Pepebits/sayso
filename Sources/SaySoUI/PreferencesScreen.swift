@@ -38,6 +38,12 @@ struct PreferencesScreen: View {
                         BlockToggle(isOn: Binding(get: { model.keepAwake }, set: { model.actions?.setKeepAwake($0) }),
                                     label: "Mantener el Mac activo")
                     }
+                    CardDivider()
+                    SettingRow(icon: "speaker.wave.2", title: "Leer los avisos en voz alta",
+                               detail: "Los avisos de mensajes y de trabajos terminados, con la voz del Mac. Esperan si estás dictando o si SaySo está hablando.") {
+                        BlockToggle(isOn: Binding(get: { model.speakAlerts }, set: { model.actions?.setSpeakAlerts($0) }),
+                                    label: "Leer los avisos en voz alta")
+                    }
                 }
             }
 

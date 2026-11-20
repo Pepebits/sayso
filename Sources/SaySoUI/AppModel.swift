@@ -22,6 +22,8 @@ public final class AppModel {
     /// Uso de los últimos 90 días y totales, para la pantalla Estadísticas.
     public var stats = UsageStats()
     public var keepAwake = false
+    /// Los avisos y las notificaciones de SaySo también se leen en voz alta.
+    public var speakAlerts = true
     /// El agente deja de atender mientras el Mac está bloqueado.
     public var pauseWhenLocked = false
     /// Protección: revisar acciones tras leer contenido ajeno, y qué detector de inyecciones se usa.
@@ -157,6 +159,7 @@ public protocol AppActions: AnyObject {
     func setAgentRunning(_ running: Bool)
     func setOpenAtLogin(_ enabled: Bool)
     func setKeepAwake(_ enabled: Bool)
+    func setSpeakAlerts(_ enabled: Bool)
     func setPauseWhenLocked(_ enabled: Bool)
     func setGuardReview(_ enabled: Bool)
     func setGuardDetector(_ choice: GuardSettings.Detector)

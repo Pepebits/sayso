@@ -219,4 +219,6 @@ public struct MessageWatch: Codable, Hashable, Sendable, Identifiable {
 
 public extension SettingsKey {
     static let messageWatches = "telegram.watches"
+    /// Leer en voz alta los avisos y las notificaciones de SaySo.
+    static let speakAlerts = "alerts.speak"
 }

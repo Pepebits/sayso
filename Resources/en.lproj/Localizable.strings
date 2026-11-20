@@ -1458,3 +1458,6 @@
 "En el Mac" = "On the Mac";
 "Enviando por Telegram" = "Sending on Telegram";
 "Trabajando…" = "Working…";
+"Leer los avisos en voz alta" = "Read alerts aloud";
+"Los avisos de mensajes y de trabajos terminados, con la voz del Mac. Esperan si estás dictando o si SaySo está hablando." = "Message alerts and finished jobs, with the Mac’s voice. They wait while you dictate or SaySo is speaking.";
+"Aviso de %@." = "Alert from %@.";

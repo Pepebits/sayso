@@ -14,6 +14,7 @@ final class PreviewActions: AppActions {
     func setAgentRunning(_ running: Bool) { model.agentRunning = running }
     func setOpenAtLogin(_ enabled: Bool) { model.openAtLogin = enabled }
     func setKeepAwake(_ enabled: Bool) { model.keepAwake = enabled }
+    func setSpeakAlerts(_ enabled: Bool) { model.speakAlerts = enabled }
     func updateDictation(_ settings: DictationSettings) { model.dictation = settings }
     func requestSystemPermission(_ kind: SystemPermissionKind) { model.systemPermissions[kind] = true }
     func addAccount(_ account: ProviderAccount, apiKey: String?) {

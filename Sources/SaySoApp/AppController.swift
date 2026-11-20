@@ -180,6 +180,7 @@ final class AppController: AppActions {
         model.dictation = (try? store.codableSetting(SettingsKey.dictation)) ?? DictationSettings()
         model.agentRunning = flag(SettingsKey.agentRunning, default: true)
         model.keepAwake = flag(SettingsKey.keepAwake, default: false)
+        model.speakAlerts = flag(SettingsKey.speakAlerts, default: true)
         model.pauseWhenLocked = flag(SettingsKey.pauseWhenLocked, default: false)
         model.guardReview = flag(GuardSettings.review, default: true)
         model.guardDetector = (try? store.setting(GuardSettings.detector)).flatMap { $0 }
@@ -993,6 +994,7 @@ final class AppController: AppActions {
             let tail = (services?.redactor.redact(item.tail) ?? item.tail).trimmingCharacters(in: .whitespacesAndNewlines)
             let text = "🛠 " + tr("El trabajo «%@» %@.", item.job.name, state) + (tail.isEmpty ? "" : "\n\n" + String(tail.suffix(1500)))
             model.log(item.code == 0 ? .info : .warning, LogCategory.computer, tr("El trabajo «%@» %@.", item.job.name, state))
+            speakAlert(tr("El trabajo «%@» %@.", item.job.name, state))
             // Por donde se pidió: el bot si vino de Telegram; si no, una notificación del Mac.
             if item.job.origin?.hasPrefix("telegram") == true, await telegram?.sendToOwner(text) == true { continue }
             _ = try? await services?.runner.run(.notification(title: tr("Trabajo terminado"), body: tr("«%@» %@.", item.job.name, state)),
@@ -1574,6 +1576,24 @@ final class AppController: AppActions {
         model.openAtLogin = LoginItem.isEnabled
     }
 
+    func setSpeakAlerts(_ enabled: Bool) {
+        model.speakAlerts = enabled
+        setFlag(enabled, SettingsKey.speakAlerts)
+    }
+
+    /// Lee un aviso en voz alta sin pisar nada: espera a que termine lo que se esté leyendo, y no
+    /// habla mientras se dicta.
+    private func speakAlert(_ text: String) {
+        guard model.speakAlerts else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            await self.speaker.waitUntilFinished()
+            for _ in 0..<60 where self.model.dictationPhase != .idle { try? await Task.sleep(nanoseconds: 1_000_000_000) }
+            guard self.model.dictationPhase == .idle else { return }
+            self.speaker.speak(text, language: self.model.dictation.language)
+        }
+    }
+
     func setKeepAwake(_ enabled: Bool) {
         model.keepAwake = enabled
         setFlag(enabled, SettingsKey.keepAwake)
@@ -2072,6 +2092,7 @@ final class AppController: AppActions {
     /// En el Mac también: una notificación y una línea en Registros.
     private func announceWatch(_ watch: MessageWatch, body: String, count: Int) async {
         model.log(.info, LogCategory.telegram, tr("Aviso de «%@»: %@ mensaje(s)", watch.chatTitle, "\(count)"))
+        speakAlert(tr("Aviso de %@.", watch.chatTitle) + " " + String(body.prefix(300)))
         do {
             _ = try await services?.runner.run(.notification(title: tr("Aviso de «%@»", watch.chatTitle),
                                                              body: String(body.prefix(240))),
