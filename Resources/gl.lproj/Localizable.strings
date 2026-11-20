@@ -1439,3 +1439,8 @@
 "No se pudo atender el aviso de «%@»: %@" = "Non se puido atender o aviso de «%@»: %@";
 "Aviso de «%@»: %@ mensaje(s)" = "Aviso de «%@»: %@ mensaxe(s)";
 "Aviso de «%@»" = "Aviso de «%@»";
+"No se pudo mostrar la notificación: %@" = "Non se puido mostrar a notificación: %@";
+"Las notificaciones de SaySo están desactivadas en Ajustes del Sistema → Notificaciones." = "As notificacións de SaySo están desactivadas en Axustes do Sistema → Notificacións.";
+"Notificaciones permitidas" = "Notificacións permitidas";
+"Notificaciones no permitidas" = "Notificacións non permitidas";
+"No se pudo pedir permiso para notificar: %@" = "Non se puido pedir permiso para notificar: %@";

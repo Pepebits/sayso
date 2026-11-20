@@ -1440,3 +1440,8 @@
 "No se pudo atender el aviso de «%@»: %@" = "Couldn’t handle the alert for “%@”: %@";
 "Aviso de «%@»: %@ mensaje(s)" = "Alert for “%@”: %@ message(s)";
 "Aviso de «%@»" = "Alert: “%@”";
+"No se pudo mostrar la notificación: %@" = "Couldn’t show the notification: %@";
+"Las notificaciones de SaySo están desactivadas en Ajustes del Sistema → Notificaciones." = "SaySo notifications are turned off in System Settings → Notifications.";
+"Notificaciones permitidas" = "Notifications allowed";
+"Notificaciones no permitidas" = "Notifications not allowed";
+"No se pudo pedir permiso para notificar: %@" = "Couldn’t ask for notification permission: %@";

@@ -1430,3 +1430,8 @@
 "No se pudo atender el aviso de «%@»: %@" = "Impossible de traiter l’alerte de « %@ » : %@";
 "Aviso de «%@»: %@ mensaje(s)" = "Alerte « %@ » : %@ message(s)";
 "Aviso de «%@»" = "Alerte : « %@ »";
+"No se pudo mostrar la notificación: %@" = "Impossible d’afficher la notification : %@";
+"Las notificaciones de SaySo están desactivadas en Ajustes del Sistema → Notificaciones." = "Les notifications de SaySo sont désactivées dans Réglages Système → Notifications.";
+"Notificaciones permitidas" = "Notifications autorisées";
+"Notificaciones no permitidas" = "Notifications non autorisées";
+"No se pudo pedir permiso para notificar: %@" = "Impossible de demander l’autorisation de notifier : %@";

@@ -8,6 +8,7 @@ import SaySoStore
 import SaySoTDLib
 import SaySoUI
 import SaySoVM
+import UserNotifications
 
 /// Une los módulos y mantiene `AppModel` al día. Implementa lo que piden las pantallas.
 @MainActor
@@ -131,6 +132,7 @@ final class AppController: AppActions {
             runSelfTestIfRequested()
             runPluginSelfTestIfRequested()
         runTelegramSelfTestIfRequested()
+        requestNotificationPermission()
         runVMSelfTestIfRequested()
         runFeatureSelfTestIfRequested()
         runGuardSelfTestIfRequested()
@@ -1986,6 +1988,29 @@ final class AppController: AppActions {
         }
     }
 
+    /// Pide permiso para las notificaciones al arrancar, para que el diálogo de macOS salga ya y no
+    /// la primera vez que haga falta avisar. Si no se puede, queda en Registros por qué.
+    private func requestNotificationPermission() {
+        Task { [weak self] in
+            let center = UNUserNotificationCenter.current()
+            let settings = await center.notificationSettings()
+            guard settings.authorizationStatus == .notDetermined else {
+                if settings.authorizationStatus == .denied {
+                    self?.model.log(.warning, LogCategory.app,
+                                    tr("Las notificaciones de SaySo están desactivadas en Ajustes del Sistema → Notificaciones."))
+                }
+                return
+            }
+            do {
+                let granted = try await center.requestAuthorization(options: [.alert, .sound])
+                self?.model.log(granted ? .info : .warning, LogCategory.app,
+                                granted ? tr("Notificaciones permitidas") : tr("Notificaciones no permitidas"))
+            } catch {
+                self?.model.log(.warning, LogCategory.app, tr("No se pudo pedir permiso para notificar: %@", error.localizedDescription))
+            }
+        }
+    }
+
     // MARK: - Avisos por mensajes
 
     /// Mensajes que esperan a que pase el minuto de su aviso.
@@ -2047,9 +2072,13 @@ final class AppController: AppActions {
     /// En el Mac también: una notificación y una línea en Registros.
     private func announceWatch(_ watch: MessageWatch, body: String, count: Int) async {
         model.log(.info, LogCategory.telegram, tr("Aviso de «%@»: %@ mensaje(s)", watch.chatTitle, "\(count)"))
-        _ = try? await services?.runner.run(.notification(title: tr("Aviso de «%@»", watch.chatTitle),
-                                                          body: String(body.prefix(240))),
-                                            origin: "aviso:\(watch.id)")
+        do {
+            _ = try await services?.runner.run(.notification(title: tr("Aviso de «%@»", watch.chatTitle),
+                                                             body: String(body.prefix(240))),
+                                               origin: "aviso:\(watch.id)")
+        } catch {
+            model.log(.warning, LogCategory.app, tr("No se pudo mostrar la notificación: %@", error.localizedDescription))
+        }
     }
 
     func deleteWatch(id: String) {
