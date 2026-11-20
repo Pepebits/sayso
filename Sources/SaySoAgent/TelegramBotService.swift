@@ -111,6 +111,17 @@ public actor TelegramBotService {
         try await client.sendFile(chatID: ownerID, data: data, filename: filename, caption: caption, asPhoto: false)
     }
 
+    /// Manda un widget al dueño. Devuelve el número del mensaje, para actualizarlo después.
+    public func sendWidgetToOwner(html: String, height: Int?, chatData: String?, caption: String?) async throws -> Int64 {
+        guard let ownerID else { throw ToolInputError("Aún no hay nadie emparejado con el bot.") }
+        return try await client.sendWidget(chatID: ownerID, html: html, height: height, chatData: chatData, caption: caption).messageId
+    }
+
+    public func updateOwnerWidget(messageID: Int64, chatData: String) async throws {
+        guard let ownerID else { throw ToolInputError("Aún no hay nadie emparejado con el bot.") }
+        try await client.editMessageWidgetData(chatID: ownerID, messageID: messageID, chatData: chatData)
+    }
+
     /// Olvida al dueño y genera un código nuevo.
     public func resetPairing() {
         try? store.setSetting(nil, for: SettingsKey.telegramOwnerID)

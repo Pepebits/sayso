@@ -132,6 +132,7 @@ final class AppController: AppActions {
             runPluginSelfTestIfRequested()
         runTelegramSelfTestIfRequested()
         runVMSelfTestIfRequested()
+        runFeatureSelfTestIfRequested()
         runGuardSelfTestIfRequested()
             runConsoleSelfTestIfRequested()
             runDesktopSelfTestIfRequested()
@@ -1208,6 +1209,49 @@ final class AppController: AppActions {
     /// del usuario, con el tipo que le corresponde por extensión, y apunta el resultado de cada uno.
     /// Ayuda de desarrollo: con SAYSO_VM_SELFTEST=<ruta de salida> y SAYSO_VM_SCRIPT=<archivo con un
     /// script de bash>, arranca la máquina Linux si hace falta, ejecuta el script dentro y apunta la salida.
+    /// Ayuda de desarrollo: con SAYSO_FEATURE_SELFTEST=<carpeta> prueba los widgets (al dueño del
+    /// bot), la conversión de HTML (tall.html y scene.html de esa carpeta) y un trabajo largo.
+    private func runFeatureSelfTestIfRequested() {
+        guard let folder = ProcessInfo.processInfo.environment["SAYSO_FEATURE_SELFTEST"] else { return }
+        let dir = URL(fileURLWithPath: folder)
+        Task { @MainActor in
+            var lines: [String] = []
+            func flush() { try? lines.joined(separator: "\n").write(to: dir.appendingPathComponent("informe.txt"), atomically: true, encoding: .utf8) }
+            for (name, format, wait) in [("tall", HTMLRenderOptions.Format.png, 1.0), ("scene", .png, 4.0), ("tall", .pdf, 1.0)] {
+                do {
+                    let html = try String(contentsOf: dir.appendingPathComponent("\(name).html"), encoding: .utf8)
+                    let data = try await HTMLRenderer().render(html, options: HTMLRenderOptions(format: format, width: 800, wait: wait))
+                    try data.write(to: dir.appendingPathComponent("\(name).\(format.rawValue)"))
+                    lines.append("OK \(name).\(format.rawValue): \(data.count / 1024) KB")
+                } catch { lines.append("FALLO \(name).\(format.rawValue): \(error)") }
+                flush()
+            }
+            for _ in 0..<30 where telegram == nil { try? await Task.sleep(nanoseconds: 1_000_000_000) }
+            if let services, let send = services.widgets.current?.send, let update = services.widgets.current?.update {
+                let html = "<div style='font:15px system-ui;padding:12px'><b>Prueba de SaySo</b><div id=v style='font-size:28px;margin-top:8px'></div></div>" +
+                    "<script>const W=window.TelegramWidget;function d(){let s={};try{s=JSON.parse(W.chatData)||{}}catch(e){}" +
+                    "document.getElementById('v').textContent='Contador: '+(s.n??'?')}W.onEvent('chatDataChanged',d);d()</script>"
+                do {
+                    let id = try await send(html, nil, "{\"n\":1}", "Widget de prueba")
+                    lines.append("OK widget enviado: mensaje \(id)")
+                    try await Task.sleep(nanoseconds: 4_000_000_000)
+                    try await update(id, "{\"n\":2}")
+                    lines.append("OK widget actualizado a 2")
+                } catch { lines.append("FALLO widget: \(error)") }
+            } else { lines.append("FALLO widget: sin bot") }
+            flush()
+            if let computer = agentComputer, let store {
+                do {
+                    let out = try await StartJobTool(computer: computer, store: store)
+                        .call(input: ["name": "Prueba de 20 segundos", "command": "sleep 20; echo hecho"], context: ToolContext(origin: "telegram:prueba"))
+                    lines.append("OK trabajo: \(out)")
+                } catch { lines.append("FALLO trabajo: \(error)") }
+            }
+            lines.append("fin")
+            flush()
+        }
+    }
+
     private func runVMSelfTestIfRequested() {
         let env = ProcessInfo.processInfo.environment
         guard let path = env["SAYSO_VM_SELFTEST"], let scriptPath = env["SAYSO_VM_SCRIPT"],
@@ -1814,6 +1858,13 @@ final class AppController: AppActions {
             guard let service else { throw ToolInputError("El bot de Telegram no está conectado.") }
             try await service.sendFileToOwner(data, filename: filename, caption: caption)
         }
+        services.widgets.set(send: { [weak service] html, height, data, caption in
+            guard let service else { throw ToolInputError("El bot de Telegram no está conectado.") }
+            return try await service.sendWidgetToOwner(html: html, height: height, chatData: data, caption: caption)
+        }, update: { [weak service] messageID, data in
+            guard let service else { throw ToolInputError("El bot de Telegram no está conectado.") }
+            try await service.updateOwnerWidget(messageID: messageID, chatData: data)
+        })
         Task { await service.start() }
     }
 
@@ -1821,6 +1872,7 @@ final class AppController: AppActions {
         guard let telegram else { return }
         self.telegram = nil
         services?.outbox.set(nil)
+        services?.widgets.set(send: nil, update: nil)
         Task { await telegram.stop() }
         model.telegramStatus = .disconnected
         model.pairingCode = nil
@@ -2299,6 +2351,7 @@ final class AgentServices: Sendable {
     let telegramUser: TelegramUserHolder
     /// Por dónde manda archivos el agente; la app lo conecta mientras hay bot.
     let outbox = TelegramOutbox()
+    let widgets = WidgetOutbox()
     /// Un único tope de envíos para todas las conversaciones.
     let sendLimiter = SendRateLimiter()
     /// Prompt Guard en la máquina Linux: un solo proceso para toda la app.
@@ -2366,6 +2419,15 @@ final class AgentServices: Sendable {
         if let userSession {
             tools += TelegramUserTools.all(api: userSession, broker: broker, limiter: sendLimiter, ownBotID: ownBotID,
                                            computer: installedComputer, transcribe: transcribeVoice, vision: vision)
+        }
+        // Widgets por el bot y documentos HTML convertidos en imagen o PDF.
+        tools += [SendWidgetTool(outbox: widgets, broker: broker, computer: installedComputer),
+                  UpdateWidgetTool(outbox: widgets, broker: broker)]
+        if let installedComputer {
+            tools.append(RenderHTMLTool(computer: installedComputer) { html, options in
+                let renderer = await HTMLRenderer()
+                return try await renderer.render(html, options: options)
+            })
         }
         tools += await plugins.tools(connect: !quick)
         // Con plugins hay más pasos por tarea que en una charla.

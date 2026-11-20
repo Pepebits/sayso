@@ -173,6 +173,10 @@ public struct ComputerWriteFileTool: AgentTool {
 public struct StartJobTool: AgentTool {
     let computer: AgentComputer
     let store: SaySoStoring
+    public init(computer: AgentComputer, store: SaySoStoring) {
+        self.computer = computer
+        self.store = store
+    }
     public var name: String { "computer_start_job" }
     public var description: String {
         """

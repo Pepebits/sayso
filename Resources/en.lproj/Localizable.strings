@@ -1425,3 +1425,5 @@
 "la máquina Linux se apagó antes de terminar" = "the Linux machine shut down before it finished";
 "Trabajo terminado" = "Job finished";
 "«%@» %@." = "“%@” %@.";
+"Enviarte widgets" = "Send you widgets";
+"Mandarte por el bot pequeñas páginas vivas: paneles, gráficos, tablas o calculadoras." = "Send you small live pages through the bot: dashboards, charts, tables or calculators.";

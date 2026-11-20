@@ -296,6 +296,7 @@ struct TelegramScreen: View {
         case TelegramAction.deleteMessages: return "trash"
         case TelegramAction.guestReply: return "at"
         case "telegram.sendFile": return "paperclip"
+        case "telegram.sendWidget": return "rectangle.on.rectangle"
         case TelegramAction.forward: return "arrowshape.turn.up.right"
         case TelegramAction.edit: return "pencil"
         case TelegramAction.react: return "face.smiling"

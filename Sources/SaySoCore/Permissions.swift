@@ -149,6 +149,8 @@ public enum TelegramAction {
         // Apagado mientras no se elija otra cosa: la respuesta se publica en un chat ajeno.
         .init(id: "telegram.sendFile", title: "Enviarte archivos",
               detail: "Mandarte por el bot una imagen o un archivo del ordenador del agente.", defaultRule: .allow),
+        .init(id: "telegram.sendWidget", title: "Enviarte widgets",
+              detail: "Mandarte por el bot pequeñas páginas vivas: paneles, gráficos, tablas o calculadoras.", defaultRule: .allow),
         .init(id: guestReply, title: "Responder a menciones",
               detail: "Contestar cuando mencionas al bot en un chat donde no está. Sin memoria ni acceso a tus chats; puede buscar en la web y adjuntar una foto.",
               defaultRule: .never),

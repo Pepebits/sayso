@@ -284,6 +284,25 @@ public struct TelegramBotClient: Sendable {
         return data
     }
 
+    // MARK: Widgets (Bot API 10.4)
+
+    /// Un mensaje con un widget HTML. En producción, solo en chats privados con el bot.
+    public func sendWidget(chatID: Int64, html: String, height: Int? = nil, chatData: String? = nil,
+                           caption: String? = nil) async throws -> TGMessage {
+        var body: [String: JSONValue] = ["chat_id": .number(Double(chatID)), "html": .string(html)]
+        if let height { body["height"] = .number(Double(height)) }
+        if let chatData, !chatData.isEmpty { body["chat_data"] = .string(chatData) }
+        if let caption, !caption.isEmpty { body["caption"] = .string(String(caption.prefix(1024))) }
+        return try await call("sendWidget", body)
+    }
+
+    /// Cambia los datos de un widget ya enviado (lo que lee con `TelegramWidget.chatData`).
+    public func editMessageWidgetData(chatID: Int64, messageID: Int64, chatData: String) async throws {
+        let _: Bool = try await call("editMessageWidgetData", ["chat_id": .number(Double(chatID)),
+                                                               "message_id": .number(Double(messageID)),
+                                                               "chat_data": .string(chatData)])
+    }
+
     // MARK: Interno
 
     private func call<T: Decodable>(_ method: String, _ body: [String: JSONValue],
