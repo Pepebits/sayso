@@ -82,7 +82,9 @@ public enum JSONValue: Sendable, Hashable, Codable {
     /// Entero exacto (acepta también números en texto).
     public var intValue: Int? {
         switch self {
-        case let .number(v): return v.rounded() == v && abs(v) < 1e15 ? Int(v) : nil
+        // Hasta 2^53: el mayor entero exacto en un Double. Los mensajes programados de Telegram
+        // tienen identificadores de unos 1,5·10^15.
+        case let .number(v): return v.rounded() == v && abs(v) <= 9_007_199_254_740_992 ? Int(v) : nil
         case let .string(s): return Int(s.trimmingCharacters(in: .whitespaces))
         default: return nil
         }
