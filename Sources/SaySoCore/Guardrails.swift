@@ -32,7 +32,7 @@ public struct GuardContext: Sendable, Hashable {
 public enum GuardPolicy {
     /// Acciones que salen del Mac o cambian algo del usuario: las que una inyección querría provocar.
     public static let outwardActions: Set<ActionID> = [
-        TelegramAction.sendMessages, TelegramAction.deleteMessages, "telegram.sendFile",
+        TelegramAction.sendMessages, TelegramAction.deleteMessages, "telegram.sendFile", TelegramAction.guestReply,
         TelegramAction.forward, TelegramAction.edit, TelegramAction.react,
         TelegramAction.pin, TelegramAction.contacts, TelegramAction.groups, TelegramAction.vote,
         MacScript.openURL.action, MacScript.note.action, MacScript.reminder.action,

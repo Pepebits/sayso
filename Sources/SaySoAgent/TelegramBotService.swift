@@ -587,13 +587,19 @@ public actor TelegramBotService {
         do {
             let attachment = GuestAttachment()
             let answer: String
+            // Lo que se sabe del turno (contenido ajeno leído, avisos del detector), para revisar la
+            // respuesta antes de publicarla en el chat ajeno.
+            let turn = GuardBox()
+            let quotedSource = "un mensaje citado de otra persona"
             if let makeGuestLoop {
                 // Con herramientas acotadas: buscar en la web y bajar cosas a la máquina Linux, para
                 // poder contestar con una foto. Ni memoria, ni chats, ni el Mac.
                 let loop = try await makeGuestLoop(attachment)
                 answer = try await loop.respond(to: prompt, chatID: "invitado", origin: "invitado:\(owner)",
                                                 instructions: Self.guestInstructions + "\n\n" + Self.guestToolsNote,
-                                                maxTokens: 1024, useHistory: false)
+                                                maxTokens: 1024, useHistory: false,
+                                                untrusted: quoted.isEmpty ? [] : [(quotedSource, quoted)],
+                                                onGuard: { turn.set($0) })
             } else {
                 let loop = try await makeLoop()
                 answer = try await loop.answer(prompt: prompt, instructions: Self.guestInstructions,
@@ -609,8 +615,13 @@ public actor TelegramBotService {
                 parameters: ["chat": place, "text": text] .merging(photo.map { ["foto": $0.filename] } ?? [:]) { a, _ in a },
                 origin: "telegram:\(owner)")
             let client = self.client
-            // El motor de permisos aplica la regla (permitir o preguntar en el Mac) y lo apunta.
-            try await broker.run(request) {
+            // El motor de permisos aplica la regla (permitir o preguntar en el Mac) y lo apunta. Con
+            // el contexto del turno: si se leyó contenido ajeno, el revisor comprueba que la respuesta
+            // es lo que pidió el usuario, y un aviso del detector la lleva a preguntar.
+            var context = turn.get() ?? GuardContext(userRequest: "Usuario: " + prompt)
+            if !quoted.isEmpty, !context.thirdPartySources.contains(quotedSource) { context.thirdPartySources.append(quotedSource) }
+            let broker = self.broker
+            try await GuardContext.$current.withValue(context) { try await broker.run(request) {
                 if let photo {
                     // Para mandar una foto en modo invitado hace falta que ya esté en Telegram: se sube
                     // al chat del usuario con el bot y se responde con ella.
@@ -621,7 +632,7 @@ public actor TelegramBotService {
                 } else {
                     try await client.answerGuestQuery(id: queryID, text: text)
                 }
-            }
+            } }
         } catch {
             // Sin respuesta en el chat ajeno: un error ahí solo molestaría a los demás. Queda en el registro.
             onDiagnostic?(tr("Respuesta en modo invitado sin enviar: %@", error.localizedDescription))
@@ -672,4 +683,12 @@ public actor TelegramBotService {
         if pieces.count == 2, let mine = me?.username, pieces[1].lowercased() != mine.lowercased() { return nil }
         return (name, args)
     }
+}
+
+/// El contexto de protección de un turno, guardado desde el bucle para usarlo después.
+private final class GuardBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: GuardContext?
+    func set(_ context: GuardContext) { lock.lock(); value = context; lock.unlock() }
+    func get() -> GuardContext? { lock.lock(); defer { lock.unlock() }; return value }
 }
