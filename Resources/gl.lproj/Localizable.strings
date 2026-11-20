@@ -1391,3 +1391,12 @@
 "Borrar algo dentro libera sitio para la máquina, pero el archivo de su disco en el Mac no encoge." = "Borrar algo dentro libera sitio para a máquina, pero o ficheiro do seu disco no Mac non encolle.";
 "Enciende la máquina Linux para ver qué ocupa por dentro: modelos del detector, Python, archivos del agente…" = "Acende a máquina Linux para ver que ocupa por dentro: modelos do detector, Python, ficheiros do axente…";
 "en uso de %@ asignados" = "en uso de %@ asignados";
+"Tamaño de la máquina" = "Tamaño da máquina";
+"Núcleos" = "Núcleos";
+"Para el agente; el Mac se queda siempre con dos." = "Para o axente; o Mac queda sempre con dous.";
+"Núcleos de la máquina Linux" = "Núcleos da máquina Linux";
+"Como mucho la mitad de la del Mac. Solo la usa mientras está en marcha." = "Como moito a metade da do Mac. Só a usa mentres está en marcha.";
+"Solo ocupa en el Mac lo que se usa de verdad. Se puede ampliar, pero no reducir." = "No Mac só ocupa o que se usa de verdade. Pódese ampliar, pero non reducir.";
+"Disco de la máquina Linux" = "Disco da máquina Linux";
+"Los cambios se aplican la próxima vez que arranque la máquina." = "Os cambios aplícanse a próxima vez que arranque a máquina.";
+"Recursos de la máquina Linux: %@ núcleos, %@ GB de memoria y %@ GB de disco. Se aplican al siguiente arranque." = "Recursos da máquina Linux: %@ núcleos, %@ GB de memoria e %@ GB de disco. Aplícanse no seguinte arranque.";

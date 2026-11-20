@@ -106,6 +106,7 @@ final class PreviewActions: AppActions {
     func newConversation(chatID: String) { model.contexts.removeAll { $0.chatID == chatID } }
     func refreshResources() {}
     func cleanTelegramFiles() {}
+    func setComputerResources(_ resources: ComputerResources) { model.computerResources = resources }
     func removeGuardModel(folder: String) {}
     func clearLog() { model.logEntries = [] }
     func relaunch() {}

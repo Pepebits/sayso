@@ -1382,3 +1382,12 @@
 "Borrar algo dentro libera sitio para la máquina, pero el archivo de su disco en el Mac no encoge." = "Supprimer quelque chose à l’intérieur libère de la place pour la machine, mais son fichier disque sur le Mac ne rétrécit pas.";
 "Enciende la máquina Linux para ver qué ocupa por dentro: modelos del detector, Python, archivos del agente…" = "Démarrez la machine Linux pour voir ce qui occupe de la place à l’intérieur : modèles du détecteur, Python, fichiers de l’agent…";
 "en uso de %@ asignados" = "utilisés sur %@ attribués";
+"Tamaño de la máquina" = "Taille de la machine";
+"Núcleos" = "Cœurs";
+"Para el agente; el Mac se queda siempre con dos." = "Pour l’agent ; le Mac en garde toujours deux.";
+"Núcleos de la máquina Linux" = "Cœurs de la machine Linux";
+"Como mucho la mitad de la del Mac. Solo la usa mientras está en marcha." = "Au maximum la moitié de celle du Mac. Elle n’est utilisée que pendant que la machine tourne.";
+"Solo ocupa en el Mac lo que se usa de verdad. Se puede ampliar, pero no reducir." = "Sur le Mac, il n’occupe que ce qui est vraiment utilisé. On peut l’agrandir, pas le réduire.";
+"Disco de la máquina Linux" = "Disque de la machine Linux";
+"Los cambios se aplican la próxima vez que arranque la máquina." = "Les modifications s’appliquent au prochain démarrage de la machine.";
+"Recursos de la máquina Linux: %@ núcleos, %@ GB de memoria y %@ GB de disco. Se aplican al siguiente arranque." = "Ressources de la machine Linux : %@ cœurs, %@ Go de mémoire et %@ Go de disque. Elles s’appliquent au prochain démarrage.";

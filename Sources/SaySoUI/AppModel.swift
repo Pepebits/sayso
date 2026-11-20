@@ -65,6 +65,10 @@ public final class AppModel {
     public var resources: ResourceUsage?
     public var computerState: ComputerState = .notInstalled { didSet { logComputer(from: oldValue) } }
     public var computerStats: ComputerStats?
+    /// Núcleos, memoria y disco de la máquina Linux para el siguiente arranque.
+    public var computerResources = ComputerResources()
+    /// Tamaño actual del disco de la máquina, en GB (no se puede bajar de ahí).
+    public var computerDiskGB = 16
     public var computerActivity: [ActivityEntry] = []
     public var desktopState: DesktopState = .notInstalled { didSet { logDesktop(from: oldValue) } }
     /// Comandos lanzados a mano desde la pantalla, del más antiguo al más reciente.
@@ -264,6 +268,8 @@ public protocol AppActions: AnyObject {
     func refreshResources()
     /// Borra los archivos descargados de Telegram que no se estén usando.
     func cleanTelegramFiles()
+    /// Guarda los recursos de la máquina Linux; se aplican al siguiente arranque.
+    func setComputerResources(_ resources: ComputerResources)
     /// Borra de la máquina Linux un modelo del detector que no está en uso (`folder`: «org--nombre»).
     func removeGuardModel(folder: String)
 

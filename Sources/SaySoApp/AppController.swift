@@ -63,16 +63,22 @@ final class AppController: AppActions {
                     + TaskAction.descriptors + PluginCatalog.all.map(\.descriptor) + [WebSearchTool.descriptor],
                 redactor: redactor)
             self.broker = broker
+            let resources: ComputerResources = ((try? store.codableSetting(SettingsKey.computerResources)) ?? nil) ?? ComputerResources()
             let computer = ComputerManager(
                 directory: try AppPaths.supportDirectory().appendingPathComponent("vm", isDirectory: true),
+                config: Self.vmConfig(resources),
                 onState: { [weak self] state in
                     self?.model.computerState = state
                     if state != .running { self?.model.computerStats = nil }
+                    // Tras arrancar con más disco, el mínimo para reducir sube.
+                    if state == .running, let size = self?.computer?.files.diskSize { self?.model.computerDiskGB = Int(size >> 30) }
                     // La ventana del escritorio sigue a la máquina: al reiniciar hay una instancia nueva.
                     self?.desktopWindow.bind(self?.computer?.virtualMachine)
                 })
             self.computer = computer
             model.computerState = computer.state
+            model.computerResources = resources
+            model.computerDiskGB = computer.files.diskSize.map { Int($0 >> 30) } ?? resources.diskGB
             desktopWindow.onClose = { [weak self] in self?.stopDesktopSession() }
             let agentComputer = VMComputer(manager: computer, broker: broker)
             self.agentComputer = agentComputer
@@ -2018,6 +2024,20 @@ final class AppController: AppActions {
             }
             self?.model.resources = usage
         }
+    }
+
+    nonisolated static func vmConfig(_ r: ComputerResources) -> VMConfig {
+        VMConfig(cpuCount: r.cpuCount, memoryBytes: UInt64(r.memoryGB) << 30, diskBytes: UInt64(r.diskGB) << 30)
+    }
+
+    func setComputerResources(_ resources: ComputerResources) {
+        var r = resources
+        r.diskGB = max(r.diskGB, model.computerDiskGB)
+        model.computerResources = r
+        try? store?.setCodableSetting(r, for: SettingsKey.computerResources)
+        computer?.update(config: Self.vmConfig(r))
+        model.log(.info, LogCategory.computer, tr("Recursos de la máquina Linux: %@ núcleos, %@ GB de memoria y %@ GB de disco. Se aplican al siguiente arranque.",
+                                                  "\(r.cpuCount)", "\(r.memoryGB)", "\(r.diskGB)"))
     }
 
     func removeGuardModel(folder: String) {

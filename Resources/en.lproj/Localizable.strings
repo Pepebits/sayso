@@ -1392,3 +1392,12 @@
 "Borrar algo dentro libera sitio para la máquina, pero el archivo de su disco en el Mac no encoge." = "Deleting something inside frees room for the machine, but its disk file on the Mac doesn’t shrink.";
 "Enciende la máquina Linux para ver qué ocupa por dentro: modelos del detector, Python, archivos del agente…" = "Start the Linux machine to see what takes space inside: detector models, Python, agent files…";
 "en uso de %@ asignados" = "in use of %@ assigned";
+"Tamaño de la máquina" = "Machine size";
+"Núcleos" = "Cores";
+"Para el agente; el Mac se queda siempre con dos." = "For the agent; the Mac always keeps two.";
+"Núcleos de la máquina Linux" = "Linux machine cores";
+"Como mucho la mitad de la del Mac. Solo la usa mientras está en marcha." = "At most half of the Mac’s. It’s only used while the machine runs.";
+"Solo ocupa en el Mac lo que se usa de verdad. Se puede ampliar, pero no reducir." = "It only takes on the Mac what is really used. It can grow, but not shrink.";
+"Disco de la máquina Linux" = "Linux machine disk";
+"Los cambios se aplican la próxima vez que arranque la máquina." = "Changes apply the next time the machine starts.";
+"Recursos de la máquina Linux: %@ núcleos, %@ GB de memoria y %@ GB de disco. Se aplican al siguiente arranque." = "Linux machine resources: %@ cores, %@ GB of memory and %@ GB of disk. They apply at the next start.";

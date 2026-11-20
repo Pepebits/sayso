@@ -9,7 +9,7 @@ import Virtualization
 @MainActor
 public final class ComputerManager: NSObject, VZVirtualMachineDelegate {
     public let files: VMFiles
-    public let config: VMConfig
+    public private(set) var config: VMConfig
     private let onState: (ComputerState) -> Void
 
     public private(set) var state: ComputerState {
@@ -36,6 +36,12 @@ public final class ComputerManager: NSObject, VZVirtualMachineDelegate {
     }
 
     public var isInstalled: Bool { files.isInstalled }
+
+    /// Recursos para el siguiente arranque. El disco nunca se reduce.
+    public func update(config new: VMConfig) {
+        config = VMConfig(cpuCount: new.cpuCount, memoryBytes: new.memoryBytes,
+                          diskBytes: max(new.diskBytes, files.diskSize ?? 0))
+    }
 
     /// La máquina en marcha, para mostrar su pantalla (`VZVirtualMachineView`).
     public var virtualMachine: VZVirtualMachine? { machine }
@@ -76,15 +82,28 @@ public final class ComputerManager: NSObject, VZVirtualMachineDelegate {
         }
         state = .starting
         let files = self.files
+        let wanted = config.diskBytes
         try await Task.detached { try files.writeSeed() }.value
+        // Si se ha pedido más disco, se agranda el archivo; dentro se extiende al arrancar.
+        let grew = try await Task.detached { try files.growDisk(to: wanted) }.value
 
         let machine = VZVirtualMachine(configuration: try makeConfiguration())
         machine.delegate = self
         self.machine = machine
         try await machine.start()
         try await waitForGuest()
+        if grew { await growFilesystem() }
         activity.touch()
         state = .running
+    }
+
+    /// Extiende la partición raíz y su sistema de archivos al tamaño del disco. cloud-init suele
+    /// hacerlo solo en cada arranque; esto lo asegura. Si ya ocupa todo el disco, no hace nada.
+    private func growFilesystem() async {
+        let command = "root=$(findmnt -no SOURCE /); disk=/dev/$(lsblk -no PKNAME \"$root\"); " +
+            "part=$(echo \"$root\" | grep -o '[0-9]*$'); sudo growpart \"$disk\" \"$part\" >/dev/null 2>&1; " +
+            "sudo resize2fs \"$root\" >/dev/null 2>&1; true"
+        _ = try? await send(.exec(command, timeout: 120), receiveTimeout: 150)
     }
 
     /// El primer arranque incluye cloud-init: puede tardar un par de minutos.

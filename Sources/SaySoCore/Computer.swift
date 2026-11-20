@@ -205,3 +205,40 @@ public enum ComputerAction {
               defaultRule: .ask),
     ]
 }
+
+
+/// Lo que se le da a la máquina Linux: núcleos, memoria y disco. Se cambia en la pantalla Ordenador
+/// y se aplica al siguiente arranque. El disco solo puede crecer.
+public struct ComputerResources: Hashable, Sendable, Codable {
+    public var cpuCount: Int
+    public var memoryGB: Int
+    public var diskGB: Int
+
+    public init(cpuCount: Int = 2, memoryGB: Int = 4, diskGB: Int = 16) {
+        self.cpuCount = cpuCount
+        self.memoryGB = memoryGB
+        self.diskGB = diskGB
+    }
+
+    /// Núcleos que se pueden dar: dejando siempre dos al Mac.
+    public static func cpuOptions(cores: Int = ProcessInfo.processInfo.activeProcessorCount) -> [Int] {
+        [1, 2, 4, 6, 8].filter { $0 <= max(1, cores - 2) }
+    }
+
+    /// Memoria que se puede dar, en GB: como mucho la mitad de la del Mac.
+    public static func memoryOptions(physical: UInt64 = ProcessInfo.processInfo.physicalMemory) -> [Int] {
+        let half = Int(physical / (1 << 30)) / 2
+        return [2, 4, 6, 8, 12, 16, 24, 32].filter { $0 <= max(2, half) }
+    }
+
+    /// Tamaños de disco a partir del actual: no se puede encoger sin perder lo que hay dentro.
+    public static func diskOptions(current: Int) -> [Int] {
+        let sizes = [16, 32, 64, 128, 256]
+        return ([current] + sizes.filter { $0 > current }).sorted()
+    }
+}
+
+public extension SettingsKey {
+    /// `ComputerResources` en JSON.
+    static let computerResources = "computer.resources"
+}

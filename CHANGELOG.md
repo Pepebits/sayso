@@ -23,6 +23,7 @@ All notable changes to SaySo are documented here. The format follows
 - Images: with a model that sees them (Claude, OpenAI, Grok, or one you mark in Model), the agent looks at photos you send to your bot, photos in your Telegram chats and images on the Linux machine
 - Notes: the agent can search the Notes app and read a note (asks by default)
 - Calendar: the agent can create, move and delete events, not only read them; the event list now carries the IDs it needs
+- Linux machine size in Computer: cores, memory (up to half of the Mac's) and disk (16 to 256 GB, grow only; the partition is extended on the next start)
 - Resources also shows what takes space inside the Linux machine while it runs (each prompt-injection detector model, Python and PyTorch, agent files, caches, system), its real memory use, and a button to delete detector models that are not in use
 - Statistics → Resources: disk space by part (Linux machine, dictation models, Telegram, database, logs) and memory used by SaySo and assigned to the Linux machine, with buttons to measure again, clean Telegram files and show the folder in Finder
 - Memory stays small: near-duplicate notes are not saved, only the newest facts that fit a budget go in each request (instructions always do), and a new memory_search tool finds the rest. Logs of what the agent did go to a file on the Linux machine instead
