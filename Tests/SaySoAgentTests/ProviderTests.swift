@@ -235,3 +235,35 @@ final class ImageTests: XCTestCase {
     }
 }
 
+final class ResourceTests: XCTestCase {
+    func testInsideTheLinuxMachineEachPartHasAName() {
+        let du: [(path: String, bytes: UInt64)] = [
+            ("/home/agent/.sayso-guard/models/protectai--deberta-v3-base-prompt-injection-v2", 740_000_000),
+            ("/home/agent/.sayso-guard/models/meta-llama--Llama-Prompt-Guard-2-22M", 290_000_000),
+            ("/home/agent/.sayso-guard/venv", 1_900_000_000),
+            ("/home/agent/sayso", 12_000_000),
+            ("/var/cache/apt", 0),
+        ]
+        let items = ResourceUsage.vmItems(du, used: 4_000_000_000,
+                                          activeModelFolder: "protectai--deberta-v3-base-prompt-injection-v2")
+        XCTAssertEqual(items.first?.id, "guard-python", "de mayor a menor")
+        XCTAssertEqual(items.first { $0.id == "system" }?.bytes, 4_000_000_000 - 740_000_000 - 290_000_000 - 1_900_000_000 - 12_000_000,
+                       "lo que no cae en ninguna parte es el sistema")
+        let active = items.first { $0.title == "protectai/deberta-v3-base-prompt-injection-v2" }
+        XCTAssertEqual(active?.detail, tr("detector de inyecciones, en uso"))
+        XCTAssertEqual(items.first { $0.title == "meta-llama/Llama-Prompt-Guard-2-22M" }?.detail, tr("detector de inyecciones, sin usar"))
+        XCTAssertNotNil(items.first { $0.id == "guard-python" })
+        XCTAssertNil(items.first { $0.id == "apt" }, "lo que no ocupa nada no sale")
+        XCTAssertTrue(ResourceUsage.vmQuery.contains("$HOME/.sayso-guard/models/*"))
+    }
+
+    func testAllocatedSizeOfAFolder() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("sayso-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try Data(repeating: 1, count: 100_000).write(to: dir.appendingPathComponent("a.bin"))
+        XCTAssertGreaterThanOrEqual(DiskMeasure.allocated(dir), 100_000)
+        XCTAssertGreaterThan(DiskMeasure.appMemory(), 0)
+    }
+}
+

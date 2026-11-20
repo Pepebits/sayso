@@ -107,6 +107,18 @@ struct StatsScreen: View {
                         }
                     }
                 }
+                if let inside = usage.vmInside {
+                    Panel {
+                        PanelLabel("Dentro de la máquina Linux")
+                        vmRows(inside)
+                        Text(tr("Borrar algo dentro libera sitio para la máquina, pero el archivo de su disco en el Mac no encoge."))
+                            .font(Theme.caption).foregroundStyle(Theme.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } else if usage.vmMemory != nil {
+                    InlineNote("Enciende la máquina Linux para ver qué ocupa por dentro: modelos del detector, Python, archivos del agente…",
+                               systemImage: "info.circle")
+                }
             } else {
                 Panel {
                     Text(tr("Midiendo…")).font(Theme.body).foregroundStyle(Theme.secondary)
@@ -119,13 +131,50 @@ struct StatsScreen: View {
         var tiles = [Tile(title: tr("Memoria de SaySo"), value: Self.memory(usage.appMemory),
                           detail: tr("la app, ahora mismo"), color: Theme.chartAI)]
         if let vm = usage.vmMemory {
-            tiles.append(Tile(title: tr("Memoria de la máquina Linux"), value: Self.memory(vm),
-                              detail: usage.vmRunning ? tr("asignada; en marcha") : tr("asignada; apagada, no usa nada"),
-                              color: Theme.chartVoice))
+            if let used = usage.vmMemoryUsed {
+                tiles.append(Tile(title: tr("Memoria de la máquina Linux"), value: Self.memory(used),
+                                  detail: tr("en uso de %@ asignados", Self.memory(vm)), color: Theme.chartVoice))
+            } else {
+                tiles.append(Tile(title: tr("Memoria de la máquina Linux"), value: Self.memory(vm),
+                                  detail: usage.vmRunning ? tr("asignada; en marcha") : tr("asignada; apagada, no usa nada"),
+                                  color: Theme.chartVoice))
+            }
         }
         tiles.append(Tile(title: tr("Disco"), value: Self.bytes(usage.totalDisk), detail: tr("todo lo de SaySo"),
                           color: Theme.secondary))
         return tiles
+    }
+
+    /// Lo de dentro de la máquina, con «Borrar» en los modelos del detector que no se usan.
+    private func vmRows(_ items: [ResourceUsage.Item]) -> some View {
+        let top = max(items.map(\.bytes).max() ?? 1, 1)
+        return VStack(alignment: .leading, spacing: Theme.Space.s + 2) {
+            ForEach(items) { item in
+                let unusedModel = item.id.hasPrefix(ResourceUsage.guardModelPrefix) && item.detail == tr("detector de inyecciones, sin usar")
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
+                        Text(item.id.hasPrefix(ResourceUsage.guardModelPrefix) ? item.title : tr(item.title))
+                            .font(Theme.text(12.5, weight: .medium))
+                            .foregroundStyle(Theme.ink)
+                            .lineLimit(1).truncationMode(.middle)
+                        if let detail = item.detail {
+                            Text(verbatim: detail).font(Theme.caption).foregroundStyle(Theme.secondary).lineLimit(1)
+                        }
+                        Spacer(minLength: Theme.Space.s)
+                        if unusedModel {
+                            BlockButton("Borrar", systemImage: "trash", compact: true) {
+                                model.actions?.removeGuardModel(folder: String(item.id.dropFirst(ResourceUsage.guardModelPrefix.count)))
+                            }
+                        }
+                        Text(verbatim: Self.bytes(item.bytes))
+                            .font(Theme.mono(12, weight: .semibold))
+                            .foregroundStyle(Theme.ink)
+                    }
+                    BlockProgress(value: Double(item.bytes) / Double(top), label: item.title, tint: Theme.chartVoice)
+                        .accessibilityHidden(true)
+                }
+            }
+        }
     }
 
     private func diskRows(_ usage: ResourceUsage) -> some View {

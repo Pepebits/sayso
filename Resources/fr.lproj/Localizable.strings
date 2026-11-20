@@ -1368,3 +1368,17 @@
 "De momento entiendo texto, notas de voz y fotos." = "Pour l’instant je comprends le texte, les notes vocales et les photos.";
 "Ese archivo no es una imagen que se pueda abrir." = "Ce fichier n’est pas une image qui puisse être ouverte.";
 "La imagen pasa de 20 MB." = "L’image dépasse 20 Mo.";
+"detector de inyecciones, en uso" = "détecteur d’injections, utilisé";
+"detector de inyecciones, sin usar" = "détecteur d’injections, non utilisé";
+"Detector: Python y PyTorch" = "Détecteur : Python et PyTorch";
+"Archivos del agente" = "Fichiers de l’agent";
+"Programas instalados por el agente" = "Programmes installés par l’agent";
+"Cachés (pip, navegador…)" = "Caches (pip, navigateur…)";
+"Paquetes descargados (apt)" = "Paquets téléchargés (apt)";
+"Sistema (Debian)" = "Système (Debian)";
+"Modelo del detector borrado: %@" = "Modèle du détecteur supprimé : %@";
+"No se pudo borrar el modelo: %@" = "Impossible de supprimer le modèle : %@";
+"Dentro de la máquina Linux" = "Dans la machine Linux";
+"Borrar algo dentro libera sitio para la máquina, pero el archivo de su disco en el Mac no encoge." = "Supprimer quelque chose à l’intérieur libère de la place pour la machine, mais son fichier disque sur le Mac ne rétrécit pas.";
+"Enciende la máquina Linux para ver qué ocupa por dentro: modelos del detector, Python, archivos del agente…" = "Démarrez la machine Linux pour voir ce qui occupe de la place à l’intérieur : modèles du détecteur, Python, fichiers de l’agent…";
+"en uso de %@ asignados" = "utilisés sur %@ attribués";

@@ -264,6 +264,8 @@ public protocol AppActions: AnyObject {
     func refreshResources()
     /// Borra los archivos descargados de Telegram que no se estén usando.
     func cleanTelegramFiles()
+    /// Borra de la máquina Linux un modelo del detector que no está en uso (`folder`: «org--nombre»).
+    func removeGuardModel(folder: String)
 
     // Registros
     /// Borra el registro de la app, también el archivo.

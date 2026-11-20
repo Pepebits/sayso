@@ -1377,3 +1377,17 @@
 "De momento entiendo texto, notas de voz y fotos." = "Por agora entendo texto, notas de voz e fotos.";
 "Ese archivo no es una imagen que se pueda abrir." = "Esse ficheiro não é uma imagem que se possa abrir.";
 "La imagen pasa de 20 MB." = "A imagem passa de 20 MB.";
+"detector de inyecciones, en uso" = "detetor de injeções, em uso";
+"detector de inyecciones, sin usar" = "detetor de injeções, sem uso";
+"Detector: Python y PyTorch" = "Detetor: Python e PyTorch";
+"Archivos del agente" = "Ficheiros do agente";
+"Programas instalados por el agente" = "Programas instalados pelo agente";
+"Cachés (pip, navegador…)" = "Caches (pip, navegador…)";
+"Paquetes descargados (apt)" = "Pacotes descarregados (apt)";
+"Sistema (Debian)" = "Sistema (Debian)";
+"Modelo del detector borrado: %@" = "Modelo do detetor apagado: %@";
+"No se pudo borrar el modelo: %@" = "Não foi possível apagar o modelo: %@";
+"Dentro de la máquina Linux" = "Dentro da máquina Linux";
+"Borrar algo dentro libera sitio para la máquina, pero el archivo de su disco en el Mac no encoge." = "Apagar algo lá dentro liberta espaço para a máquina, mas o ficheiro do disco no Mac não encolhe.";
+"Enciende la máquina Linux para ver qué ocupa por dentro: modelos del detector, Python, archivos del agente…" = "Liga a máquina Linux para ver o que ocupa lá dentro: modelos do detetor, Python, ficheiros do agente…";
+"en uso de %@ asignados" = "em uso de %@ atribuídos";

@@ -196,6 +196,31 @@ public final class ComputerManager: NSObject, VZVirtualMachineDelegate {
         }.value
     }
 
+    /// Lo que ocupan unas rutas dentro de la máquina (`du -sb`), sin pasar por el registro del agente:
+    /// es una consulta de la app, no algo que haga el agente. Solo con la máquina en marcha.
+    public func diskUsage(_ paths: [String]) async -> [(path: String, bytes: UInt64)]? {
+        guard state == .running else { return nil }
+        let command = "du -sb " + paths.joined(separator: " ") + " 2>/dev/null; true"
+        guard let result = (try? await send(.exec(command, timeout: 60), receiveTimeout: 90))?.commandResult else { return nil }
+        return Self.parseDiskUsage(result.stdout)
+    }
+
+    static func parseDiskUsage(_ text: String) -> [(path: String, bytes: UInt64)] {
+        text.split(separator: "\n").compactMap { line in
+            let parts = line.split(separator: "\t", maxSplits: 1).map(String.init)
+            guard parts.count == 2, let bytes = UInt64(parts[0]) else { return nil }
+            return (parts[1], bytes)
+        }
+    }
+
+    /// Borra un modelo del detector descargado en la máquina. `folder` ya validado por quien llama.
+    public func removeGuardModel(folder: String) async throws {
+        guard folder.range(of: #"^[A-Za-z0-9._-]+--[A-Za-z0-9._-]+$"#, options: .regularExpression) != nil else {
+            throw GuestError.guest("Nombre de modelo no válido.")
+        }
+        _ = try await request(.exec("rm -rf \"$HOME/.sayso-guard/models/\(folder)\"", timeout: 60))
+    }
+
     public func stats() async -> ComputerStats? {
         guard state == .running else { return nil }
         return (try? await send(.stats, receiveTimeout: 5))?.stats

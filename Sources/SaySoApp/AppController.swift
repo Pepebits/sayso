@@ -2002,11 +2002,35 @@ final class AppController: AppActions {
         let config = computer?.config
         let installed = services?.vmFiles.isInstalled ?? false
         let running = model.computerState == .running
+        let manager = computer
+        let activeFolder = Self.installedLocalRepo(store).map { LocalGuardModel.model(repo: $0).folder }
         Task { [weak self] in
-            let usage = await Task.detached(priority: .utility) {
+            var usage = await Task.detached(priority: .utility) {
                 AppController.measureResources(vmConfig: config, vmInstalled: installed, vmRunning: running)
             }.value
             self?.model.resources = usage
+            // Dentro de la máquina, solo si ya está en marcha: no se arranca para medir.
+            guard running, let manager else { return }
+            let stats = await manager.stats()
+            usage.vmMemoryUsed = stats.map { Int64($0.memoryUsed) }
+            if let inside = await manager.diskUsage(ResourceUsage.vmQuery) {
+                usage.vmInside = ResourceUsage.vmItems(inside, used: stats?.diskUsed, activeModelFolder: activeFolder)
+            }
+            self?.model.resources = usage
+        }
+    }
+
+    func removeGuardModel(folder: String) {
+        let active = Self.installedLocalRepo(store).map { LocalGuardModel.model(repo: $0).folder }
+        guard folder != active, let computer else { return }
+        Task { [weak self] in
+            do {
+                try await computer.removeGuardModel(folder: folder)
+                self?.model.log(.info, LogCategory.computer, tr("Modelo del detector borrado: %@", folder.replacingOccurrences(of: "--", with: "/")))
+            } catch {
+                self?.model.lastError = tr("No se pudo borrar el modelo: %@", error.localizedDescription)
+            }
+            self?.refreshResources()
         }
     }
 

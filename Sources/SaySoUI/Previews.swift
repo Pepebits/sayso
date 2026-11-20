@@ -106,6 +106,7 @@ final class PreviewActions: AppActions {
     func newConversation(chatID: String) { model.contexts.removeAll { $0.chatID == chatID } }
     func refreshResources() {}
     func cleanTelegramFiles() {}
+    func removeGuardModel(folder: String) {}
     func clearLog() { model.logEntries = [] }
     func relaunch() {}
     func setGuardReview(_ enabled: Bool) { model.guardReview = enabled }
