@@ -1337,3 +1337,8 @@
 "Usar secretos en comandos" = "Usar segredos en comandos";
 "Pasar una clave guardada en Secretos a un comando de la máquina Linux. El agente no ve su valor." = "Pasar unha clave gardada en Segredos a un comando da máquina Linux. O axente non ve o seu valor.";
 "Uso en la máquina Linux" = "Uso na máquina Linux";
+"Crear, mover o borrar eventos" = "Crear, mover ou borrar eventos";
+"Crear el evento «%@» el %@" = "Crear o evento «%@» o %@";
+"Mover el evento «%@» al %@" = "Mover o evento «%@» ao %@";
+"Borrar el evento «%@»" = "Borrar o evento «%@»";
+"%@ (todo el día)" = "%@ (todo o día)";

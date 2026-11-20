@@ -10,7 +10,8 @@ public enum MacTools {
         [
             MacNotificationTool(runner: runner), MacVolumeTool(runner: runner), MacReminderTool(runner: runner),
             MacRemindersTool(runner: runner), MacChangeReminderTool(runner: runner),
-            MacNoteTool(runner: runner), MacCalendarTool(runner: runner), MacOpenURLTool(runner: runner),
+            MacNoteTool(runner: runner), MacCalendarTool(runner: runner), MacCalendarEventTool(runner: runner),
+            MacOpenURLTool(runner: runner),
         ]
     }
 
@@ -155,7 +156,8 @@ public struct MacCalendarTool: AgentTool {
         "Lee los eventos del calendario del Mac de cualquier día o rango: hoy (sin parámetros), un día concreto " +
             "(«date») o varios días seguidos («days», hasta 62). Para «mañana» o «el viernes» calcula la fecha con " +
             "la de hoy. Para «mi próximo evento», pide desde hoy con days=30 y quédate con el primero que aún no " +
-            "haya pasado. También vale para días anteriores."
+            "haya pasado. También vale para días anteriores. Cada evento lleva su id, que es el que piden " +
+            "mover y borrar en mac_calendar_event."
     }
     public var inputSchema: JSONValue {
         .objectSchema([
@@ -176,6 +178,65 @@ public struct MacCalendarTool: AgentTool {
             throw ToolInputError("«days» va de 1 a \(MacScriptRunnerLimits.maxCalendarDays).")
         }
         return try await runner.run(.calendar(start: start, days: days), origin: context.origin)
+    }
+}
+
+public struct MacCalendarEventTool: AgentTool {
+    let runner: MacScriptRunning
+    public init(runner: MacScriptRunning) { self.runner = runner }
+    public var name: String { "mac_calendar_event" }
+    public var description: String {
+        "Cambia el calendario del Mac: «create» crea un evento (title, start, end; all_day para todo el día; " +
+            "location y calendar opcionales); «move» le cambia la hora a uno (id, start, end); «delete» lo borra (id). " +
+            "Los id salen de mac_calendar. Fechas en ISO 8601 con la hora local, p. ej. 2026-11-22T10:00. Si el " +
+            "evento se repite, solo cambia esa vez."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "action": ["type": "string", "enum": ["create", "move", "delete"]],
+            "id": .property("string", "Para move y delete: el id que da mac_calendar"),
+            "title": .property("string", "Para create"),
+            "start": .property("string", "Inicio, ISO 8601"),
+            "end": .property("string", "Fin, ISO 8601 (por defecto, una hora después del inicio)"),
+            "all_day": ["type": "boolean", "description": "Evento de todo el día"],
+            "location": .property("string", "Lugar (opcional)"),
+            "calendar": .property("string", "Nombre del calendario (opcional)"),
+        ], required: ["action"])
+    }
+
+    func dates(_ input: JSONValue) throws -> (Date, Date) {
+        guard let raw = try input.optionalString("start", maxLength: 64), let start = MacTools.parseDate(raw) else {
+            throw ToolInputError("Falta «start» como fecha ISO 8601, p. ej. 2026-11-22T10:00.")
+        }
+        var end = start.addingTimeInterval(3600)
+        if let raw = try input.optionalString("end", maxLength: 64) {
+            guard let parsed = MacTools.parseDate(raw) else { throw ToolInputError("«end» no es una fecha ISO 8601 válida.") }
+            end = parsed
+        }
+        guard end > start else { throw ToolInputError("«end» tiene que ser después de «start».") }
+        return (start, end)
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        switch input["action"]?.stringValue {
+        case "create":
+            let title = try input.requiredString("title", maxLength: 300)
+            let allDay = input["all_day"]?.boolValue ?? false
+            let (start, end) = try dates(input)
+            let draft = CalendarEventDraft(title: title, start: start, end: end, allDay: allDay,
+                                           location: try input.optionalString("location", maxLength: 300),
+                                           calendar: try input.optionalString("calendar", maxLength: 100))
+            return try await runner.run(.createEvent(draft), origin: context.origin)
+        case "move":
+            let id = try input.requiredString("id", maxLength: 300)
+            let (start, end) = try dates(input)
+            return try await runner.run(.moveEvent(id: id, title: "", start: start, end: end), origin: context.origin)
+        case "delete":
+            let id = try input.requiredString("id", maxLength: 300)
+            return try await runner.run(.deleteEvent(id: id, title: ""), origin: context.origin)
+        default:
+            throw ToolInputError("«action» tiene que ser create, move o delete.")
+        }
     }
 }
 

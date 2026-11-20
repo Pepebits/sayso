@@ -36,6 +36,12 @@ public final class MacScriptRunner: MacScriptRunning {
         if case let .changeReminder(id, _, change) = call {
             call = .changeReminder(id: id, title: try await Self.reminderTitle(id: id), change: change)
         }
+        if case let .moveEvent(id, _, start, end) = call {
+            call = .moveEvent(id: id, title: try await Self.event(id: id).title ?? "Sin título", start: start, end: end)
+        }
+        if case let .deleteEvent(id, _) = call {
+            call = .deleteEvent(id: id, title: try await Self.event(id: id).title ?? "Sin título")
+        }
         let checked = call
         let request = Self.request(for: checked, origin: origin)
         return try await broker.run(request) {
@@ -50,6 +56,12 @@ public final class MacScriptRunner: MacScriptRunning {
         switch call {
         case let .volume(percent):
             return .volume(percent: min(100, max(0, percent)))
+        case let .createEvent(draft):
+            guard draft.end > draft.start || draft.allDay else { throw MacScriptError.scriptFailed("el evento tiene que terminar después de empezar") }
+            return call
+        case let .moveEvent(_, _, start, end):
+            guard end > start else { throw MacScriptError.scriptFailed("el evento tiene que terminar después de empezar") }
+            return call
         case let .openURL(url):
             guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
                   url.host?.isEmpty == false else {
@@ -85,6 +97,17 @@ public final class MacScriptRunner: MacScriptRunning {
             params = ["título": title, "texto": body]
         case let .calendar(start, days):
             summary = Self.calendarRange(start: start, days: days)
+        case let .createEvent(draft):
+            summary = tr("Crear el evento «%@» el %@", draft.title, Self.when(draft.start, draft.end, allDay: draft.allDay))
+            params = ["título": draft.title, "cuándo": Self.when(draft.start, draft.end, allDay: draft.allDay)]
+            if let place = draft.location, !place.isEmpty { params["lugar"] = place }
+            if let name = draft.calendar, !name.isEmpty { params["calendario"] = name }
+        case let .moveEvent(_, title, start, end):
+            summary = tr("Mover el evento «%@» al %@", title, Self.when(start, end, allDay: false))
+            params = ["título": title, "cuándo": Self.when(start, end, allDay: false)]
+        case let .deleteEvent(_, title):
+            summary = tr("Borrar el evento «%@»", title)
+            params = ["título": title]
         case let .reminders(includeCompleted):
             summary = includeCompleted ? tr("Leer los recordatorios, también los completados") : tr("Leer los recordatorios pendientes")
         case let .changeReminder(_, title, change):
@@ -126,6 +149,12 @@ public final class MacScriptRunner: MacScriptRunning {
             return try await calendarEvents(start: start, days: days)
         case let .reminders(includeCompleted):
             return try await listReminders(includeCompleted: includeCompleted)
+        case let .createEvent(draft):
+            return try await createEvent(draft)
+        case let .moveEvent(id, _, start, end):
+            return try await moveEvent(id: id, start: start, end: end)
+        case let .deleteEvent(id, _):
+            return try await deleteEvent(id: id)
         case let .changeReminder(id, _, change):
             return try await changeReminder(id: id, change: change)
         case let .openURL(url):
@@ -260,6 +289,72 @@ public final class MacScriptRunner: MacScriptRunning {
         }
     }
 
+    // MARK: - Cambiar el calendario
+
+    /// «sáb 22 nov, 10:00–11:00» o «sáb 22 nov (todo el día)».
+    static func when(_ start: Date, _ end: Date, allDay: Bool) -> String {
+        let day = start.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(L10n.locale))
+        if allDay { return tr("%@ (todo el día)", day) }
+        return "\(day), \(start.formatted(date: .omitted, time: .shortened))–\(end.formatted(date: .omitted, time: .shortened))"
+    }
+
+    private static func eventsStore() async throws -> EKEventStore {
+        let store = EKEventStore()
+        guard try await store.requestFullAccessToEvents() else { throw MacScriptError.accessDenied("Calendario") }
+        return store
+    }
+
+    private static func event(id: String, in given: EKEventStore? = nil) async throws -> EKEvent {
+        let store: EKEventStore
+        if let given { store = given } else { store = try await eventsStore() }
+        guard let event = store.event(withIdentifier: id) else {
+            throw MacScriptError.notAvailable("No hay ningún evento con ese id: vuelve a leer el calendario.")
+        }
+        return event
+    }
+
+    private static func createEvent(_ draft: CalendarEventDraft) async throws -> String {
+        let store = try await eventsStore()
+        let writable = store.calendars(for: .event).filter(\.allowsContentModifications)
+        let calendar: EKCalendar?
+        if let name = draft.calendar, !name.isEmpty {
+            guard let named = writable.first(where: { $0.title.localizedCaseInsensitiveCompare(name) == .orderedSame }) else {
+                throw MacScriptError.notAvailable("No hay ningún calendario «\(name)» en el que se pueda escribir. Hay: \(writable.map(\.title).joined(separator: ", ")).")
+            }
+            calendar = named
+        } else {
+            calendar = store.defaultCalendarForNewEvents
+        }
+        guard let calendar else { throw MacScriptError.notAvailable("No hay un calendario por defecto.") }
+        let event = EKEvent(eventStore: store)
+        event.title = draft.title
+        event.isAllDay = draft.allDay
+        event.startDate = draft.allDay ? Calendar.current.startOfDay(for: draft.start) : draft.start
+        event.endDate = draft.allDay ? (Calendar.current.date(byAdding: .day, value: 1, to: event.startDate) ?? draft.end) : draft.end
+        event.location = draft.location
+        event.calendar = calendar
+        try store.save(event, span: .thisEvent, commit: true)
+        return "Evento «\(draft.title)» creado en «\(calendar.title)» (id \(event.eventIdentifier ?? "-"))."
+    }
+
+    private static func moveEvent(id: String, start: Date, end: Date) async throws -> String {
+        let store = try await eventsStore()
+        let event = try await event(id: id, in: store)
+        event.startDate = start
+        event.endDate = end
+        // Solo esta vez si se repite: mover toda la serie sería otra cosa.
+        try store.save(event, span: .thisEvent, commit: true)
+        return "Evento «\(event.title ?? "Sin título")» movido al \(when(start, end, allDay: false))."
+    }
+
+    private static func deleteEvent(id: String) async throws -> String {
+        let store = try await eventsStore()
+        let event = try await event(id: id, in: store)
+        let title = event.title ?? "Sin título"
+        try store.remove(event, span: .thisEvent, commit: true)
+        return "Evento «\(title)» borrado."
+    }
+
     /// Como mucho se leen dos meses de golpe.
     public static let maxCalendarDays = 62
 
@@ -275,7 +370,7 @@ public final class MacScriptRunner: MacScriptRunning {
         let events = store.events(matching: store.predicateForEvents(withStart: from, end: end, calendars: nil))
             .sorted { $0.startDate < $1.startDate }
         return format(events: events.map { ($0.title ?? "Sin título", $0.startDate, $0.endDate, $0.isAllDay, $0.location) },
-                      start: from, days: count)
+                      start: from, days: count, ids: events.map { $0.eventIdentifier ?? "" })
     }
 
     /// «Leer el calendario de hoy», «… del 21/11», «… del 21/11 al 27/11».
@@ -293,19 +388,21 @@ public final class MacScriptRunner: MacScriptRunning {
     /// Lista legible: una línea por evento, con el día delante si se ha pedido más de uno.
     static func format(events: [(title: String, start: Date, end: Date, allDay: Bool, location: String?)],
                        start: Date = Calendar.current.startOfDay(for: Date()), days: Int = 1,
-                       now: Date = Date()) -> String {
+                       now: Date = Date(), ids: [String] = []) -> String {
         let cal = Calendar.current
         let today = days <= 1 && cal.isDate(start, inSameDayAs: now)
         let dayName: (Date) -> String = { $0.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Locale(identifier: "es_ES"))) }
         let range = days <= 1 ? dayName(start)
             : "\(dayName(start)) – \(dayName(cal.date(byAdding: .day, value: days - 1, to: start) ?? start))"
         guard !events.isEmpty else { return today ? "No hay eventos hoy." : "No hay eventos (\(range))." }
-        let lines = events.map { e -> String in
+        let lines = events.enumerated().map { index, e -> String in
             let when = e.allDay ? "Todo el día"
                 : "\(e.start.formatted(date: .omitted, time: .shortened))–\(e.end.formatted(date: .omitted, time: .shortened))"
             let place = e.location.flatMap { $0.isEmpty ? nil : " (\($0))" } ?? ""
             let prefix = days > 1 ? "\(dayName(e.start)), " : ""
-            return "- \(prefix)\(when): \(e.title)\(place)"
+            // El id es el que piden mover y borrar.
+            let id = index < ids.count && !ids[index].isEmpty ? " · id \(ids[index])" : ""
+            return "- \(prefix)\(when): \(e.title)\(place)\(id)"
         }
         return (today ? "Eventos de hoy:\n" : "Eventos (\(range)):\n") + lines.joined(separator: "\n")
     }

@@ -117,6 +117,7 @@ extension MacScript {
         case .changeReminder: return "checkmark.circle"
         case .note: return "note.text"
         case .calendarToday: return "calendar"
+        case .changeCalendar: return "calendar.badge.plus"
         case .openURL: return "link"
         }
     }

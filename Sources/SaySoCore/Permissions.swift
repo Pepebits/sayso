@@ -157,7 +157,7 @@ public enum TelegramAction {
 
 /// Lista cerrada de scripts del Mac. Añadir uno exige publicar una versión de la app.
 public enum MacScript: String, CaseIterable, Codable, Sendable {
-    case notification, volume, reminder, readReminders, changeReminder, note, calendarToday, openURL
+    case notification, volume, reminder, readReminders, changeReminder, note, calendarToday, changeCalendar, openURL
 
     public var action: ActionID { ActionID("mac.\(rawValue)") }
 
@@ -170,6 +170,7 @@ public enum MacScript: String, CaseIterable, Codable, Sendable {
         case .changeReminder: return "Completar o borrar recordatorios"
         case .note: return "Crear una nota"
         case .calendarToday: return "Leer el calendario"
+        case .changeCalendar: return "Crear, mover o borrar eventos"
         case .openURL: return "Abrir un enlace"
         }
     }
@@ -194,6 +195,11 @@ public enum MacScriptCall: Sendable, Hashable {
     case reminders(includeCompleted: Bool)
     /// `id` es el que da la lista de recordatorios; `title`, para el diálogo de confirmación.
     case changeReminder(id: String, title: String, change: ReminderChange)
+    /// Un evento nuevo en el calendario por defecto (o en el que se nombre).
+    case createEvent(CalendarEventDraft)
+    /// `id` es el que da la lista de eventos; `title`, para el diálogo de confirmación.
+    case moveEvent(id: String, title: String, start: Date, end: Date)
+    case deleteEvent(id: String, title: String)
     case openURL(URL)
 
     public var script: MacScript {
@@ -203,10 +209,31 @@ public enum MacScriptCall: Sendable, Hashable {
         case .reminder: return .reminder
         case .reminders: return .readReminders
         case .changeReminder: return .changeReminder
+        case .createEvent, .moveEvent, .deleteEvent: return .changeCalendar
         case .note: return .note
         case .calendar: return .calendarToday
         case .openURL: return .openURL
         }
+    }
+}
+
+/// Lo que hace falta para crear un evento.
+public struct CalendarEventDraft: Sendable, Hashable {
+    public var title: String
+    public var start: Date
+    public var end: Date
+    public var allDay: Bool
+    public var location: String?
+    /// Nombre del calendario; sin él, el de por defecto.
+    public var calendar: String?
+
+    public init(title: String, start: Date, end: Date, allDay: Bool = false, location: String? = nil, calendar: String? = nil) {
+        self.title = title
+        self.start = start
+        self.end = end
+        self.allDay = allDay
+        self.location = location
+        self.calendar = calendar
     }
 }
 

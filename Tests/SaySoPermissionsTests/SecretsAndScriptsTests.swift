@@ -139,6 +139,19 @@ final class MacScriptRunnerTests: XCTestCase {
                        "misma acción que antes: la regla de permisos guardada sigue valiendo")
     }
 
+    func testEventListCarriesTheIDsForMovingAndDeleting() {
+        let cal = Calendar.current
+        let day = cal.date(from: DateComponents(year: 2026, month: 11, day: 24))!
+        let ten = cal.date(byAdding: .hour, value: 10, to: day)!
+        let text = MacScriptRunner.format(events: [("Dentista", ten, ten.addingTimeInterval(1800), false, nil)], start: day,
+                                          days: 1, now: day, ids: ["EV-1"])
+        XCTAssertTrue(text.hasSuffix("Dentista · id EV-1"), text)
+        let ask = MacScriptRunner.request(for: .deleteEvent(id: "EV-1", title: "Dentista"), origin: nil)
+        XCTAssertEqual(ask.action, MacScript.changeCalendar.action)
+        XCTAssertTrue(ask.summary.contains("Dentista"))
+        XCTAssertThrowsError(try MacScriptRunner.validated(.moveEvent(id: "x", title: "", start: ten, end: ten)))
+    }
+
     func testRemindersListCarriesTheIDsForLaterChanges() {
         let due = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 24, hour: 9))!
         let text = MacScriptRunner.format(reminders: [

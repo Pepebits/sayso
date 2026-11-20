@@ -119,7 +119,7 @@ final class AgentLoopTests: XCTestCase {
     func testMacToolsValidate() async throws {
         let runner = FakeMacRunner()
         let tools = MacTools.all(runner: runner)
-        XCTAssertEqual(tools.count, 8)
+        XCTAssertEqual(tools.count, 9)
         let volume = MacVolumeTool(runner: runner)
         _ = try await volume.call(input: ["percent": 30], context: ToolContext())
         do { _ = try await volume.call(input: ["percent": 150], context: ToolContext()); XCTFail() } catch is ToolInputError {}
@@ -139,6 +139,21 @@ final class AgentLoopTests: XCTestCase {
         XCTAssertEqual(MacScript.readReminders.descriptor.defaultRule, .allow)
         XCTAssertEqual(MacScript.changeReminder.descriptor.defaultRule, .ask)
         XCTAssertTrue(GuardPolicy.isOutward(MacScript.changeReminder.action))
+
+        // Calendario: crear, mover y borrar.
+        let events = MacCalendarEventTool(runner: runner)
+        _ = try await events.call(input: ["action": "create", "title": "Dentista", "start": "2026-11-24T10:00"], context: ToolContext())
+        _ = try await events.call(input: ["action": "move", "id": "E1", "start": "2026-11-25T09:00", "end": "2026-11-25T09:30"],
+                                  context: ToolContext())
+        _ = try await events.call(input: ["action": "delete", "id": "E1"], context: ToolContext())
+        let made = runner.calls.get().suffix(3)
+        guard case let .createEvent(draft)? = made.first else { return XCTFail("\(made)") }
+        XCTAssertEqual(draft.end.timeIntervalSince(draft.start), 3600, "una hora por defecto")
+        XCTAssertEqual(made.last, .deleteEvent(id: "E1", title: ""))
+        do { _ = try await events.call(input: ["action": "move", "id": "E1", "start": "2026-11-25T09:00", "end": "2026-11-25T08:00"], context: ToolContext()); XCTFail() }
+        catch is ToolInputError {}
+        XCTAssertEqual(MacScript.changeCalendar.descriptor.defaultRule, .ask)
+        XCTAssertTrue(GuardPolicy.isOutward(MacScript.changeCalendar.action))
     }
 
     func testCalendarToolReadsAnyDayOrRange() async throws {
