@@ -1320,3 +1320,10 @@
 "Responder a una encuesta de un chat." = "Responder a unha enquisa dun chat.";
 "Guardar notas en tus Mensajes guardados y leerlas." = "Gardar notas nas túas Mensaxes gardadas e lelas.";
 "Mensajes guardados" = "Mensaxes gardadas";
+"Para hablarle al agente, SaySo necesita oírte y detectar tu atajo de teclado." = "Para falarlle ao axente, SaySo necesita oírte e detectar o teu atallo de teclado.";
+"Mantén %@, pídele algo y suelta. Lo hace y te responde." = "Mantén %@, pídelle algo e solta. Faino e respóndeche.";
+"Prueba a hablarle" = "Proba a falarlle";
+"Mantén %@, pídele algo al agente y suelta: te responde en pantalla. Puedes cambiar el atajo en Dictado." = "Mantén %@, pídelle algo ao axente e solta: respóndeche en pantalla. Podes cambiar o atallo en Ditado.";
+"Mantén %@ y habla para probarlo." = "Mantén %@ e fala para probalo.";
+"Se ha borrado lo más antiguo para no pasar del tope: %@ entradas de actividad y %@ mensajes." = "Borrouse o máis antigo para non pasar do tope: %@ entradas de actividade e %@ mensaxes.";
+"Conversación con el agente" = "Conversa co axente";

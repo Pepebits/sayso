@@ -334,6 +334,9 @@ public protocol SaySoStoring: Sendable {
     func activityCount(scope: String?) throws -> Int
     /// Borra la actividad y las conversaciones anteriores a `cutoff`. Devuelve cuántas filas de cada.
     @discardableResult func prune(olderThan cutoff: Date) throws -> (activity: Int, turns: Int)
+    /// Se queda con las `keepActivity` entradas de actividad y los `keepTurns` turnos más recientes,
+    /// sea cual sea el plazo elegido. Devuelve cuántas filas de cada se borraron.
+    @discardableResult func trim(keepActivity: Int, keepTurns: Int) throws -> (activity: Int, turns: Int)
 
     // Memoria
     func notes() throws -> [MemoryNote]
@@ -371,6 +374,7 @@ public extension SaySoStoring {
     func setNoteKind(_ kind: MemoryNote.Kind, id: Int64) throws {}
     func updateNoteText(_ text: String, id: Int64) throws {}
     @discardableResult func prune(olderThan cutoff: Date) throws -> (activity: Int, turns: Int) { (0, 0) }
+    @discardableResult func trim(keepActivity: Int, keepTurns: Int) throws -> (activity: Int, turns: Int) { (0, 0) }
     func usageStats(days: Int, now: Date) throws -> UsageStats { UsageStats() }
 
     /// Lee un ajuste guardado como JSON.
@@ -426,6 +430,7 @@ public enum SettingsKey {
     public static let telegramFullAccess = "telegramFullAccess"
     /// Contexto enviado al modelo en la última petición de cada conversación.
     public static let contextUsage = "contextUsage"
+    public static let contextSummaries = "contextSummaries" // resumen de lo que ya no cabe, por conversación
     public static let telegramOwnerID = "telegramOwnerID"   // usuario emparejado con el bot
     public static let telegramBotName = "telegramBotName"
     /// Identificador numérico del bot: es también el del chat privado del usuario con él.
@@ -480,6 +485,18 @@ public struct ContextUsage: Codable, Hashable, Sendable {
         self.notes = notes
         self.tools = tools
         self.model = model
+    }
+}
+
+/// Resumen de la parte de una conversación que ya no cabe en la petición.
+public struct ContextSummary: Codable, Hashable, Sendable {
+    public var text: String
+    /// Fecha del último turno resumido.
+    public var until: Date
+
+    public init(text: String, until: Date) {
+        self.text = text
+        self.until = until
     }
 }
 

@@ -15,6 +15,10 @@ All notable changes to SaySo are documented here. The format follows
 - Message links, voting in polls, notes in Saved Messages and active stories
 - Polls, locations, contacts and dice now show their content when the agent reads a chat
 - Six new permission rules in the Telegram screen for these actions
+- Long conversations: what no longer fits in the request is summarized with the fast model instead of being dropped, and the history has a size budget as well as a turn limit
+- Voice and your bot now share one conversation, so what you said on one side counts on the other
+- Guest mode: a quoted message goes through the prompt-injection detector, and the reply to a mention is reviewed before it is posted in someone else's chat
+- A fixed cap on stored activity and conversations, even with retention set to "Forever"
 
 ### Fixed
 
@@ -22,6 +26,8 @@ All notable changes to SaySo are documented here. The format follows
 
 ### Changed
 
+- The welcome and permission guides show your own dictation shortcut instead of assuming ⌥
+- SaySo now requires macOS 15. The bundled TDLib build already needed it on Apple Silicon, so Telegram could fail on macOS 14
 - Telegram downloads are cleaned up daily: files unused for 14 days go, and the oldest ones when the cache passes 300 MB
 - The timings log keeps its most recent half once it passes 256 KB
 

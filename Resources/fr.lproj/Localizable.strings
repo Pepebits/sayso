@@ -1311,3 +1311,10 @@
 "Responder a una encuesta de un chat." = "Répondre à un sondage dans une discussion.";
 "Guardar notas en tus Mensajes guardados y leerlas." = "Enregistrer des notes dans vos Messages enregistrés et les lire.";
 "Mensajes guardados" = "Messages enregistrés";
+"Para hablarle al agente, SaySo necesita oírte y detectar tu atajo de teclado." = "Pour parler à l’agent, SaySo doit vous entendre et détecter votre raccourci clavier.";
+"Mantén %@, pídele algo y suelta. Lo hace y te responde." = "Maintenez %@, demandez quelque chose et relâchez. Il le fait et vous répond.";
+"Prueba a hablarle" = "Essayez de lui parler";
+"Mantén %@, pídele algo al agente y suelta: te responde en pantalla. Puedes cambiar el atajo en Dictado." = "Maintenez %@, demandez quelque chose à l’agent et relâchez : il vous répond à l’écran. Vous pouvez changer le raccourci dans Dictée.";
+"Mantén %@ y habla para probarlo." = "Maintenez %@ et parlez pour l’essayer.";
+"Se ha borrado lo más antiguo para no pasar del tope: %@ entradas de actividad y %@ mensajes." = "Les plus anciens éléments ont été supprimés pour rester sous la limite : %@ entrées d’activité et %@ messages.";
+"Conversación con el agente" = "Conversation avec l’agent";

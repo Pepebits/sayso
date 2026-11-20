@@ -272,7 +272,8 @@ struct MemoryScreen: View {
     // MARK: Contexto
 
     private func contextTitle(_ context: ConversationContext) -> String {
-        context.chatID == "voz" ? "Conversación por voz" : "Conversación por el bot"
+        // La voz y el bot comparten conversación: una sola tarjeta.
+        context.chatID == "voz" ? "Conversación con el agente" : "Conversación por el bot"
     }
 
     private func tokens(_ usage: ContextUsage) -> String {

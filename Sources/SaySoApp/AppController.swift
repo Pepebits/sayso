@@ -254,13 +254,16 @@ final class AppController: AppActions {
     /// La conversación de voz y la del bot, con los turnos que entrarían en la siguiente petición.
     static func contexts(from store: SaySoStoring) -> [ConversationContext] {
         let usage: [String: ContextUsage] = (try? store.codableSetting(SettingsKey.contextUsage)) ?? [:]
-        var ids = ["voz"]
-        if let owner = (try? store.setting(SettingsKey.telegramOwnerID)).flatMap({ $0 }) { ids.append(owner) }
+        // La voz y el bot del dueño son una sola conversación (AgentLoop.conversationChats).
+        let ids = ["voz"]
         return ids.map { id in
-            let turns = (try? store.turns(chatID: id, limit: AgentLoop.defaultHistoryLimit)) ?? []
-            let window = AgentLoop.window(turns, now: Date())
+            let conversation = AgentLoop.conversation(for: id, store: store, now: Date())
+            let turns = conversation
+            let window = Array(conversation.sorted { $0.date < $1.date }.suffix(AgentLoop.defaultHistoryLimit))
+            // El uso más reciente de cualquiera de sus chats.
+            let latest = AgentLoop.conversationChats(for: id, store: store).compactMap { usage[$0] }.max { $0.date < $1.date }
             return ConversationContext(chatID: id, turnsInWindow: window.count, windowLimit: AgentLoop.defaultHistoryLimit,
-                                       lastActivity: turns.map(\.date).max(), usage: window.isEmpty ? nil : usage[id])
+                                       lastActivity: turns.map(\.date).max(), usage: window.isEmpty ? nil : latest)
         }
     }
 
@@ -316,6 +319,10 @@ final class AppController: AppActions {
         refreshData()
     }
 
+    /// Filas que se conservan como mucho: unos pocos MB, y años de uso normal.
+    static let maxActivityRows = 50_000
+    static let maxTurnRows = 20_000
+
     /// Una vez al día borra la actividad y las conversaciones que pasan del plazo elegido.
     private func pruneIfDue() {
         guard let store else { return }
@@ -330,6 +337,12 @@ final class AppController: AppActions {
                                     tr("No se pudieron limpiar los archivos de Telegram: %@", error.localizedDescription))
                 }
             }
+        }
+        // Tope fijo, también con «Siempre»: la base de datos no crece sin límite.
+        if let trimmed = try? store.trim(keepActivity: AppController.maxActivityRows, keepTurns: AppController.maxTurnRows),
+           trimmed.activity + trimmed.turns > 0 {
+            model.log(.info, LogCategory.app, tr("Se ha borrado lo más antiguo para no pasar del tope: %@ entradas de actividad y %@ mensajes.",
+                                                 "\(trimmed.activity)", "\(trimmed.turns)"))
         }
         let days = model.retentionDays
         guard days > 0, let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: Date()),

@@ -93,9 +93,16 @@ public struct NewConversationTool: AgentTool {
 
     /// Borra los turnos de un chat y su medida de contexto.
     public static func reset(chatID: String, store: SaySoStoring) throws {
-        try store.clearTurns(chatID: chatID)
+        // La voz y el bot son una sola conversación: se empieza de cero en los dos.
+        let chats = AgentLoop.conversationChats(for: chatID, store: store)
+        var summaries: [String: ContextSummary] = (try? store.codableSetting(SettingsKey.contextSummaries)) ?? [:]
+        summaries[AgentLoop.summaryKey(for: chatID, store: store)] = nil
+        try store.setCodableSetting(summaries, for: SettingsKey.contextSummaries)
         var all: [String: ContextUsage] = (try? store.codableSetting(SettingsKey.contextUsage)) ?? [:]
-        all[chatID] = nil
+        for chat in chats {
+            try store.clearTurns(chatID: chat)
+            all[chat] = nil
+        }
         try store.setCodableSetting(all, for: SettingsKey.contextUsage)
     }
 

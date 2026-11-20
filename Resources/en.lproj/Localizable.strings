@@ -1321,3 +1321,10 @@
 "Responder a una encuesta de un chat." = "Answer a poll in a chat.";
 "Guardar notas en tus Mensajes guardados y leerlas." = "Save notes to your Saved Messages and read them.";
 "Mensajes guardados" = "Saved Messages";
+"Para hablarle al agente, SaySo necesita oírte y detectar tu atajo de teclado." = "To talk to the agent, SaySo needs to hear you and detect your keyboard shortcut.";
+"Mantén %@, pídele algo y suelta. Lo hace y te responde." = "Hold %@, ask for something and let go. It does it and answers you.";
+"Prueba a hablarle" = "Try talking to it";
+"Mantén %@, pídele algo al agente y suelta: te responde en pantalla. Puedes cambiar el atajo en Dictado." = "Hold %@, ask the agent for something and let go: it answers on screen. You can change the shortcut under Dictation.";
+"Mantén %@ y habla para probarlo." = "Hold %@ and speak to try it.";
+"Se ha borrado lo más antiguo para no pasar del tope: %@ entradas de actividad y %@ mensajes." = "The oldest records were deleted to stay under the cap: %@ activity entries and %@ messages.";
+"Conversación con el agente" = "Conversation with the agent";
