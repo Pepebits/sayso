@@ -1328,3 +1328,10 @@
 "Mantén %@ y habla para probarlo." = "Hold %@ and speak to try it.";
 "Se ha borrado lo más antiguo para no pasar del tope: %@ entradas de actividad y %@ mensajes." = "The oldest records were deleted to stay under the cap: %@ activity entries and %@ messages.";
 "Conversación con el agente" = "Conversation with the agent";
+"Leer los recordatorios" = "Read reminders";
+"Completar o borrar recordatorios" = "Complete or delete reminders";
+"Leer los recordatorios, también los completados" = "Read reminders, including completed ones";
+"Leer los recordatorios pendientes" = "Read pending reminders";
+"Marcar como hecho el recordatorio «%@»" = "Mark the reminder “%@” as done";
+"Volver a dejar pendiente el recordatorio «%@»" = "Mark the reminder “%@” as pending again";
+"Borrar el recordatorio «%@»" = "Delete the reminder “%@”";

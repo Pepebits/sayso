@@ -113,6 +113,8 @@ extension MacScript {
         case .notification: return "bell"
         case .volume: return "speaker.wave.2"
         case .reminder: return "checklist"
+        case .readReminders: return "list.bullet.rectangle"
+        case .changeReminder: return "checkmark.circle"
         case .note: return "note.text"
         case .calendarToday: return "calendar"
         case .openURL: return "link"

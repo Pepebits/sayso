@@ -1318,3 +1318,10 @@
 "Mantén %@ y habla para probarlo." = "Maintenez %@ et parlez pour l’essayer.";
 "Se ha borrado lo más antiguo para no pasar del tope: %@ entradas de actividad y %@ mensajes." = "Les plus anciens éléments ont été supprimés pour rester sous la limite : %@ entrées d’activité et %@ messages.";
 "Conversación con el agente" = "Conversation avec l’agent";
+"Leer los recordatorios" = "Lire les rappels";
+"Completar o borrar recordatorios" = "Terminer ou supprimer des rappels";
+"Leer los recordatorios, también los completados" = "Lire les rappels, y compris ceux terminés";
+"Leer los recordatorios pendientes" = "Lire les rappels en attente";
+"Marcar como hecho el recordatorio «%@»" = "Marquer le rappel « %@ » comme terminé";
+"Volver a dejar pendiente el recordatorio «%@»" = "Remettre le rappel « %@ » en attente";
+"Borrar el recordatorio «%@»" = "Supprimer le rappel « %@ »";

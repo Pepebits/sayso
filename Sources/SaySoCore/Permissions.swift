@@ -157,7 +157,7 @@ public enum TelegramAction {
 
 /// Lista cerrada de scripts del Mac. Añadir uno exige publicar una versión de la app.
 public enum MacScript: String, CaseIterable, Codable, Sendable {
-    case notification, volume, reminder, note, calendarToday, openURL
+    case notification, volume, reminder, readReminders, changeReminder, note, calendarToday, openURL
 
     public var action: ActionID { ActionID("mac.\(rawValue)") }
 
@@ -166,6 +166,8 @@ public enum MacScript: String, CaseIterable, Codable, Sendable {
         case .notification: return "Mostrar una notificación"
         case .volume: return "Cambiar el volumen"
         case .reminder: return "Añadir un recordatorio"
+        case .readReminders: return "Leer los recordatorios"
+        case .changeReminder: return "Completar o borrar recordatorios"
         case .note: return "Crear una nota"
         case .calendarToday: return "Leer el calendario"
         case .openURL: return "Abrir un enlace"
@@ -174,7 +176,7 @@ public enum MacScript: String, CaseIterable, Codable, Sendable {
 
     public var descriptor: ActionDescriptor {
         // Leer el calendario y notificar no cambian nada: Permitir. El resto, Preguntar.
-        let rule: PermissionRule = (self == .notification || self == .calendarToday) ? .allow : .ask
+        let rule: PermissionRule = [.notification, .calendarToday, .readReminders].contains(self) ? .allow : .ask
         return ActionDescriptor(id: action, title: title, defaultRule: rule)
     }
 }
@@ -188,6 +190,10 @@ public enum MacScriptCall: Sendable, Hashable {
     case note(title: String, body: String)
     /// Eventos desde el inicio del día `start` durante `days` días.
     case calendar(start: Date, days: Int)
+    /// Recordatorios pendientes (y, si se pide, también los completados).
+    case reminders(includeCompleted: Bool)
+    /// `id` es el que da la lista de recordatorios; `title`, para el diálogo de confirmación.
+    case changeReminder(id: String, title: String, change: ReminderChange)
     case openURL(URL)
 
     public var script: MacScript {
@@ -195,11 +201,18 @@ public enum MacScriptCall: Sendable, Hashable {
         case .notification: return .notification
         case .volume: return .volume
         case .reminder: return .reminder
+        case .reminders: return .readReminders
+        case .changeReminder: return .changeReminder
         case .note: return .note
         case .calendar: return .calendarToday
         case .openURL: return .openURL
         }
     }
+}
+
+/// Qué se le hace a un recordatorio.
+public enum ReminderChange: String, Sendable, Hashable, CaseIterable {
+    case complete, uncomplete, delete
 }
 
 /// Ejecuta scripts del Mac pasando siempre por el motor de permisos.

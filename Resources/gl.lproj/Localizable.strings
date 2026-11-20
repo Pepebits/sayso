@@ -1327,3 +1327,10 @@
 "Mantén %@ y habla para probarlo." = "Mantén %@ e fala para probalo.";
 "Se ha borrado lo más antiguo para no pasar del tope: %@ entradas de actividad y %@ mensajes." = "Borrouse o máis antigo para non pasar do tope: %@ entradas de actividade e %@ mensaxes.";
 "Conversación con el agente" = "Conversa co axente";
+"Leer los recordatorios" = "Ler os recordatorios";
+"Completar o borrar recordatorios" = "Completar ou borrar recordatorios";
+"Leer los recordatorios, también los completados" = "Ler os recordatorios, tamén os completados";
+"Leer los recordatorios pendientes" = "Ler os recordatorios pendentes";
+"Marcar como hecho el recordatorio «%@»" = "Marcar como feito o recordatorio «%@»";
+"Volver a dejar pendiente el recordatorio «%@»" = "Deixar outra vez pendente o recordatorio «%@»";
+"Borrar el recordatorio «%@»" = "Borrar o recordatorio «%@»";

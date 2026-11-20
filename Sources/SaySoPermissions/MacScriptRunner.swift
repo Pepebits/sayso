@@ -31,10 +31,15 @@ public final class MacScriptRunner: MacScriptRunning {
 
     public func run(_ call: MacScriptCall, origin: String?) async throws -> String {
         // Valida y normaliza antes de preguntar: el diálogo muestra los valores reales.
-        let call = try Self.validated(call)
-        let request = Self.request(for: call, origin: origin)
+        var call = try Self.validated(call)
+        // El diálogo enseña el texto real del recordatorio, no el que diga el modelo.
+        if case let .changeReminder(id, _, change) = call {
+            call = .changeReminder(id: id, title: try await Self.reminderTitle(id: id), change: change)
+        }
+        let checked = call
+        let request = Self.request(for: checked, origin: origin)
         return try await broker.run(request) {
-            try await Self.perform(call)
+            try await Self.perform(checked)
         }
     }
 
@@ -80,6 +85,15 @@ public final class MacScriptRunner: MacScriptRunning {
             params = ["título": title, "texto": body]
         case let .calendar(start, days):
             summary = Self.calendarRange(start: start, days: days)
+        case let .reminders(includeCompleted):
+            summary = includeCompleted ? tr("Leer los recordatorios, también los completados") : tr("Leer los recordatorios pendientes")
+        case let .changeReminder(_, title, change):
+            switch change {
+            case .complete: summary = tr("Marcar como hecho el recordatorio «%@»", "\(title)")
+            case .uncomplete: summary = tr("Volver a dejar pendiente el recordatorio «%@»", "\(title)")
+            case .delete: summary = tr("Borrar el recordatorio «%@»", "\(title)")
+            }
+            params = ["título": title]
         case let .openURL(url):
             summary = tr("Abrir %@", "\(url.absoluteString)")
             params = ["enlace": url.absoluteString]
@@ -110,6 +124,10 @@ public final class MacScriptRunner: MacScriptRunning {
             return "Nota «\(title)» creada en Notas."
         case let .calendar(start, days):
             return try await calendarEvents(start: start, days: days)
+        case let .reminders(includeCompleted):
+            return try await listReminders(includeCompleted: includeCompleted)
+        case let .changeReminder(id, _, change):
+            return try await changeReminder(id: id, change: change)
         case let .openURL(url):
             let opened = await MainActor.run { NSWorkspace.shared.open(url) }
             guard opened else { throw MacScriptError.scriptFailed("no se pudo abrir \(url.absoluteString)") }
@@ -158,6 +176,88 @@ public final class MacScriptRunner: MacScriptRunning {
         }
         try store.save(reminder, commit: true)
         return "Recordatorio «\(title)» añadido a «\(list.title)»."
+    }
+
+    private static func remindersStore() async throws -> EKEventStore {
+        let store = EKEventStore()
+        guard try await store.requestFullAccessToReminders() else { throw MacScriptError.accessDenied("Recordatorios") }
+        return store
+    }
+
+    /// Como mucho se enseñan estos recordatorios de golpe.
+    static let maxReminders = 100
+
+    private static func listReminders(includeCompleted: Bool) async throws -> String {
+        let store = try await remindersStore()
+        let predicate = includeCompleted ? store.predicateForReminders(in: nil)
+            : store.predicateForIncompleteReminders(withDueDateStarting: nil, ending: nil, calendars: nil)
+        let found: [EKReminder] = await withCheckedContinuation { continuation in
+            store.fetchReminders(matching: predicate) { continuation.resume(returning: $0 ?? []) }
+        }
+        let items = found.map { reminder in
+            ReminderLine(id: reminder.calendarItemIdentifier, title: reminder.title ?? "Sin título",
+                         due: reminder.dueDateComponents.flatMap { Calendar.current.date(from: $0) },
+                         list: reminder.calendar?.title ?? "", done: reminder.isCompleted)
+        }
+        return format(reminders: items)
+    }
+
+    struct ReminderLine: Sendable {
+        var id: String
+        var title: String
+        var due: Date?
+        var list: String
+        var done: Bool
+    }
+
+    /// Una línea por recordatorio, con el identificador que piden las demás acciones. Los que tienen
+    /// fecha primero, por fecha.
+    static func format(reminders: [ReminderLine]) -> String {
+        guard !reminders.isEmpty else { return "No hay recordatorios." }
+        let sorted = reminders.sorted {
+            switch ($0.due, $1.due) {
+            case let (a?, b?): return a < b
+            case (_?, nil): return true
+            case (nil, _?): return false
+            default: return $0.title.localizedCompare($1.title) == .orderedAscending
+            }
+        }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "es_ES")
+        f.dateFormat = "EEE d MMM HH:mm"
+        var lines = sorted.prefix(maxReminders).map { item in
+            var line = "id \(item.id) · \(item.done ? "✓ " : "")\(item.title)"
+            if let due = item.due { line += " · \(f.string(from: due))" }
+            if !item.list.isEmpty { line += " · lista «\(item.list)»" }
+            return line
+        }
+        if sorted.count > maxReminders { lines.append("(y \(sorted.count - maxReminders) más)") }
+        return lines.joined(separator: "\n")
+    }
+
+    private static func reminderTitle(id: String) async throws -> String {
+        let store = try await remindersStore()
+        guard let reminder = store.calendarItem(withIdentifier: id) as? EKReminder else {
+            throw MacScriptError.notAvailable("No hay ningún recordatorio con ese id: vuelve a leer la lista.")
+        }
+        return reminder.title ?? "Sin título"
+    }
+
+    private static func changeReminder(id: String, change: ReminderChange) async throws -> String {
+        let store = try await remindersStore()
+        guard let reminder = store.calendarItem(withIdentifier: id) as? EKReminder else {
+            throw MacScriptError.notAvailable("No hay ningún recordatorio con ese id: vuelve a leer la lista.")
+        }
+        let title = reminder.title ?? "Sin título"
+        switch change {
+        case .complete, .uncomplete:
+            reminder.isCompleted = change == .complete
+            try store.save(reminder, commit: true)
+            return change == .complete ? "Recordatorio «\(title)» marcado como hecho." : "Recordatorio «\(title)» pendiente otra vez."
+        case .delete:
+            try store.remove(reminder, commit: true)
+            return "Recordatorio «\(title)» borrado."
+        }
     }
 
     /// Como mucho se leen dos meses de golpe.

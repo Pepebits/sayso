@@ -138,4 +138,19 @@ final class MacScriptRunnerTests: XCTestCase {
         XCTAssertEqual(MacScriptCall.calendar(start: friday, days: 3).script, .calendarToday,
                        "misma acción que antes: la regla de permisos guardada sigue valiendo")
     }
+
+    func testRemindersListCarriesTheIDsForLaterChanges() {
+        let due = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 24, hour: 9))!
+        let text = MacScriptRunner.format(reminders: [
+            .init(id: "B", title: "Comprar pilas", due: nil, list: "Casa", done: false),
+            .init(id: "A", title: "Dentista", due: due, list: "Recordatorios", done: false),
+        ])
+        let lines = text.split(separator: "\n")
+        XCTAssertTrue(lines[0].hasPrefix("id A · Dentista · "), "los que tienen fecha, primero")
+        XCTAssertEqual(lines[1], "id B · Comprar pilas · lista «Casa»")
+        XCTAssertEqual(MacScriptRunner.format(reminders: []), "No hay recordatorios.")
+        let ask = MacScriptRunner.request(for: .changeReminder(id: "A", title: "Dentista", change: .delete), origin: nil)
+        XCTAssertEqual(ask.action, MacScript.changeReminder.action)
+        XCTAssertTrue(ask.summary.contains("Dentista"))
+    }
 }

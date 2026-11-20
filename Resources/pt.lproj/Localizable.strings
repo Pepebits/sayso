@@ -1327,3 +1327,10 @@
 "Mantén %@ y habla para probarlo." = "Mantém %@ e fala para experimentar.";
 "Se ha borrado lo más antiguo para no pasar del tope: %@ entradas de actividad y %@ mensajes." = "Foi apagado o mais antigo para não passar do limite: %@ entradas de atividade e %@ mensagens.";
 "Conversación con el agente" = "Conversa com o agente";
+"Leer los recordatorios" = "Ler os lembretes";
+"Completar o borrar recordatorios" = "Concluir ou apagar lembretes";
+"Leer los recordatorios, también los completados" = "Ler os lembretes, incluindo os concluídos";
+"Leer los recordatorios pendientes" = "Ler os lembretes pendentes";
+"Marcar como hecho el recordatorio «%@»" = "Marcar o lembrete «%@» como concluído";
+"Volver a dejar pendiente el recordatorio «%@»" = "Voltar a deixar pendente o lembrete «%@»";
+"Borrar el recordatorio «%@»" = "Apagar o lembrete «%@»";

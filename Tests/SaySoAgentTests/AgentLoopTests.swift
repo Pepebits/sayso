@@ -119,7 +119,7 @@ final class AgentLoopTests: XCTestCase {
     func testMacToolsValidate() async throws {
         let runner = FakeMacRunner()
         let tools = MacTools.all(runner: runner)
-        XCTAssertEqual(tools.count, 6)
+        XCTAssertEqual(tools.count, 8)
         let volume = MacVolumeTool(runner: runner)
         _ = try await volume.call(input: ["percent": 30], context: ToolContext())
         do { _ = try await volume.call(input: ["percent": 150], context: ToolContext()); XCTFail() } catch is ToolInputError {}
@@ -127,6 +127,18 @@ final class AgentLoopTests: XCTestCase {
         do { _ = try await open.call(input: ["url": "file:///etc/passwd"], context: ToolContext()); XCTFail() } catch is ToolInputError {}
         _ = try await MacReminderTool(runner: runner).call(input: ["title": "Llamar", "due": "2026-11-19T09:00"], context: ToolContext())
         XCTAssertEqual(runner.calls.get().count, 2)
+
+        // Leer, completar y borrar recordatorios (el bot no podía borrarlos).
+        _ = try await MacRemindersTool(runner: runner).call(input: [:], context: ToolContext())
+        _ = try await MacChangeReminderTool(runner: runner).call(input: ["id": "ABC", "title": "Llamar", "action": "delete"],
+                                                                 context: ToolContext())
+        do { _ = try await MacChangeReminderTool(runner: runner).call(input: ["id": "ABC", "title": "x", "action": "tirar"], context: ToolContext()); XCTFail() }
+        catch is ToolInputError {}
+        XCTAssertEqual(runner.calls.get().suffix(2), [.reminders(includeCompleted: false),
+                                                      .changeReminder(id: "ABC", title: "Llamar", change: .delete)])
+        XCTAssertEqual(MacScript.readReminders.descriptor.defaultRule, .allow)
+        XCTAssertEqual(MacScript.changeReminder.descriptor.defaultRule, .ask)
+        XCTAssertTrue(GuardPolicy.isOutward(MacScript.changeReminder.action))
     }
 
     func testCalendarToolReadsAnyDayOrRange() async throws {

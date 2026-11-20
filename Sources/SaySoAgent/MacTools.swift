@@ -5,10 +5,11 @@ import SaySoCore
 // `MacScriptRunning`, que ya pasa por el motor de permisos.
 
 public enum MacTools {
-    /// Las seis herramientas del Mac.
+    /// Las herramientas del Mac.
     public static func all(runner: MacScriptRunning) -> [AgentTool] {
         [
             MacNotificationTool(runner: runner), MacVolumeTool(runner: runner), MacReminderTool(runner: runner),
+            MacRemindersTool(runner: runner), MacChangeReminderTool(runner: runner),
             MacNoteTool(runner: runner), MacCalendarTool(runner: runner), MacOpenURLTool(runner: runner),
         ]
     }
@@ -82,6 +83,47 @@ public struct MacReminderTool: AgentTool {
             due = d
         }
         return try await runner.run(.reminder(title: title, due: due), origin: context.origin)
+    }
+}
+
+public struct MacRemindersTool: AgentTool {
+    let runner: MacScriptRunning
+    public init(runner: MacScriptRunning) { self.runner = runner }
+    public var name: String { "mac_reminders" }
+    public var description: String {
+        "Lee los recordatorios de la app Recordatorios del Mac: pendientes por defecto, o también los hechos. " +
+            "Cada uno lleva su id, que es el que pide mac_reminder_update para completarlo o borrarlo."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema(["include_completed": ["type": "boolean", "description": "También los ya hechos (no por defecto)"]])
+    }
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        try await runner.run(.reminders(includeCompleted: input["include_completed"]?.boolValue ?? false), origin: context.origin)
+    }
+}
+
+public struct MacChangeReminderTool: AgentTool {
+    let runner: MacScriptRunning
+    public init(runner: MacScriptRunning) { self.runner = runner }
+    public var name: String { "mac_reminder_update" }
+    public var description: String {
+        "Marca como hecho (complete), vuelve a dejar pendiente (uncomplete) o borra (delete) un recordatorio del Mac. " +
+            "Necesita su id: léelo antes con mac_reminders. Pon en «title» su texto, para la confirmación."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "id": .property("string", "El id que da mac_reminders"),
+            "title": .property("string", "El texto del recordatorio"),
+            "action": ["type": "string", "enum": ["complete", "uncomplete", "delete"]],
+        ], required: ["id", "title", "action"])
+    }
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let id = try input.requiredString("id", maxLength: 200).trimmingCharacters(in: .whitespaces)
+        let title = try input.requiredString("title", maxLength: 500)
+        guard let change = input["action"]?.stringValue.flatMap(ReminderChange.init(rawValue:)) else {
+            throw ToolInputError("«action» tiene que ser complete, uncomplete o delete.")
+        }
+        return try await runner.run(.changeReminder(id: id, title: title, change: change), origin: context.origin)
     }
 }
 

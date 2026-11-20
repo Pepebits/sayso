@@ -35,7 +35,7 @@ public enum GuardPolicy {
         TelegramAction.sendMessages, TelegramAction.deleteMessages, "telegram.sendFile", TelegramAction.guestReply,
         TelegramAction.forward, TelegramAction.edit, TelegramAction.react,
         TelegramAction.pin, TelegramAction.contacts, TelegramAction.groups, TelegramAction.vote,
-        MacScript.openURL.action, MacScript.note.action, MacScript.reminder.action,
+        MacScript.openURL.action, MacScript.note.action, MacScript.reminder.action, MacScript.changeReminder.action,
         TaskAction.schedule, TaskAction.cancel,
     ]
 
