@@ -2036,7 +2036,8 @@ final class AppController: AppActions {
 
     /// Recorre la carpeta de datos por partes. Tarda algo con la máquina Linux: va en segundo plano.
     nonisolated static func measureResources(vmConfig: VMConfig?, vmInstalled: Bool, vmRunning: Bool) -> ResourceUsage {
-        let gb = { (bytes: UInt64) in ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file) }
+        // El tope del disco va en las unidades con que se eligió (16 GB, no 17,18 GB).
+        let gb = { (bytes: UInt64) in ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .memory) }
         var items: [ResourceUsage.Item] = []
         if let support = try? AppPaths.supportDirectory() {
             func add(_ id: String, _ title: String, _ names: [String], detail: String? = nil) {
