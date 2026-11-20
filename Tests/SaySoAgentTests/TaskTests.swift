@@ -104,16 +104,20 @@ final class TaskTests: XCTestCase {
     }
 
     func testSchedulerRunsDueTasksOnceAndReschedules() async throws {
+        // El programador usa el calendario del equipo; las fechas del test, también (CI va en UTC).
+        func local(_ y: Int, _ m: Int, _ d: Int, _ h: Int, _ min: Int) -> Date {
+            Calendar.current.date(from: DateComponents(year: y, month: m, day: d, hour: h, minute: min))!
+        }
         let tasks = MemoryTasks()
         let store = MemoryStore()
-        let clock = Locked(date(2026, 11, 18, 12, 0))
+        let clock = Locked(local(2026, 11, 18, 12, 0))
         let schedule = TaskSchedule.daily(hour: 9, minute: 0, weekdays: [])
         // Atrasada tres días: debe ejecutarse una sola vez.
-        try tasks.addTask(ScheduledTask(instruction: "Calendario", schedule: schedule, nextRun: date(2026, 11, 15, 9, 0)))
-        try tasks.addTask(ScheduledTask(instruction: "Futura", schedule: schedule, nextRun: date(2026, 11, 19, 9, 0)))
-        try tasks.addTask(ScheduledTask(instruction: "Pausada", schedule: schedule, enabled: false, nextRun: date(2026, 11, 15, 9, 0)))
-        try tasks.addTask(ScheduledTask(instruction: "Una vez", schedule: .once(date(2026, 11, 18, 11, 0)),
-                                        nextRun: date(2026, 11, 18, 11, 0)))
+        try tasks.addTask(ScheduledTask(instruction: "Calendario", schedule: schedule, nextRun: local(2026, 11, 15, 9, 0)))
+        try tasks.addTask(ScheduledTask(instruction: "Futura", schedule: schedule, nextRun: local(2026, 11, 19, 9, 0)))
+        try tasks.addTask(ScheduledTask(instruction: "Pausada", schedule: schedule, enabled: false, nextRun: local(2026, 11, 15, 9, 0)))
+        try tasks.addTask(ScheduledTask(instruction: "Una vez", schedule: .once(local(2026, 11, 18, 11, 0)),
+                                        nextRun: local(2026, 11, 18, 11, 0)))
         let provider = FakeProvider([], fallback: .text("Hoy no hay nada"))
         let delivered = Locked<[String]>([])
         let scheduler = TaskScheduler(
@@ -124,7 +128,7 @@ final class TaskTests: XCTestCase {
         await scheduler.tick()
         XCTAssertEqual(delivered.get(), ["Calendario: Hoy no hay nada", "Una vez: Hoy no hay nada"])
         let after = tasks.items.get()
-        XCTAssertEqual(after[0].nextRun, date(2026, 11, 19, 9, 0))
+        XCTAssertEqual(after[0].nextRun, local(2026, 11, 19, 9, 0))
         XCTAssertEqual(after[0].lastResult, "Hoy no hay nada")
         XCTAssertEqual(after[0].lastRun, clock.get())
         XCTAssertFalse(after[3].enabled, "una tarea de una sola vez se desactiva")
@@ -136,7 +140,7 @@ final class TaskTests: XCTestCase {
 
         await scheduler.runNow(id: 2)
         XCTAssertEqual(delivered.get().count, 3)
-        XCTAssertEqual(tasks.items.get()[1].nextRun, date(2026, 11, 19, 9, 0), "ejecutar ahora no mueve el calendario")
+        XCTAssertEqual(tasks.items.get()[1].nextRun, local(2026, 11, 19, 9, 0), "ejecutar ahora no mueve el calendario")
     }
 
     func testSchedulerReportsFailures() async throws {
