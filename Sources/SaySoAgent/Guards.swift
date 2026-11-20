@@ -18,7 +18,12 @@ struct FastModelCall: Sendable {
         let provider = self.provider
         let nanos = UInt64(max(0.5, timeout) * 1_000_000_000)
         return try await withThrowingTaskGroup(of: String.self) { group in
-            group.addTask { try await provider.complete(request).text }
+            let store = self.store
+            group.addTask {
+                let response = try await provider.complete(request)
+                TokenMeter.record(request, response, store: store)
+                return response.text
+            }
             group.addTask {
                 try await Task.sleep(nanoseconds: nanos)
                 throw ProviderError.timeout

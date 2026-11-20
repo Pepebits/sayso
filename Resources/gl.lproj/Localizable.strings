@@ -1404,3 +1404,16 @@
 "Espacio devuelto al Mac: %@" = "Espazo devolto ao Mac: %@";
 "Lo que se borra dentro se devuelve al Mac al arrancar la máquina, o ahora con este botón." = "O que se borra dentro devólvese ao Mac ao arrancar a máquina, ou agora con este botón.";
 "Liberar espacio en el Mac" = "Liberar espazo no Mac";
+"Tokens por día" = "Tokens por día";
+"Tokens" = "Tokens";
+"%@ en %@ días" = "%@ en %@ días";
+"Aún no hay tokens contados en este periodo. Se cuentan desde esta versión." = "Aínda non hai tokens contados neste período. Cóntanse desde esta versión.";
+"Entrada" = "Entrada";
+"Salida" = "Saída";
+"Por solicitud" = "Por solicitude";
+"lo que se manda: instrucciones, historial y herramientas" = "o que se manda: instrucións, historial e ferramentas";
+"lo que escribe el modelo" = "o que escribe o modelo";
+"de media" = "de media";
+"Por modelo" = "Por modelo";
+"%@ entrada · %@ salida · %@ solicitudes" = "%@ entrada · %@ saída · %@ solicitudes";
+"≈: el proveedor no dice cuántos tokens usa y se estiman por la longitud del texto." = "≈: o provedor non di cantos tokens usa e estímanse pola lonxitude do texto.";

@@ -173,6 +173,21 @@ final class SQLiteStoreTests: XCTestCase {
         XCTAssertEqual(again.activity + again.turns, 0)
     }
 
+    func testTokensAddUpByDayAndModel() throws {
+        let now = Date()
+        try store.recordTokens(model: "deepseek-chat", input: 5_000, output: 200, estimated: false, on: now)
+        try store.recordTokens(model: "deepseek-chat", input: 3_000, output: 100, estimated: true, on: now)
+        try store.recordTokens(model: "deepseek-reasoner", input: 1_000, output: 900, estimated: false, on: now)
+        let stats = try store.usageStats(days: 7, now: now)
+        XCTAssertEqual(stats.days.last?.totals.inputTokens, 9_000)
+        XCTAssertEqual(stats.days.last?.totals.outputTokens, 1_200)
+        XCTAssertEqual(stats.allTime.tokens, 10_200)
+        let byModel = stats.tokensByModel(lastDays: 7)
+        XCTAssertEqual(byModel.first?.model, "deepseek-chat")
+        XCTAssertEqual(byModel.first?.requests, 2)
+        XCTAssertEqual(byModel.first?.estimated, true, "basta una estimación para marcarlo")
+    }
+
     func testTrimKeepsOnlyTheNewestRows() throws {
         let base = Date(timeIntervalSince1970: 50_000)
         for i in 0..<6 {

@@ -193,9 +193,11 @@ enum PreviewData {
             let seed = (ago * 37 + 11) % 23
             let weekend = calendar.isDateInWeekend(day)
             let dictations = seed % 7 == 0 ? 0 : (weekend ? seed / 4 : 6 + seed)
-            let totals = UsageTotals(requests: seed % 7 == 0 ? 0 : (weekend ? 8 + seed : 40 + seed * 4),
+            let requests = seed % 7 == 0 ? 0 : (weekend ? 8 + seed : 40 + seed * 4)
+            let totals = UsageTotals(requests: requests,
                                      dictations: dictations, words: dictations * (18 + seed % 9),
-                                     seconds: Double(dictations * (9 + seed % 6)))
+                                     seconds: Double(dictations * (9 + seed % 6)),
+                                     inputTokens: requests * 5_800, outputTokens: requests * 240)
             all = all + totals
             return DayUsage(day: day, totals: totals)
         }
@@ -203,13 +205,18 @@ enum PreviewData {
             ActionBucket(day: calendar.date(byAdding: .day, value: -ago, to: today) ?? today,
                          action: action, outcome: outcome, count: count)
         }
+        let tokens = days.flatMap { day -> [TokenBucket] in
+            let r = day.totals.requests
+            return [TokenBucket(day: day.day, model: "qwen3:32b", input: r * 4_600, output: r * 190, requests: r * 3 / 4, estimated: true),
+                    TokenBucket(day: day.day, model: "qwen3:4b", input: r * 1_200, output: r * 50, requests: r / 4, estimated: true)]
+        }
         return UsageStats(days: days, allTime: all, firstDay: days.first?.day, actions: [
             bucket(1, TelegramAction.readMessages, .allowed, 41), bucket(3, TelegramAction.sendMessages, .allowed, 17),
             bucket(4, TelegramAction.deleteMessages, .denied, 3), bucket(2, ComputerAction.run, .allowed, 96),
             bucket(9, ComputerAction.writeFile, .allowed, 22), bucket(12, ComputerAction.run, .failed, 5),
             bucket(5, MacScript.calendarToday.action, .allowed, 14), bucket(20, MacScript.volume.action, .allowed, 6),
             bucket(40, MacScript.note.action, .denied, 2), bucket(6, ActionID("plugin.context7"), .allowed, 9),
-        ])
+        ], tokens: tokens)
     }
 
     /// Todo conectado y con datos en cada pantalla, para revisar el diseño completo.

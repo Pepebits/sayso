@@ -31,7 +31,12 @@ public struct LLMTextCorrector: TextCorrector {
         let provider = self.provider
         let nanos = UInt64(max(0.1, timeout) * 1_000_000_000)
         let response = try await withThrowingTaskGroup(of: ModelResponse.self) { group in
-            group.addTask { try await provider.complete(request) }
+            let store = self.store
+            group.addTask {
+                let response = try await provider.complete(request)
+                TokenMeter.record(request, response, store: store)
+                return response
+            }
             group.addTask {
                 try await Task.sleep(nanoseconds: nanos)
                 throw ProviderError.timeout

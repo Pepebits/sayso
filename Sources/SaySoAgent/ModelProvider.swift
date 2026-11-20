@@ -164,3 +164,22 @@ extension HTTPTransport {
         }
     }
 }
+
+
+/// Apunta los tokens de cada petición: los que dice el proveedor o, si no los da, una estimación
+/// por caracteres (unos 3,5 por token).
+public enum TokenMeter {
+    public static func record(_ request: ModelRequest, _ response: ModelResponse, store: SaySoStoring?, on day: Date = Date()) {
+        guard let store else { return }
+        let estimated = response.inputTokens == nil || response.outputTokens == nil
+        let input = response.inputTokens ?? estimate(request)
+        let output = response.outputTokens ?? Int(Double(response.text.count) / 3.5)
+        try? store.recordTokens(model: request.model, input: input, output: output, estimated: estimated, on: day)
+    }
+
+    static func estimate(_ request: ModelRequest) -> Int {
+        let messages = request.messages.reduce(0) { $0 + String(describing: $1.content).count }
+        let tools = request.tools.reduce(0) { $0 + String(describing: $1).count }
+        return Int(Double(request.system.count + messages + tools) / 3.5)
+    }
+}

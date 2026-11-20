@@ -267,3 +267,12 @@ final class ResourceTests: XCTestCase {
     }
 }
 
+final class TokenMeterTests: XCTestCase {
+    func testTheLoopRecordsTokensPerModel() async throws {
+        let store = MemoryStore()
+        _ = try await AgentLoop(provider: FakeProvider([.text("Hola")]), tools: [], store: store).respond(to: "Hola", chatID: "voz")
+        XCTAssertEqual(store.tokenRecords.get().first?.model, "full-model")
+        XCTAssertEqual(store.tokenRecords.get().first?.estimated, true, "el proveedor falso no da cifras")
+    }
+}
+

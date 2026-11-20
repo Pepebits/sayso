@@ -1405,3 +1405,16 @@
 "Espacio devuelto al Mac: %@" = "Space returned to the Mac: %@";
 "Lo que se borra dentro se devuelve al Mac al arrancar la máquina, o ahora con este botón." = "What’s deleted inside goes back to the Mac when the machine starts, or now with this button.";
 "Liberar espacio en el Mac" = "Free up space on the Mac";
+"Tokens por día" = "Tokens per day";
+"Tokens" = "Tokens";
+"%@ en %@ días" = "%@ in %@ days";
+"Aún no hay tokens contados en este periodo. Se cuentan desde esta versión." = "No tokens counted in this period yet. They’re counted from this version on.";
+"Entrada" = "Input";
+"Salida" = "Output";
+"Por solicitud" = "Per request";
+"lo que se manda: instrucciones, historial y herramientas" = "what’s sent: instructions, history and tools";
+"lo que escribe el modelo" = "what the model writes";
+"de media" = "on average";
+"Por modelo" = "By model";
+"%@ entrada · %@ salida · %@ solicitudes" = "%@ in · %@ out · %@ requests";
+"≈: el proveedor no dice cuántos tokens usa y se estiman por la longitud del texto." = "≈: the provider doesn’t report token counts, so they’re estimated from the text length.";

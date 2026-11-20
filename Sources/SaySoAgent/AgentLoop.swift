@@ -528,7 +528,9 @@ public final class AgentLoop: Sendable {
     private func send(_ request: ModelRequest) async throws -> ModelResponse {
         let outgoing = redactor.map { Self.redact(request, with: $0) } ?? request
         try? store.incrementRequests(on: now())
-        return try await provider.complete(outgoing)
+        let response = try await provider.complete(outgoing)
+        TokenMeter.record(outgoing, response, store: store, on: now())
+        return response
     }
 
     /// Ejecuta una llamada. El segundo valor dice si terminó sin error.
