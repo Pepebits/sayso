@@ -2014,19 +2014,23 @@ final class AgentServices: Sendable {
         // También por voz: es donde más se pide buscar, y sin navegador no había forma de hacerlo.
         let browser: WebSearchTool.Browser? = viaPlugin
         // El agente solo ve su ordenador si ya está instalado: no descarga nada por su cuenta.
-        let tools = AgentTools.standard(runner: runner, store: store,
-                                        computer: vmFiles.isInstalled ? computer : nil)
-            + TaskTools.all(tasks: tasks, broker: broker, userAPI: telegramUser.readySession)
-            + [WebSearchTool(store: store, vault: vault, broker: broker, browser: browser)]
-            // Mandar archivos solo tiene sentido con ordenador del que sacarlos.
-            + (vmFiles.isInstalled ? [SendFileTool(computer: computer, outbox: outbox, broker: broker,
-                                                       userAPI: telegramUser.readySession, limiter: sendLimiter,
-                                                       ownBotID: ownBotID)] : [])
-            // Los chats del usuario solo existen para el agente con la sesión iniciada.
-            + (telegramUser.readySession.map { TelegramUserTools.all(api: $0, broker: broker, limiter: sendLimiter, ownBotID: ownBotID,
-                                                                         computer: vmFiles.isInstalled ? computer : nil,
-                                                                         transcribe: transcribeVoice) } ?? [])
-            + (await plugins.tools(connect: !quick))
+        // En pasos sueltos: como una sola suma, el compilador de CI no llegaba a deducir los tipos.
+        let installedComputer: AgentComputer? = vmFiles.isInstalled ? computer : nil
+        let userSession = telegramUser.readySession
+        var tools = AgentTools.standard(runner: runner, store: store, computer: installedComputer)
+        tools += TaskTools.all(tasks: tasks, broker: broker, userAPI: userSession)
+        tools.append(WebSearchTool(store: store, vault: vault, broker: broker, browser: browser))
+        // Mandar archivos solo tiene sentido con ordenador del que sacarlos.
+        if vmFiles.isInstalled {
+            tools.append(SendFileTool(computer: computer, outbox: outbox, broker: broker, userAPI: userSession,
+                                      limiter: sendLimiter, ownBotID: ownBotID))
+        }
+        // Los chats del usuario solo existen para el agente con la sesión iniciada.
+        if let userSession {
+            tools += TelegramUserTools.all(api: userSession, broker: broker, limiter: sendLimiter, ownBotID: ownBotID,
+                                           computer: installedComputer, transcribe: transcribeVoice)
+        }
+        tools += await plugins.tools(connect: !quick)
         // Con plugins hay más pasos por tarea que en una charla.
         return AgentLoop(provider: provider, tools: tools, store: store, redactor: redactor, maxIterations: 16,
                          diagnostics: { note in Timings.note("agente", [:], detail: note) },
