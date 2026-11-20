@@ -136,7 +136,7 @@ enum PreviewData {
         m.pairingCode = "482913"
         m.requestsToday = 122
         m.openAtLogin = true
-        m.systemPermissions = [.microphone: true, .accessibility: true, .inputMonitoring: false]
+        m.systemPermissions = [.microphone: true, .accessibility: true, .inputMonitoring: true]
         m.transcriberStatus = "Descargando 40 %"
         let claude = ProviderAccount(name: "Claude", kind: .anthropic,
                                      baseURL: URL(string: "https://api.anthropic.com")!,
@@ -145,8 +145,8 @@ enum PreviewData {
         let ollama = ProviderAccount(name: "Ollama", kind: .openAICompatible,
                                      baseURL: URL(string: "http://localhost:11434/v1")!,
                                      fullModel: "qwen3:32b", fastModel: "qwen3:4b", keychainKey: nil)
-        m.accounts = [claude, ollama]
-        m.activeAccountID = claude.id
+        m.accounts = [ollama, claude]
+        m.activeAccountID = ollama.id
         m.rules = [TelegramAction.sendMessages: .ask, MacScript.volume.action: .allow]
         m.telegramActivity = [
             ActivityEntry(id: 1, date: Date().addingTimeInterval(-300), action: TelegramAction.sendMessages,
@@ -217,7 +217,7 @@ enum PreviewData {
                                 lastActivity: Date().addingTimeInterval(-300),
                                 usage: ContextUsage(date: Date().addingTimeInterval(-300), inputTokens: 6240,
                                                     outputTokens: 180, measured: true, turns: 14, notes: 5,
-                                                    tools: 22, model: "claude-opus-5-5")),
+                                                    tools: 22, model: "qwen3:32b")),
             ConversationContext(chatID: "418000000", turnsInWindow: 0, windowLimit: 30,
                                 lastActivity: nil, usage: nil),
         ]

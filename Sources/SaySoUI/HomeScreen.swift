@@ -127,7 +127,8 @@ struct HomeScreen: View {
         }
     }
 
-    static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.0"
+    static let version = Bundle.main.bundleIdentifier == "com.pepebits.sayso"
+        ? (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.0") : "0.2.0"
 
     // MARK: Módulos
 
