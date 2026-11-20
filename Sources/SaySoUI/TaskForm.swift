@@ -108,7 +108,7 @@ struct TaskFormFields: View {
             if !draft.recipients.isEmpty {
                 HStack(alignment: .top, spacing: Theme.Space.m) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Enviar sin pedir confirmación").font(Theme.bodyStrong).foregroundStyle(Theme.ink)
+                        Text(tr("Enviar sin pedir confirmación")).font(Theme.bodyStrong).foregroundStyle(Theme.ink)
                         Text(draft.sendWithoutAsking
                              ? tr("Lo que mande esta tarea a estos destinatarios sale sin preguntarte en el Mac, aunque la regla de envío sea Preguntar. A cualquier otra persona, se pregunta como siempre.")
                              : tr("Cada envío a estos destinatarios sigue tu regla de envío y, si es Preguntar, te lo pregunta en el Mac."))
@@ -250,7 +250,7 @@ struct RecipientPicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.s) {
             HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
-                Text("Enviar a").font(Theme.text(12, weight: .semibold)).foregroundStyle(Theme.ink)
+                Text(tr("Enviar a")).font(Theme.text(12, weight: .semibold)).foregroundStyle(Theme.ink)
                 if recipients.isEmpty {
                     MonoTag(text: tr("a ti, por el bot"))
                 } else {

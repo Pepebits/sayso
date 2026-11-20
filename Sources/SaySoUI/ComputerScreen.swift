@@ -1,7 +1,7 @@
 import SaySoCore
 import SwiftUI
 
-/// Pantalla Ordenador: la máquina Linux del agente (ADR-0004).
+/// Pantalla Ordenador: la máquina Linux del agente.
 struct ComputerScreen: View {
     let model: AppModel
     @State private var command = ""
@@ -49,8 +49,8 @@ struct ComputerScreen: View {
                                     .foregroundStyle(Theme.ink)
                                     .accessibilityHidden(true)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("Se apaga sola").font(Theme.bodyStrong).foregroundStyle(Theme.ink)
-                                    Text("Tras 10 minutos sin uso. Vuelve a arrancar cuando hace falta.")
+                                    Text(tr("Se apaga sola")).font(Theme.bodyStrong).foregroundStyle(Theme.ink)
+                                    Text(tr("Tras 10 minutos sin uso. Vuelve a arrancar cuando hace falta."))
                                         .font(Theme.caption)
                                         .foregroundStyle(Theme.secondary)
                                         .fixedSize(horizontal: false, vertical: true)
@@ -61,8 +61,8 @@ struct ComputerScreen: View {
                         Panel(padding: Theme.Space.m, fill: true) {
                             HStack(alignment: .center, spacing: Theme.Space.m) {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("Borrar la máquina").font(Theme.bodyStrong).foregroundStyle(Theme.ink)
-                                    Text("Elimina el disco y todo lo que haya en ~/sayso. No se puede deshacer.")
+                                    Text(tr("Borrar la máquina")).font(Theme.bodyStrong).foregroundStyle(Theme.ink)
+                                    Text(tr("Elimina el disco y todo lo que haya en ~/sayso. No se puede deshacer."))
                                         .font(Theme.caption)
                                         .foregroundStyle(Theme.secondary)
                                         .fixedSize(horizontal: false, vertical: true)
@@ -98,7 +98,7 @@ struct ComputerScreen: View {
             Button("Borrar la máquina", role: .destructive) { model.actions?.deleteComputer() }
             Button("Cancelar", role: .cancel) {}
         } message: {
-            Text("Se perderá todo lo que haya dentro. Tendrás que volver a descargar la imagen.")
+            Text(tr("Se perderá todo lo que haya dentro. Tendrás que volver a descargar la imagen."))
         }
     }
 

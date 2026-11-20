@@ -233,14 +233,14 @@ struct AddAccountSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.l) {
-            Text("Añadir cuenta de IA")
+            Text(tr("Añadir cuenta de IA"))
                 .font(Theme.display(20))
                 .tracking(-0.4)
                 .foregroundStyle(Theme.ink)
                 .accessibilityAddTraits(.isHeader)
 
             VStack(alignment: .leading, spacing: Theme.Space.s) {
-                Text("Plantilla").font(Theme.text(12, weight: .semibold)).foregroundStyle(Theme.ink)
+                Text(tr("Plantilla")).font(Theme.text(12, weight: .semibold)).foregroundStyle(Theme.ink)
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
                     ForEach(ProviderPreset.all) { p in
                         Button { apply(p) } label: {

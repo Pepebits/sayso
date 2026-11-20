@@ -35,7 +35,7 @@ public struct ConfirmationView: View {
             HStack(alignment: .center, spacing: Theme.Space.m) {
                 IconTile(icon, size: 32)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("SaySo pide permiso")
+                    Text(tr("SaySo pide permiso"))
                         .font(Theme.caption)
                         .foregroundStyle(Theme.secondary)
                     Text(tr(title))
@@ -90,12 +90,12 @@ public struct ConfirmationView: View {
             VStack(alignment: .leading, spacing: 3) {
                 if let origin = request.origin, !origin.isEmpty {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("Origen").foregroundStyle(Theme.secondary)
+                        Text(tr("Origen")).foregroundStyle(Theme.secondary)
                         Text(origin).foregroundStyle(Theme.ink).textSelection(.enabled)
                     }
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("Acción").foregroundStyle(Theme.secondary)
+                    Text(tr("Acción")).foregroundStyle(Theme.secondary)
                     Text(request.action.rawValue).font(Theme.mono(11)).foregroundStyle(Theme.ink)
                 }
             }

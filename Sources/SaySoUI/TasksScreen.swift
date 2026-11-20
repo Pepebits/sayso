@@ -1,7 +1,7 @@
 import SaySoCore
 import SwiftUI
 
-/// Pantalla Tareas: lo que el agente hace solo, a su hora (ADR-0010).
+/// Pantalla Tareas: lo que el agente hace solo, a su hora.
 struct TasksScreen: View {
     let model: AppModel
     @State private var draft = TaskDraft()
@@ -42,7 +42,7 @@ struct TasksScreen: View {
                             .disabled(draft.problem != nil)
                     }
                 }
-                Text("También puedes pedírselo al agente en el chat: «envíame mi calendario cada mañana a las 9».")
+                Text(tr("También puedes pedírselo al agente en el chat: «envíame mi calendario cada mañana a las 9»."))
                     .font(Theme.caption)
                     .foregroundStyle(Theme.secondary)
                     .fixedSize(horizontal: false, vertical: true)

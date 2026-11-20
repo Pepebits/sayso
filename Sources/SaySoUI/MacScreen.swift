@@ -24,7 +24,7 @@ struct MacScreen: View {
             Panel(padding: Theme.Space.m) {
                 HStack(alignment: .center, spacing: Theme.Space.m) {
                     IconTile("lock.shield", size: 26)
-                    Text("El agente no ejecuta código propio en tu Mac. Solo puede pedir estas acciones, y tú decides cada una.")
+                    Text(tr("El agente no ejecuta código propio en tu Mac. Solo puede pedir estas acciones, y tú decides cada una."))
                         .font(Theme.bodyStrong)
                         .foregroundStyle(Theme.ink)
                         .fixedSize(horizontal: false, vertical: true)
@@ -36,7 +36,7 @@ struct MacScreen: View {
             VStack(alignment: .leading, spacing: Theme.Space.s) {
                 SectionBar("Acciones del Mac")
                 TileGrid(MacScript.allCases.map(ScriptItem.init), columns: 3, minTileWidth: 226) { scriptTile($0.script) }
-                Text("La lista es cerrada: añadir un script exige una nueva versión de SaySo.")
+                Text(tr("La lista es cerrada: añadir un script exige una nueva versión de SaySo."))
                     .font(Theme.caption)
                     .foregroundStyle(Theme.secondary)
                     .fixedSize(horizontal: false, vertical: true)

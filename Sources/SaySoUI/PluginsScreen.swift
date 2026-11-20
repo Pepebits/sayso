@@ -1,7 +1,7 @@
 import SaySoCore
 import SwiftUI
 
-/// Pantalla Plugins: servicios en línea y complementos de la máquina Linux (ADR-0009).
+/// Pantalla Plugins: servicios en línea y complementos de la máquina Linux.
 struct PluginsScreen: View {
     enum Filter: Hashable { case all, services, addons }
 
@@ -67,7 +67,7 @@ struct PluginsScreen: View {
             }
             Button("Cancelar", role: .cancel) { removing = nil }
         } message: {
-            Text("El agente dejará de ver sus herramientas. Puedes volver a añadirlo cuando quieras.")
+            Text(tr("El agente dejará de ver sus herramientas. Puedes volver a añadirlo cuando quieras."))
         }
     }
 
@@ -233,7 +233,7 @@ struct CustomPluginSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.l) {
-            Text("Añadir servidor MCP")
+            Text(tr("Añadir servidor MCP"))
                 .font(Theme.display(20))
                 .tracking(-0.4)
                 .foregroundStyle(Theme.ink)

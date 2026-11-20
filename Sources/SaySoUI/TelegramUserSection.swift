@@ -2,7 +2,7 @@ import SaySoCore
 import SwiftUI
 
 /// Inicio de sesión con la cuenta del usuario (TDLib) para que el agente pueda leer y escribir
-/// en sus chats (ADR-0006). Es opcional; el bot funciona sin esto.
+/// en sus chats. Es opcional; el bot funciona sin esto.
 struct TelegramUserSection: View {
     let model: AppModel
     /// Con la sesión iniciada, se pinta como un panel suelto para ir al lado del bot.
@@ -26,7 +26,7 @@ struct TelegramUserSection: View {
             Button("Cerrar sesión", role: .destructive) { model.actions?.disconnectTelegramUser() }
             Button("Cancelar", role: .cancel) {}
         } message: {
-            Text("Se borran los datos de tus chats guardados en este Mac. El bot sigue funcionando.")
+            Text(tr("Se borran los datos de tus chats guardados en este Mac. El bot sigue funcionando."))
         }
     }
 
@@ -125,10 +125,10 @@ struct TelegramUserSection: View {
 
     private var credentials: some View {
         VStack(alignment: .leading, spacing: Theme.Space.m) {
-            Text("Iniciar sesión con tu cuenta")
+            Text(tr("Iniciar sesión con tu cuenta"))
                 .font(Theme.bodyStrong)
                 .foregroundStyle(Theme.ink)
-            Text("Telegram exige que cada app tenga sus propias credenciales. Entra en my.telegram.org, abre «API development tools», crea una app y copia aquí su api_id y su api_hash.")
+            Text(tr("Telegram exige que cada app tenga sus propias credenciales. Entra en my.telegram.org, abre «API development tools», crea una app y copia aquí su api_id y su api_hash."))
                 .font(Theme.caption)
                 .foregroundStyle(Theme.secondary)
                 .fixedSize(horizontal: false, vertical: true)

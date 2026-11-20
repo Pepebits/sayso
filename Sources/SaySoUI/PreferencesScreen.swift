@@ -258,7 +258,7 @@ private struct LocalModelPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.s) {
-            Text("Modelo").font(Theme.text(12, weight: .semibold)).foregroundStyle(Theme.ink)
+            Text(tr("Modelo")).font(Theme.text(12, weight: .semibold)).foregroundStyle(Theme.ink)
             VStack(spacing: Theme.Space.s) {
                 ForEach(LocalGuardModel.catalog) { candidate in card(candidate) }
                 customCard
@@ -386,7 +386,7 @@ private struct LocalModelPicker: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.ink)
                     .accessibilityHidden(true)
-                Text("Otro modelo de Hugging Face").font(Theme.bodyStrong).foregroundStyle(Theme.ink)
+                Text(tr("Otro modelo de Hugging Face")).font(Theme.bodyStrong).foregroundStyle(Theme.ink)
                 Spacer(minLength: 0)
             }
             HStack(spacing: Theme.Space.s) {

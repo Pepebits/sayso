@@ -370,7 +370,7 @@ private struct SearchField: View {
                 .accessibilityHidden(true)
             ZStack(alignment: .leading) {
                 if text.isEmpty {
-                    Text("Buscar ajustes")
+                    Text(tr("Buscar ajustes"))
                         .foregroundStyle(Theme.tertiary)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)

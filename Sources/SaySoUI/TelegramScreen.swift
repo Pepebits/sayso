@@ -50,10 +50,10 @@ struct ActivityList: View {
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 6) {
                     Text(RelativeDate.string(entry.date))
-                    Text("·")
+                    Text(verbatim: "·")
                     Text(entry.action.rawValue).font(Theme.mono(11))
                     if let origin = entry.origin, !origin.isEmpty {
-                        Text("·")
+                        Text(verbatim: "·")
                         Text(origin).lineLimit(1).truncationMode(.tail)
                     }
                 }
@@ -145,7 +145,7 @@ struct TelegramScreen: View {
                     .truncationMode(.middle)
                     .textSelection(.enabled)
             }
-            Text("Emparejado contigo. Es el canal por el que hablas con el agente y por el que te pide confirmación.")
+            Text(tr("Emparejado contigo. Es el canal por el que hablas con el agente y por el que te pide confirmación."))
                 .font(Theme.caption)
                 .foregroundStyle(Theme.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -186,7 +186,7 @@ struct TelegramScreen: View {
                         BlockButton("Conectar", kind: .primary, action: connect)
                             .disabled(trimmedToken.isEmpty)
                     }
-                    Text("El token se guarda en el Llavero de este Mac.")
+                    Text(tr("El token se guarda en el Llavero de este Mac."))
                         .font(Theme.caption)
                         .foregroundStyle(Theme.secondary)
                 }
@@ -247,7 +247,7 @@ struct TelegramScreen: View {
                 if let code = model.pairingCode {
                     CardDivider()
                     VStack(alignment: .leading, spacing: Theme.Space.s) {
-                        Text("Envía este código a tu bot para emparejarlo contigo. Solo funciona una vez.")
+                        Text(tr("Envía este código a tu bot para emparejarlo contigo. Solo funciona una vez."))
                             .font(Theme.body)
                             .foregroundStyle(Theme.ink)
                             .fixedSize(horizontal: false, vertical: true)
@@ -352,7 +352,7 @@ struct TelegramScreen: View {
                     actionTile(item.descriptor)
                 }
                 .disabled(!model.telegramEnabled)
-                Text("Se aplican a lo que el agente hace en tus chats cuando has iniciado sesión con tu cuenta. Responderte por el bot no pasa por estas reglas.")
+                Text(tr("Se aplican a lo que el agente hace en tus chats cuando has iniciado sesión con tu cuenta. Responderte por el bot no pasa por estas reglas."))
                     .font(Theme.caption)
                     .foregroundStyle(Theme.secondary)
                     .fixedSize(horizontal: false, vertical: true)

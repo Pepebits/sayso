@@ -116,7 +116,7 @@ struct DictationScreen: View {
             Spacer(minLength: Theme.Space.s)
             if settings.shortcut.kind == .option {
                 VStack(alignment: .leading, spacing: Theme.Space.s) {
-                    Text("Lado de la tecla").font(Theme.text(12, weight: .semibold)).foregroundStyle(Theme.ink)
+                    Text(tr("Lado de la tecla")).font(Theme.text(12, weight: .semibold)).foregroundStyle(Theme.ink)
                     BlockSegmented("Lado de la tecla Opción",
                                    selection: Binding(get: { settings.side }, set: { v in update { $0.side = v } }),
                                    options: [OptionKeySide.left, .any, .right].map { ($0, $0.title) })
@@ -155,7 +155,7 @@ struct DictationScreen: View {
             HStack(alignment: .top, spacing: Theme.Space.m) {
                 IconTile("bubble.left.and.bubble.right", size: 34)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Se lo dices al agente").font(Theme.bodyStrong).foregroundStyle(Theme.ink)
+                    Text(tr("Se lo dices al agente")).font(Theme.bodyStrong).foregroundStyle(Theme.ink)
                     Text(model.activeAccount == nil
                          ? tr("Necesita una cuenta de IA: añádela en Modelo para poder hablarle.")
                          : tr("Actúa según tus reglas y te responde. Para tener el texto, usa «Dictar texto» abajo."))
@@ -168,8 +168,8 @@ struct DictationScreen: View {
             CardDivider()
             HStack(spacing: Theme.Space.m) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Responder en voz alta").font(Theme.bodyStrong).foregroundStyle(Theme.ink)
-                    Text("Con la voz de macOS. Siempre se muestra también en pantalla.")
+                    Text(tr("Responder en voz alta")).font(Theme.bodyStrong).foregroundStyle(Theme.ink)
+                    Text(tr("Con la voz de macOS. Siempre se muestra también en pantalla."))
                         .font(Theme.caption)
                         .foregroundStyle(Theme.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -306,7 +306,7 @@ struct DictationScreen: View {
             CardDivider()
             HStack(spacing: Theme.Space.m) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Corregir con IA").font(Theme.bodyStrong).foregroundStyle(Theme.ink)
+                    Text(tr("Corregir con IA")).font(Theme.bodyStrong).foregroundStyle(Theme.ink)
                     Text(tr(correctionDetail))
                         .font(Theme.caption)
                         .foregroundStyle(Theme.secondary)

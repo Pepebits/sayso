@@ -269,7 +269,7 @@ struct OnboardingView: View {
                 if let code = model.pairingCode {
                     CardDivider()
                     VStack(alignment: .leading, spacing: Theme.Space.s) {
-                        Text("Abre tu bot en Telegram y envíale este código")
+                        Text(tr("Abre tu bot en Telegram y envíale este código"))
                             .font(Theme.bodyStrong)
                             .foregroundStyle(Theme.ink)
                         Text(code)
@@ -278,7 +278,7 @@ struct OnboardingView: View {
                             .foregroundStyle(Theme.ink)
                             .textSelection(.enabled)
                             .accessibilityLabel(tr("Código de emparejamiento %@", code.map(String.init).joined(separator: " ")))
-                        Text("Así el bot sabrá que eres tú y no atenderá a nadie más.")
+                        Text(tr("Así el bot sabrá que eres tú y no atenderá a nadie más."))
                             .font(Theme.caption)
                             .foregroundStyle(Theme.secondary)
                     }
@@ -301,7 +301,7 @@ struct OnboardingView: View {
                         BlockButton("Conectar", kind: .primary, action: connectBot)
                             .disabled(token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
-                    Text("El token se guarda en el Llavero de este Mac. Los mensajes al bot pasan por los servidores de Telegram.")
+                    Text(tr("El token se guarda en el Llavero de este Mac. Los mensajes al bot pasan por los servidores de Telegram."))
                         .font(Theme.caption)
                         .foregroundStyle(Theme.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -411,8 +411,8 @@ struct OnboardingView: View {
                 HStack(spacing: Theme.Space.m) {
                     KeyCap(symbol: "⌥", size: 30)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Prueba el dictado").font(Theme.bodyStrong).foregroundStyle(Theme.ink)
-                        Text("Abre Notas, mantén ⌥ y di algo. Pulsa ⌥ dos veces para hablar sin mantenerla.")
+                        Text(tr("Prueba el dictado")).font(Theme.bodyStrong).foregroundStyle(Theme.ink)
+                        Text(tr("Abre Notas, mantén ⌥ y di algo. Pulsa ⌥ dos veces para hablar sin mantenerla."))
                             .font(Theme.caption)
                             .foregroundStyle(Theme.secondary)
                             .fixedSize(horizontal: false, vertical: true)

@@ -126,7 +126,7 @@ struct MemoryScreen: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Theme.ink)
                         .accessibilityHidden(true)
-                    Text("Las notas se guardan solo en este Mac y acompañan a cada petición al modelo. No guardes contraseñas: para eso está Secretos.")
+                    Text(tr("Las notas se guardan solo en este Mac y acompañan a cada petición al modelo. No guardes contraseñas: para eso está Secretos."))
                         .font(Theme.caption)
                         .foregroundStyle(Theme.secondary)
                         .fixedSize(horizontal: false, vertical: true)
