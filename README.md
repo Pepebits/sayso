@@ -24,7 +24,7 @@ goes through rules you set, and asks you first when you want it to.
 
 ## 🚀 Getting started
 
-You need **macOS 14 or later on Apple Silicon**, and an account with a model provider or a
+You need **macOS 15 or later on Apple Silicon**, and an account with a model provider or a
 local model.
 
 1. 📥 **Download** the latest `SaySo-x.y.z.dmg` from [Releases](https://github.com/Pepebits/sayso/releases). It is signed and notarized by Apple.

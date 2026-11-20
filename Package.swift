@@ -8,7 +8,7 @@ let swift5: [SwiftSetting] = [.swiftLanguageMode(.v5)]
 let package = Package(
     name: "SaySo",
     defaultLocalization: "es",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v15)],
     products: [
         .executable(name: "SaySo", targets: ["SaySoApp"]),
     ],

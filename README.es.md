@@ -24,7 +24,7 @@ que sale del Mac pasa por las reglas que tú pones, y te pregunta antes cuando a
 
 ## 🚀 Primeros pasos
 
-Necesitas **macOS 14 o posterior en un Mac con Apple Silicon**, y una cuenta de un proveedor
+Necesitas **macOS 15 o posterior en un Mac con Apple Silicon**, y una cuenta de un proveedor
 de modelos o un modelo local.
 
 1. 📥 **Descarga** el último `SaySo-x.y.z.dmg` de [Releases](https://github.com/Pepebits/sayso/releases). Está firmado y notarizado por Apple.
