@@ -26,6 +26,26 @@ WAIT=1
 [ "${1:-}" = "--no-wait" ] && WAIT=0
 PROFILE="${SAYSO_NOTARY_PROFILE:-sayso-notary}"
 
+# notarytool guarda el perfil en el Llavero con protección de datos, que solo se puede leer con la
+# sesión desbloqueada. Si la pantalla se bloquea mientras Apple revisa la app, la siguiente llamada
+# dice «No Keychain password item found» aunque el perfil siga ahí. Por eso el script no deja que la
+# pantalla se apague mientras corre y, si aun así está bloqueada, espera a que se desbloquee.
+if [ -z "${SAYSO_CAFFEINATED:-}" ] && command -v caffeinate >/dev/null; then
+    SAYSO_CAFFEINATED=1 exec caffeinate -dims "$0" "$@"
+fi
+
+screen_locked() {
+    ioreg -n Root -d1 -a | plutil -extract IOConsoleUsers.0.CGSSessionScreenIsLocked raw -o - - 2>/dev/null | grep -qx true
+}
+
+notary() {
+    if screen_locked; then
+        echo "→ La pantalla está bloqueada y el Llavero no deja leer el perfil «$PROFILE»; esperando a que la desbloquees…"
+        while screen_locked; do sleep 5; done
+    fi
+    xcrun notarytool "$@" --keychain-profile "$PROFILE"
+}
+
 if [ "${1:-}" = "--staple" ]; then
     VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' scripts/Info.plist)"
     DMG="build/SaySo-$VERSION.dmg"
@@ -80,7 +100,7 @@ if [ "$NOTARIZE" = 1 ] && [ "$WAIT" = 1 ]; then
     echo "→ Notarizando la app (suele tardar unos minutos)…"
     ZIP="$(mktemp -d)/SaySo.zip"
     ditto -c -k --keepParent "$APP" "$ZIP"
-    xcrun notarytool submit "$ZIP" --keychain-profile "$PROFILE" --wait
+    notary submit "$ZIP" --wait
     rm -f "$ZIP"
     xcrun stapler staple "$APP"
     xcrun stapler validate "$APP"
@@ -104,12 +124,12 @@ rm -rf build/release
 
 if [ "$NOTARIZE" = 1 ] && [ "$WAIT" = 0 ]; then
     echo "→ Enviando a Apple para notarizar, sin esperar la respuesta…"
-    xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --no-wait
+    notary submit "$DMG" --no-wait
     echo "Enviado: $DMG. Consulta el estado con: xcrun notarytool history --keychain-profile $PROFILE"
     echo "Cuando salga «Accepted», grapa el resultado con: scripts/release.sh --staple"
 elif [ "$NOTARIZE" = 1 ]; then
     echo "→ Notarizando la imagen de disco…"
-    xcrun notarytool submit "$DMG" --keychain-profile "$PROFILE" --wait
+    notary submit "$DMG" --wait
     xcrun stapler staple "$DMG"
     spctl --assess --type open --context context:primary-signature -v "$DMG"
     echo "Listo: $DMG (firmado y notarizado). Ya se puede compartir."
