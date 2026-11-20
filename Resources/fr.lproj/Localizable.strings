@@ -1428,3 +1428,5 @@
 "último %@" = "dernière %@";
 "En «%@»:" = "Dans « %@ » :";
 "No se pudo atender el aviso de «%@»: %@" = "Impossible de traiter l’alerte de « %@ » : %@";
+"Aviso de «%@»: %@ mensaje(s)" = "Alerte « %@ » : %@ message(s)";
+"Aviso de «%@»" = "Alerte : « %@ »";

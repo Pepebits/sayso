@@ -1437,3 +1437,5 @@
 "último %@" = "último %@";
 "En «%@»:" = "En «%@»:";
 "No se pudo atender el aviso de «%@»: %@" = "Non se puido atender o aviso de «%@»: %@";
+"Aviso de «%@»: %@ mensaje(s)" = "Aviso de «%@»: %@ mensaxe(s)";
+"Aviso de «%@»" = "Aviso de «%@»";

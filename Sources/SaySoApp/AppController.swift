@@ -2018,6 +2018,7 @@ final class AppController: AppActions {
             guard let instruction = watch.instruction else {
                 let text = "🔔 " + tr("En «%@»:", watch.chatTitle) + "\n" + lines.joined(separator: "\n")
                 _ = await self.telegram?.sendToOwner(text)
+                await self.announceWatch(watch, body: lines.first ?? "", count: messages.count)
                 return
             }
             // Con instrucción: el agente la sigue con lo que ha llegado, que es contenido de otras personas.
@@ -2034,12 +2035,21 @@ final class AppController: AppActions {
                 let text = answer.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !text.isEmpty, text != "-" else { return }
                 _ = await self.telegram?.sendToOwner("🔔 «\(watch.chatTitle)»\n\n" + text)
+                await self.announceWatch(watch, body: text, count: messages.count)
             } catch {
                 self.model.log(.warning, LogCategory.telegram, tr("No se pudo atender el aviso de «%@»: %@", watch.chatTitle,
                                                                   error.localizedDescription))
             }
         }
         refresh()
+    }
+
+    /// En el Mac también: una notificación y una línea en Registros.
+    private func announceWatch(_ watch: MessageWatch, body: String, count: Int) async {
+        model.log(.info, LogCategory.telegram, tr("Aviso de «%@»: %@ mensaje(s)", watch.chatTitle, "\(count)"))
+        _ = try? await services?.runner.run(.notification(title: tr("Aviso de «%@»", watch.chatTitle),
+                                                          body: String(body.prefix(240))),
+                                            origin: "aviso:\(watch.id)")
     }
 
     func deleteWatch(id: String) {

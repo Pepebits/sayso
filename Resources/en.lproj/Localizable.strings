@@ -1438,3 +1438,5 @@
 "último %@" = "last %@";
 "En «%@»:" = "In “%@”:";
 "No se pudo atender el aviso de «%@»: %@" = "Couldn’t handle the alert for “%@”: %@";
+"Aviso de «%@»: %@ mensaje(s)" = "Alert for “%@”: %@ message(s)";
+"Aviso de «%@»" = "Alert: “%@”";
