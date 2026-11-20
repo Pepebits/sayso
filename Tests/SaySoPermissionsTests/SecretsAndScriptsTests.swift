@@ -152,6 +152,14 @@ final class MacScriptRunnerTests: XCTestCase {
         XCTAssertThrowsError(try MacScriptRunner.validated(.moveEvent(id: "x", title: "", start: ten, end: ten)))
     }
 
+    func testNotificationsCanBeSilentOrWithSound() {
+        XCTAssertEqual(MacScriptCall.notification(title: "a", body: "b"), .notification(title: "a", body: "b", sound: false),
+                       "sin indicarlo, en silencio, como antes")
+        XCTAssertEqual(MacScriptCall.notification(title: "a", body: "b", sound: true).script, .notification)
+        XCTAssertEqual(AlertStyle(rawValue: "silent"), .silent)
+        XCTAssertEqual(AlertStyle.allCases, [.sound, .silent, .none])
+    }
+
     func testNotesSearchIsFormattedWithIDs() {
         let raw = "x-coredata://A/ICNote/p1\tClave del wifi\t2026-11-20T10:00:00\nbasura\n"
         XCTAssertEqual(MacScriptRunner.format(notes: raw, query: "wifi"), "id x-coredata://A/ICNote/p1 · Clave del wifi · 2026-11-20")

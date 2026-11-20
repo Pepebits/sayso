@@ -191,7 +191,8 @@ public enum MacScript: String, CaseIterable, Codable, Sendable {
 
 /// Llamada a un script con parámetros ya validados por tipo.
 public enum MacScriptCall: Sendable, Hashable {
-    case notification(title: String, body: String)
+    /// `sound`: con el sonido de aviso del sistema.
+    case notification(title: String, body: String, sound: Bool = false)
     /// 0…100
     case volume(percent: Int)
     case reminder(title: String, due: Date?)

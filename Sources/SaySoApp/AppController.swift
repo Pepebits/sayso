@@ -181,6 +181,7 @@ final class AppController: AppActions {
         model.agentRunning = flag(SettingsKey.agentRunning, default: true)
         model.keepAwake = flag(SettingsKey.keepAwake, default: false)
         model.speakAlerts = flag(SettingsKey.speakAlerts, default: true)
+        model.alertStyle = (try? store.setting(SettingsKey.alertStyle)).flatMap { $0 }.flatMap(AlertStyle.init(rawValue:)) ?? .sound
         model.pauseWhenLocked = flag(SettingsKey.pauseWhenLocked, default: false)
         model.guardReview = flag(GuardSettings.review, default: true)
         model.guardDetector = (try? store.setting(GuardSettings.detector)).flatMap { $0 }
@@ -997,8 +998,8 @@ final class AppController: AppActions {
             speakAlert(tr("El trabajo «%@» %@.", item.job.name, state))
             // Por donde se pidió: el bot si vino de Telegram; si no, una notificación del Mac.
             if item.job.origin?.hasPrefix("telegram") == true, await telegram?.sendToOwner(text) == true { continue }
-            _ = try? await services?.runner.run(.notification(title: tr("Trabajo terminado"), body: tr("«%@» %@.", item.job.name, state)),
-                                                origin: "trabajo:\(item.job.id)")
+            await notifyOnMac(title: tr("Trabajo terminado"), body: tr("«%@» %@.", item.job.name, state),
+                              origin: "trabajo:\(item.job.id)")
         }
         BackgroundJob.save(jobs, store)
     }
@@ -1576,6 +1577,22 @@ final class AppController: AppActions {
         model.openAtLogin = LoginItem.isEnabled
     }
 
+    func setAlertStyle(_ style: AlertStyle) {
+        model.alertStyle = style
+        attempt { try store?.setSetting(style.rawValue, for: SettingsKey.alertStyle) }
+    }
+
+    /// Una notificación del Mac según «Avisos en el Mac»: con sonido, en silencio o ninguna.
+    private func notifyOnMac(title: String, body: String, origin: String) async {
+        guard model.alertStyle != .none else { return }
+        do {
+            _ = try await services?.runner.run(.notification(title: title, body: String(body.prefix(240)),
+                                                             sound: model.alertStyle == .sound), origin: origin)
+        } catch {
+            model.log(.warning, LogCategory.app, tr("No se pudo mostrar la notificación: %@", error.localizedDescription))
+        }
+    }
+
     func setSpeakAlerts(_ enabled: Bool) {
         model.speakAlerts = enabled
         setFlag(enabled, SettingsKey.speakAlerts)
@@ -2148,13 +2165,7 @@ final class AppController: AppActions {
     private func announceWatch(_ watch: MessageWatch, body: String, count: Int) async {
         model.log(.info, LogCategory.telegram, tr("Aviso de «%@»: %@ mensaje(s)", watch.chatTitle, "\(count)"))
         speakAlert(tr("Aviso de %@.", watch.chatTitle) + " " + String(body.prefix(300)))
-        do {
-            _ = try await services?.runner.run(.notification(title: tr("Aviso de «%@»", watch.chatTitle),
-                                                             body: String(body.prefix(240))),
-                                               origin: "aviso:\(watch.id)")
-        } catch {
-            model.log(.warning, LogCategory.app, tr("No se pudo mostrar la notificación: %@", error.localizedDescription))
-        }
+        await notifyOnMac(title: tr("Aviso de «%@»", watch.chatTitle), body: body, origin: "aviso:\(watch.id)")
     }
 
     func deleteWatch(id: String) {

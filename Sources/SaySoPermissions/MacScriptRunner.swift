@@ -77,7 +77,7 @@ public final class MacScriptRunner: MacScriptRunning {
         let summary: String
         var params: [String: String] = [:]
         switch call {
-        case let .notification(title, body):
+        case let .notification(title, body, _):
             summary = tr("Mostrar la notificación «%@»: %@", "\(title)", "\(body)")
             params = ["título": title, "texto": body]
         case let .volume(percent):
@@ -133,8 +133,8 @@ public final class MacScriptRunner: MacScriptRunning {
 
     private static func perform(_ call: MacScriptCall) async throws -> String {
         switch call {
-        case let .notification(title, body):
-            try await notify(title: title, body: body)
+        case let .notification(title, body, sound):
+            try await notify(title: title, body: body, sound: sound)
             return "Notificación mostrada."
         case let .volume(percent):
             try await osascript(["on run argv", "set volume output volume ((item 1 of argv) as integer)", "end run"],
@@ -204,7 +204,7 @@ public final class MacScriptRunner: MacScriptRunning {
             .replacingOccurrences(of: "\n", with: "<br>")
     }
 
-    private static func notify(title: String, body: String) async throws {
+    private static func notify(title: String, body: String, sound: Bool) async throws {
         guard Bundle.main.bundleIdentifier != nil else {
             // Sin paquete .app (`swift run`) UserNotifications no funciona: se usa osascript.
             try await osascript(["on run argv", "display notification (item 2 of argv) with title (item 1 of argv)", "end run"],
@@ -217,6 +217,7 @@ public final class MacScriptRunner: MacScriptRunning {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
+        if sound { content.sound = .default }
         try await center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
     }
 

@@ -39,6 +39,14 @@ struct PreferencesScreen: View {
                                     label: "Mantener el Mac activo")
                     }
                     CardDivider()
+                    SettingRow(icon: "bell.badge", title: "Avisos en el Mac",
+                               detail: "Los avisos de mensajes y de trabajos terminados. Al bot y a Registros llegan siempre.") {
+                        BlockSegmented("Cómo avisar en el Mac",
+                                       selection: Binding(get: { model.alertStyle }, set: { model.actions?.setAlertStyle($0) }),
+                                       options: [(AlertStyle.sound, "Con sonido"), (.silent, "Sin sonido"), (.none, "No avisar")],
+                                       compact: true)
+                    }
+                    CardDivider()
                     SettingRow(icon: "speaker.wave.2", title: "Leer los avisos en voz alta",
                                detail: "Los avisos de mensajes y de trabajos terminados, con la voz del Mac. Esperan si estás dictando o si SaySo está hablando.") {
                         BlockToggle(isOn: Binding(get: { model.speakAlerts }, set: { model.actions?.setSpeakAlerts($0) }),

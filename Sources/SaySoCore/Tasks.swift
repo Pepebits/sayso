@@ -221,4 +221,17 @@ public extension SettingsKey {
     static let messageWatches = "telegram.watches"
     /// Leer en voz alta los avisos y las notificaciones de SaySo.
     static let speakAlerts = "alerts.speak"
+    /// Cómo se avisa en el Mac (`AlertStyle`).
+    static let alertStyle = "alerts.style"
+}
+
+
+/// Cómo avisa SaySo en el Mac de los avisos de mensajes y de los trabajos terminados.
+public enum AlertStyle: String, CaseIterable, Codable, Sendable {
+    /// Notificación con el sonido del sistema.
+    case sound
+    /// Solo la notificación, en silencio.
+    case silent
+    /// Nada en pantalla: el aviso sigue llegando al bot y queda en Registros.
+    case none
 }

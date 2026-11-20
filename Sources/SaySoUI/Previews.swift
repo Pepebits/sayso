@@ -15,6 +15,7 @@ final class PreviewActions: AppActions {
     func setOpenAtLogin(_ enabled: Bool) { model.openAtLogin = enabled }
     func setKeepAwake(_ enabled: Bool) { model.keepAwake = enabled }
     func setSpeakAlerts(_ enabled: Bool) { model.speakAlerts = enabled }
+    func setAlertStyle(_ style: AlertStyle) { model.alertStyle = style }
     func exportBackup() {}
     func importBackup() {}
     func updateDictation(_ settings: DictationSettings) { model.dictation = settings }

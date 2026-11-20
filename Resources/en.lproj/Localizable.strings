@@ -1472,3 +1472,9 @@
 "Copia de seguridad" = "Backup";
 "Memoria, tareas, avisos, reglas, cuentas y ajustes en un archivo, para otro Mac o para guardarla. Sin claves ni conversaciones." = "Memory, tasks, alerts, rules, accounts and settings in one file, for another Mac or to keep. No keys or conversations.";
 "Importar" = "Import";
+"Avisos en el Mac" = "Alerts on the Mac";
+"Los avisos de mensajes y de trabajos terminados. Al bot y a Registros llegan siempre." = "Message alerts and finished jobs. They always reach the bot and Logs.";
+"Cómo avisar en el Mac" = "How to alert on the Mac";
+"Con sonido" = "With sound";
+"Sin sonido" = "Silent";
+"No avisar" = "Don’t alert";

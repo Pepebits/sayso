@@ -24,6 +24,8 @@ public final class AppModel {
     public var keepAwake = false
     /// Los avisos y las notificaciones de SaySo también se leen en voz alta.
     public var speakAlerts = true
+    /// Cómo se avisa en el Mac: con sonido, en silencio o sin notificación.
+    public var alertStyle: AlertStyle = .sound
     /// El agente deja de atender mientras el Mac está bloqueado.
     public var pauseWhenLocked = false
     /// Protección: revisar acciones tras leer contenido ajeno, y qué detector de inyecciones se usa.
@@ -160,6 +162,7 @@ public protocol AppActions: AnyObject {
     func setOpenAtLogin(_ enabled: Bool)
     func setKeepAwake(_ enabled: Bool)
     func setSpeakAlerts(_ enabled: Bool)
+    func setAlertStyle(_ style: AlertStyle)
     /// Guarda la configuración en un archivo (sin secretos ni conversaciones).
     func exportBackup()
     /// Recupera la configuración de un archivo de copia.
