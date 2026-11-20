@@ -61,6 +61,8 @@ public final class AppModel {
     public var autoSpeed = true
 
     // Ordenador
+    /// Lo que ocupa SaySo en disco y memoria; `nil` hasta que se mide.
+    public var resources: ResourceUsage?
     public var computerState: ComputerState = .notInstalled { didSet { logComputer(from: oldValue) } }
     public var computerStats: ComputerStats?
     public var computerActivity: [ActivityEntry] = []
@@ -256,6 +258,10 @@ public protocol AppActions: AnyObject {
     func forgetNote(id: Int64)
     /// Borra el historial de una conversación del agente para empezar de cero.
     func newConversation(chatID: String)
+    /// Vuelve a medir lo que ocupa SaySo (sección Recursos de Estadísticas).
+    func refreshResources()
+    /// Borra los archivos descargados de Telegram que no se estén usando.
+    func cleanTelegramFiles()
 
     // Registros
     /// Borra el registro de la app, también el archivo.

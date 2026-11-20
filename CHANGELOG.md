@@ -21,6 +21,7 @@ All notable changes to SaySo are documented here. The format follows
 - Guest mode: a quoted message goes through the prompt-injection detector, and the reply to a mention is reviewed before it is posted in someone else's chat
 - Mac reminders: the agent can list them and mark them done, pending again or delete them (it could only add them)
 - Calendar: the agent can create, move and delete events, not only read them; the event list now carries the IDs it needs
+- Statistics → Resources: disk space by part (Linux machine, dictation models, Telegram, database, logs) and memory used by SaySo and assigned to the Linux machine, with buttons to measure again, clean Telegram files and show the folder in Finder
 - Memory stays small: near-duplicate notes are not saved, only the newest facts that fit a budget go in each request (instructions always do), and a new memory_search tool finds the rest. Logs of what the agent did go to a file on the Linux machine instead
 - Secrets on the Linux machine: a command can ask for keys stored in Secrets and gets them as environment variables, after your OK, without the agent ever seeing their value
 - A fixed cap on stored activity and conversations, even with retention set to "Forever"

@@ -59,6 +59,103 @@ struct StatsScreen: View {
                 EmptyState(systemImage: "chart.bar", title: "Aún no hay datos",
                            detail: "Dicta algo o habla con el agente y aquí verás cuánto lo usas.")
             }
+
+            resourcesSection
+        }
+        .onAppear { model.actions?.refreshResources() }
+    }
+
+    // MARK: Recursos
+
+    private static func bytes(_ value: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: value, countStyle: .file)
+    }
+
+    /// La memoria en sus unidades (4 GB y no 4,29 GB).
+    private static func memory(_ value: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: value, countStyle: .memory)
+    }
+
+    private var resourcesSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.s) {
+            SectionBar("Recursos", note: model.resources.map { tr("%@ en disco", Self.bytes($0.totalDisk)) })
+            if let usage = model.resources {
+                TileGrid(memoryTiles(usage), columns: 3, minTileWidth: 160) { tile in
+                    StatTile(title: tile.title, value: tile.value, detail: tile.detail, swatch: tile.color)
+                }
+                Panel {
+                    HStack {
+                        PanelLabel("Espacio en disco")
+                        Spacer(minLength: Theme.Space.s)
+                        Text(tr("Medido %@", RelativeDate.string(usage.measuredAt)))
+                            .font(Theme.caption).foregroundStyle(Theme.secondary)
+                    }
+                    diskRows(usage)
+                    HStack(spacing: Theme.Space.s) {
+                        BlockButton("Volver a medir", systemImage: "arrow.clockwise", compact: true) {
+                            model.actions?.refreshResources()
+                        }
+                        if usage.disk.contains(where: { $0.id == "telegram" }) {
+                            BlockButton("Limpiar archivos de Telegram", systemImage: "trash", compact: true) {
+                                model.actions?.cleanTelegramFiles()
+                            }
+                            .help(tr("Borra lo descargado que no se haya usado en 14 días. Telegram lo vuelve a bajar si hace falta."))
+                        }
+                        Spacer(minLength: 0)
+                        BlockButton("Mostrar en Finder", systemImage: "folder", compact: true) {
+                            model.actions?.revealDataFolder()
+                        }
+                    }
+                }
+            } else {
+                Panel {
+                    Text(tr("Midiendo…")).font(Theme.body).foregroundStyle(Theme.secondary)
+                }
+            }
+        }
+    }
+
+    private func memoryTiles(_ usage: ResourceUsage) -> [Tile] {
+        var tiles = [Tile(title: tr("Memoria de SaySo"), value: Self.memory(usage.appMemory),
+                          detail: tr("la app, ahora mismo"), color: Theme.chartAI)]
+        if let vm = usage.vmMemory {
+            tiles.append(Tile(title: tr("Memoria de la máquina Linux"), value: Self.memory(vm),
+                              detail: usage.vmRunning ? tr("asignada; en marcha") : tr("asignada; apagada, no usa nada"),
+                              color: Theme.chartVoice))
+        }
+        tiles.append(Tile(title: tr("Disco"), value: Self.bytes(usage.totalDisk), detail: tr("todo lo de SaySo"),
+                          color: Theme.secondary))
+        return tiles
+    }
+
+    private func diskRows(_ usage: ResourceUsage) -> some View {
+        let top = max(usage.disk.map(\.bytes).max() ?? 1, 1)
+        return VStack(alignment: .leading, spacing: Theme.Space.s + 2) {
+            ForEach(usage.disk) { item in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
+                        Text(tr(item.title))
+                            .font(Theme.text(12.5, weight: .medium))
+                            .foregroundStyle(Theme.ink)
+                        if let detail = item.detail {
+                            Text(verbatim: detail)
+                                .font(Theme.caption)
+                                .foregroundStyle(Theme.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        }
+                        Spacer(minLength: Theme.Space.s)
+                        Text(verbatim: Self.bytes(item.bytes))
+                            .font(Theme.mono(12, weight: .semibold))
+                            .foregroundStyle(Theme.ink)
+                    }
+                    BlockProgress(value: Double(item.bytes) / Double(top), label: tr(item.title), tint: Theme.chartAI)
+                        .accessibilityHidden(true)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(tr(item.title)))
+                .accessibilityValue(Text(verbatim: Self.bytes(item.bytes)))
+            }
         }
     }
 

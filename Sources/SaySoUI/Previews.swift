@@ -101,6 +101,8 @@ final class PreviewActions: AppActions {
     }
     func forgetNote(id: Int64) { model.notes.removeAll { $0.id == id } }
     func newConversation(chatID: String) { model.contexts.removeAll { $0.chatID == chatID } }
+    func refreshResources() {}
+    func cleanTelegramFiles() {}
     func clearLog() { model.logEntries = [] }
     func relaunch() {}
     func setGuardReview(_ enabled: Bool) { model.guardReview = enabled }
@@ -212,6 +214,13 @@ enum PreviewData {
         m.transcriberStatus = "Listo"
         m.requestsWeek = [40, 62, 31, 88, 70, 95, 122]
         m.stats = sampleStats()
+        m.resources = ResourceUsage(disk: [
+            .init(id: "vm", title: "Máquina Linux", bytes: 6_400_000_000, detail: "disco de 17,2 GB como mucho"),
+            .init(id: "models", title: "Modelos de dictado", bytes: 490_000_000),
+            .init(id: "telegram", title: "Telegram", bytes: 6_200_000, detail: "fotos, audios y archivos descargados, y la base de datos de TDLib"),
+            .init(id: "database", title: "Base de datos", bytes: 340_000, detail: "memoria, conversaciones, tareas y actividad"),
+            .init(id: "logs", title: "Registros", bytes: 160_000),
+        ], appMemory: 182_000_000, vmMemory: 4_294_967_296, vmRunning: true, measuredAt: Date().addingTimeInterval(-60))
         m.contexts = [
             ConversationContext(chatID: "voz", turnsInWindow: 14, windowLimit: 30,
                                 lastActivity: Date().addingTimeInterval(-300),

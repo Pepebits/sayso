@@ -1990,6 +1990,61 @@ final class AppController: AppActions {
         refresh()
     }
 
+    // MARK: - Recursos
+
+    func refreshResources() {
+        let config = computer?.config
+        let installed = services?.vmFiles.isInstalled ?? false
+        let running = model.computerState == .running
+        Task { [weak self] in
+            let usage = await Task.detached(priority: .utility) {
+                AppController.measureResources(vmConfig: config, vmInstalled: installed, vmRunning: running)
+            }.value
+            self?.model.resources = usage
+        }
+    }
+
+    /// Recorre la carpeta de datos por partes. Tarda algo con la máquina Linux: va en segundo plano.
+    nonisolated static func measureResources(vmConfig: VMConfig?, vmInstalled: Bool, vmRunning: Bool) -> ResourceUsage {
+        let gb = { (bytes: UInt64) in ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file) }
+        var items: [ResourceUsage.Item] = []
+        if let support = try? AppPaths.supportDirectory() {
+            func add(_ id: String, _ title: String, _ names: [String], detail: String? = nil) {
+                let bytes = names.reduce(Int64(0)) { $0 + DiskMeasure.allocated(support.appendingPathComponent($1)) }
+                if bytes > 0 { items.append(.init(id: id, title: title, bytes: bytes, detail: detail)) }
+            }
+            add("vm", "Máquina Linux", ["vm"], detail: vmConfig.map { tr("disco de %@ como mucho", gb($0.diskBytes)) })
+            add("models", "Modelos de dictado", ["Models"])
+            add("telegram", "Telegram", ["tdlib"], detail: tr("fotos, audios y archivos descargados, y la base de datos de TDLib"))
+            add("database", "Base de datos", ["sayso.sqlite", "sayso.sqlite-wal", "sayso.sqlite-shm"],
+                detail: tr("memoria, conversaciones, tareas y actividad"))
+            add("logs", "Registros", ["sayso.log", "tiempos.log"])
+            let known: Set<String> = ["vm", "Models", "tdlib", "sayso.sqlite", "sayso.sqlite-wal", "sayso.sqlite-shm",
+                                      "sayso.log", "tiempos.log"]
+            let rest = ((try? FileManager.default.contentsOfDirectory(atPath: support.path)) ?? []).filter { !known.contains($0) }
+            add("other", "Otros", rest)
+        }
+        let outgoing = FileManager.default.temporaryDirectory.appendingPathComponent("sayso-salida")
+        let temp = DiskMeasure.allocated(outgoing)
+        if temp > 0 { items.append(.init(id: "temp", title: "Archivos temporales", bytes: temp, detail: tr("se borran solos al cabo de una hora"))) }
+        return ResourceUsage(disk: items, appMemory: DiskMeasure.appMemory(),
+                             vmMemory: vmInstalled ? vmConfig.map { Int64($0.memoryBytes) } : nil, vmRunning: vmRunning)
+    }
+
+    func cleanTelegramFiles() {
+        guard let session = telegramUser.session else { return }
+        Task { [weak self] in
+            do {
+                try await session.optimizeStorage()
+                self?.model.log(.info, LogCategory.telegram, tr("Archivos de Telegram limpiados"))
+            } catch {
+                self?.model.log(.warning, LogCategory.telegram,
+                                tr("No se pudieron limpiar los archivos de Telegram: %@", error.localizedDescription))
+            }
+            self?.refreshResources()
+        }
+    }
+
     func newConversation(chatID: String) {
         guard let store else { return }
         attempt { try NewConversationTool.reset(chatID: chatID, store: store) }
