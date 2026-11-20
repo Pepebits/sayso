@@ -308,6 +308,7 @@ struct TelegramScreen: View {
         case TelegramAction.groups: return "person.3"
         case TelegramAction.vote: return "chart.bar"
         case TelegramAction.savedMessages: return "bookmark"
+        case TelegramAction.watch: return "bell"
         default: return "gearshape"
         }
     }

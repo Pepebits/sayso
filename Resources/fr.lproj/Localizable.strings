@@ -1417,3 +1417,14 @@
 "«%@» %@." = "« %@ » %@.";
 "Enviarte widgets" = "Vous envoyer des widgets";
 "Mandarte por el bot pequeñas páginas vivas: paneles, gráficos, tablas o calculadoras." = "Vous envoyer par le bot de petites pages vivantes : tableaux de bord, graphiques, tableaux ou calculatrices.";
+"Avisos por mensajes" = "Alertes de messages";
+"Crear avisos que se disparan cuando te escriben en un chat, y que pueden seguir una instrucción." = "Créer des alertes qui se déclenchent quand on vous écrit dans une discussion, et qui peuvent suivre une instruction.";
+"Cuando escriban en «%@»" = "Quand on écrit dans « %@ »";
+"Quitar el aviso de «%@»" = "Retirer l’alerte de « %@ »";
+"Se crean pidiéndoselo al agente: «avísame cuando me escriba…»." = "Créez-les en le demandant à l’agent : « préviens-moi quand … m’écrit ».";
+"solo si contiene «%@»" = "seulement s’il contient « %@ »";
+"el agente: %@" = "l’agent : %@";
+"te avisa por el bot" = "vous prévient par le bot";
+"último %@" = "dernière %@";
+"En «%@»:" = "Dans « %@ » :";
+"No se pudo atender el aviso de «%@»: %@" = "Impossible de traiter l’alerte de « %@ » : %@";

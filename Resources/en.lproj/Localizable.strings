@@ -1427,3 +1427,14 @@
 "«%@» %@." = "“%@” %@.";
 "Enviarte widgets" = "Send you widgets";
 "Mandarte por el bot pequeñas páginas vivas: paneles, gráficos, tablas o calculadoras." = "Send you small live pages through the bot: dashboards, charts, tables or calculators.";
+"Avisos por mensajes" = "Message alerts";
+"Crear avisos que se disparan cuando te escriben en un chat, y que pueden seguir una instrucción." = "Create alerts that fire when someone writes in a chat, and can follow an instruction.";
+"Cuando escriban en «%@»" = "When someone writes in “%@”";
+"Quitar el aviso de «%@»" = "Remove the alert for “%@”";
+"Se crean pidiéndoselo al agente: «avísame cuando me escriba…»." = "Create them by asking the agent: “let me know when … writes to me”.";
+"solo si contiene «%@»" = "only if it contains “%@”";
+"el agente: %@" = "the agent: %@";
+"te avisa por el bot" = "alerts you through the bot";
+"último %@" = "last %@";
+"En «%@»:" = "In “%@”:";
+"No se pudo atender el aviso de «%@»: %@" = "Couldn’t handle the alert for “%@”: %@";

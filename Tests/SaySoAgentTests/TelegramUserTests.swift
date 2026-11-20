@@ -477,4 +477,32 @@ final class TelegramUserTests: XCTestCase {
         // Sin ordenador no hay álbumes: los archivos salen de ahí.
         XCTAssertNil(tools.first { $0.name == "telegram_send_album" })
     }
+
+    func testWatchesAreCreatedListedAndRemoved() async throws {
+        let api = FakeTelegramUser()
+        let broker = FakeBroker(allow: true)
+        let store = MemoryStore()
+        let tool = WatchTool(api: api, broker: broker, store: store)
+        let made = try await tool.call(input: ["action": "create", "chat": "equipo", "instruction": "Resúmemelo"], context: ToolContext())
+        XCTAssertTrue(made.contains("Aviso creado"))
+        _ = try await tool.call(input: ["action": "create", "chat": "anna", "keyword": "cena"], context: ToolContext())
+        XCTAssertEqual(broker.requests.get().map(\.action), [TelegramAction.watch, TelegramAction.watch])
+        let watches = MessageWatch.load(store)
+        XCTAssertEqual(watches.count, 2)
+        XCTAssertTrue(watches[1].matches(chatID: 1, text: "¿Vamos a CENAR?"), "sin mayúsculas ni tildes")
+        XCTAssertFalse(watches[1].matches(chatID: 1, text: "Hola"))
+        XCTAssertFalse(watches[1].matches(chatID: 2, text: "cena"), "otro chat")
+        XCTAssertTrue(watches[0].matches(chatID: 2, text: "lo que sea"))
+        let list = try await tool.call(input: ["action": "list"], context: ToolContext())
+        XCTAssertTrue(list.contains("si contiene «cena»") && list.contains("instrucción: Resúmemelo"))
+        _ = try await tool.call(input: ["action": "delete", "id": .string(watches[0].id)], context: ToolContext())
+        XCTAssertEqual(MessageWatch.load(store).count, 1)
+        // Denegado: no se guarda.
+        let denied = WatchTool(api: api, broker: FakeBroker(allow: false), store: store)
+        do { _ = try await denied.call(input: ["action": "create", "chat": "anna"], context: ToolContext()); XCTFail() }
+        catch is PermissionError {}
+        XCTAssertEqual(MessageWatch.load(store).count, 1)
+        XCTAssertTrue(GuardPolicy.isOutward(TelegramAction.watch))
+    }
 }
+

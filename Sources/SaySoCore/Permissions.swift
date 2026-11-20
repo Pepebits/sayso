@@ -124,6 +124,7 @@ public enum TelegramAction {
     public static let groups: ActionID = "telegram.groups"
     public static let vote: ActionID = "telegram.vote"
     public static let savedMessages: ActionID = "telegram.savedMessages"
+    public static let watch: ActionID = "telegram.watch"
 
     public static let descriptors: [ActionDescriptor] = [
         .init(id: listChats, title: "Listar chats", defaultRule: .allow),
@@ -144,6 +145,9 @@ public enum TelegramAction {
         .init(id: groups, title: "Grupos", detail: "Crear grupos, añadir o quitar miembros, unirte por enlace o salir de un chat.",
               defaultRule: .ask),
         .init(id: vote, title: "Votar en encuestas", detail: "Responder a una encuesta de un chat.", defaultRule: .ask),
+        .init(id: watch, title: "Avisos por mensajes",
+              detail: "Crear avisos que se disparan cuando te escriben en un chat, y que pueden seguir una instrucción.",
+              defaultRule: .ask),
         .init(id: savedMessages, title: "Mensajes guardados", detail: "Guardar notas en tus Mensajes guardados y leerlas.",
               defaultRule: .allow),
         // Apagado mientras no se elija otra cosa: la respuesta se publica en un chat ajeno.

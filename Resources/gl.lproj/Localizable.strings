@@ -1426,3 +1426,14 @@
 "«%@» %@." = "«%@» %@.";
 "Enviarte widgets" = "Enviarche widgets";
 "Mandarte por el bot pequeñas páginas vivas: paneles, gráficos, tablas o calculadoras." = "Mandarche polo bot pequenas páxinas vivas: paneis, gráficos, táboas ou calculadoras.";
+"Avisos por mensajes" = "Avisos por mensaxes";
+"Crear avisos que se disparan cuando te escriben en un chat, y que pueden seguir una instrucción." = "Crear avisos que saltan cando che escriben nun chat, e que poden seguir unha instrución.";
+"Cuando escriban en «%@»" = "Cando escriban en «%@»";
+"Quitar el aviso de «%@»" = "Quitar o aviso de «%@»";
+"Se crean pidiéndoselo al agente: «avísame cuando me escriba…»." = "Créanse pedíndollo ao axente: «avísame cando me escriba…».";
+"solo si contiene «%@»" = "só se contén «%@»";
+"el agente: %@" = "o axente: %@";
+"te avisa por el bot" = "avísache polo bot";
+"último %@" = "último %@";
+"En «%@»:" = "En «%@»:";
+"No se pudo atender el aviso de «%@»: %@" = "Non se puido atender o aviso de «%@»: %@";

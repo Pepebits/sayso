@@ -19,6 +19,14 @@ struct TasksScreen: View {
         return paused == 0 ? tr("%@ activas", "\(active)") : tr("%@ activas / %@ en pausa", "\(active)", "\(paused)")
     }
 
+    private func watchDetail(_ watch: MessageWatch) -> String {
+        var parts: [String] = []
+        if let keyword = watch.keyword { parts.append(tr("solo si contiene «%@»", keyword)) }
+        parts.append(watch.instruction.map { tr("el agente: %@", $0) } ?? tr("te avisa por el bot"))
+        if let last = watch.lastFired { parts.append(tr("último %@", RelativeDate.string(last))) }
+        return parts.joined(separator: " · ")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.xl) {
             ScreenHeader(icon: "clock", title: "Tareas",
@@ -60,6 +68,25 @@ struct TasksScreen: View {
                     VStack(spacing: Theme.Space.s + 2) {
                         ForEach(model.tasks) { taskCard($0) }
                     }
+                }
+            }
+
+            if !model.watches.isEmpty {
+                VStack(alignment: .leading, spacing: Theme.Space.s) {
+                    SectionBar("Avisos por mensajes", note: tr("%@ activos", "\(model.watches.count)"))
+                    SettingsCard {
+                        ForEach(Array(model.watches.enumerated()), id: \.element.id) { index, watch in
+                            if index > 0 { CardDivider() }
+                            SettingRow(icon: "bell", title: tr("Cuando escriban en «%@»", watch.chatTitle),
+                                       detail: watchDetail(watch)) {
+                                BlockButton("Quitar", kind: .destructive, compact: true) {
+                                    model.actions?.deleteWatch(id: watch.id)
+                                }
+                                .accessibilityLabel(tr("Quitar el aviso de «%@»", watch.chatTitle))
+                            }
+                        }
+                    }
+                    InlineNote("Se crean pidiéndoselo al agente: «avísame cuando me escriba…».", systemImage: "info.circle")
                 }
             }
 

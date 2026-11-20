@@ -34,7 +34,7 @@ public enum GuardPolicy {
     public static let outwardActions: Set<ActionID> = [
         TelegramAction.sendMessages, TelegramAction.deleteMessages, "telegram.sendFile", TelegramAction.guestReply,
         TelegramAction.forward, TelegramAction.edit, TelegramAction.react,
-        TelegramAction.pin, TelegramAction.contacts, TelegramAction.groups, TelegramAction.vote,
+        TelegramAction.pin, TelegramAction.contacts, TelegramAction.groups, TelegramAction.vote, TelegramAction.watch,
         MacScript.openURL.action, MacScript.note.action, MacScript.reminder.action, MacScript.changeReminder.action, MacScript.changeCalendar.action,
         TaskAction.schedule, TaskAction.cancel, ComputerAction.useSecrets,
     ]

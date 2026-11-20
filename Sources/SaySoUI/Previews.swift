@@ -105,6 +105,7 @@ final class PreviewActions: AppActions {
     func forgetNote(id: Int64) { model.notes.removeAll { $0.id == id } }
     func newConversation(chatID: String) { model.contexts.removeAll { $0.chatID == chatID } }
     func refreshResources() {}
+    func deleteWatch(id: String) { model.watches.removeAll { $0.id == id } }
     func cleanTelegramFiles() {}
     func freeComputerSpace() {}
     func setComputerResources(_ resources: ComputerResources) { model.computerResources = resources }
@@ -234,6 +235,8 @@ enum PreviewData {
             .init(id: "database", title: "Base de datos", bytes: 340_000, detail: "memoria, conversaciones, tareas y actividad"),
             .init(id: "logs", title: "Registros", bytes: 160_000),
         ], appMemory: 182_000_000, vmMemory: 4_294_967_296, vmRunning: true, measuredAt: Date().addingTimeInterval(-60))
+        m.watches = [MessageWatch(id: "a1b2c3d4", chatID: 2, chatTitle: "Equipo diseño", instruction: "Resúmeme lo que se decida"),
+                     MessageWatch(id: "e5f6a7b8", chatID: 1, chatTitle: "Anna", keyword: "cena")]
         m.contexts = [
             ConversationContext(chatID: "voz", turnsInWindow: 14, windowLimit: 30,
                                 lastActivity: Date().addingTimeInterval(-300),

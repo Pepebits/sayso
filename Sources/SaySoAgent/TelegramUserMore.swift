@@ -874,3 +874,82 @@ public struct FoldersTool: AgentTool {
         }
     }
 }
+
+// MARK: - Avisos por mensajes
+
+/// `telegram_watch`: avisos que se disparan cuando llega algo a un chat del usuario.
+public struct WatchTool: AgentTool {
+    let api: TelegramUserAPI
+    let broker: PermissionBrokering
+    let store: SaySoStoring
+    public init(api: TelegramUserAPI, broker: PermissionBrokering, store: SaySoStoring) {
+        self.api = api
+        self.broker = broker
+        self.store = store
+    }
+    public var name: String { "telegram_watch" }
+    public var description: String {
+        """
+        Avisos por mensajes de Telegram. «create»: cuando llegue algo a «chat» (y, con «keyword», solo si lo \
+        contiene), al usuario le llega un aviso por su bot con los mensajes; con «instruction», en vez del \
+        aviso tú sigues esa instrucción con lo que ha llegado («resúmelo», «avísame solo si piden algo») y le \
+        mandas el resultado. Los mensajes se juntan durante un minuto. «list» los enseña; «delete» quita uno \
+        por su id. Úsalo para «avísame cuando…», no para tareas a una hora (eso es schedule_task).
+        """
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "action": ["type": "string", "enum": ["create", "list", "delete"]],
+            "chat": TelegramUserTools.chatProperty,
+            "keyword": .property("string", "Opcional: solo mensajes que contengan esta palabra"),
+            "instruction": .property("string", "Opcional: qué hacer con lo que llegue"),
+            "id": .property("string", "Para delete"),
+        ], required: ["action"])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        var watches = MessageWatch.load(store)
+        switch input["action"]?.stringValue {
+        case "list":
+            guard !watches.isEmpty else { return "No hay avisos." }
+            return watches.map { w in
+                var line = "\(w.id) · «\(w.chatTitle)»"
+                if let k = w.keyword, !k.isEmpty { line += " · si contiene «\(k)»" }
+                line += w.instruction.map { " · instrucción: \($0)" } ?? " · solo avisar"
+                return line + (w.enabled ? "" : " · pausado")
+            }.joined(separator: "\n")
+        case "delete":
+            let id = try input.requiredString("id", maxLength: 20)
+            guard let index = watches.firstIndex(where: { $0.id == id }) else { throw ToolInputError("No hay ningún aviso \(id).") }
+            let removed = watches.remove(at: index)
+            MessageWatch.save(watches, store)
+            return "Aviso de «\(removed.chatTitle)» quitado."
+        case "create":
+            guard watches.count < MessageWatch.maxWatches else {
+                throw ToolInputError("Ya hay \(MessageWatch.maxWatches) avisos: quita alguno antes.")
+            }
+            let chat = try await TelegramUserTools.resolveChat(input, api: api)
+            let keyword = try input.optionalString("keyword", maxLength: 100)?.trimmingCharacters(in: .whitespaces)
+            let instruction = try input.optionalString("instruction", maxLength: 1000)?.trimmingCharacters(in: .whitespaces)
+            let watch = MessageWatch(chatID: chat.id, chatTitle: chat.title,
+                                     keyword: keyword?.isEmpty == false ? keyword : nil,
+                                     instruction: instruction?.isEmpty == false ? instruction : nil)
+            var summary = "Avisarte cuando llegue algo a «\(chat.title)»"
+            if let k = watch.keyword { summary += " que contenga «\(k)»" }
+            if let i = watch.instruction { summary += " y hacer: \(String(i.prefix(200)))" }
+            var parameters = ["Chat": chat.title]
+            if let k = watch.keyword { parameters["Palabra"] = k }
+            if let i = watch.instruction { parameters["Instrucción"] = i }
+            let store = self.store
+            try await broker.run(ActionRequest(action: TelegramAction.watch, summary: summary, parameters: parameters,
+                                               origin: context.origin)) {
+                var current = MessageWatch.load(store)
+                current.append(watch)
+                MessageWatch.save(current, store)
+            }
+            return "Aviso creado (id \(watch.id)) para «\(chat.title)»."
+        default:
+            throw ToolInputError("«action» tiene que ser create, list o delete.")
+        }
+    }
+}

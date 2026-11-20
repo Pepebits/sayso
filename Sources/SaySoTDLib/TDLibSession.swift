@@ -53,6 +53,11 @@ public actor TDLibSession: TelegramUserAPI {
     private var aliases: [String: String] = [:]
     /// Carpetas de chats: TDLib las manda en `updateChatFolders` y no tiene una petición para leerlas.
     var chatFolders: [TGFolder] = []
+    /// Quien quiera enterarse de los mensajes que llegan (los avisos).
+    private var incoming: (@Sendable (TGUserMessage) -> Void)?
+
+    /// Avisa de cada mensaje nuevo que llega a la cuenta (no los enviados ni los programados).
+    public func onNewMessage(_ handler: (@Sendable (TGUserMessage) -> Void)?) { incoming = handler }
     public private(set) var state: TelegramUserState = .off {
         didSet { if state != oldValue { onState(state) } }
     }
@@ -140,6 +145,13 @@ public actor TDLibSession: TelegramUserAPI {
             if let id = message["old_message_id"]?.intValue {
                 finishDelivery(Int64(id), error: TDError(code: message["error"]?["code"]?.intValue ?? 0,
                                                          message: message["error"]?["message"]?.stringValue ?? "error"))
+            }
+        case "updateNewMessage":
+            guard let handler = incoming, let raw = message["message"],
+                  raw["is_outgoing"]?.boolValue != true, raw["scheduling_state"] == nil else { break }
+            Task { [weak self] in
+                guard let converted = await self?.convert([raw]).first else { return }
+                handler(converted)
             }
         case "updateChatFolders":
             chatFolders = (message["chat_folders"]?.arrayValue ?? []).compactMap { info in

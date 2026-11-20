@@ -23,6 +23,7 @@ All notable changes to SaySo are documented here. The format follows
 - Images: with a model that sees them (Claude, OpenAI, Grok, or one you mark in Model), the agent looks at photos you send to your bot, photos in your Telegram chats and images on the Linux machine
 - Notes: the agent can search the Notes app and read a note (asks by default)
 - Calendar: the agent can create, move and delete events, not only read them; the event list now carries the IDs it needs
+- Message alerts: «let me know when Anna writes» or «summarize what's new in this group»; new messages are batched for a minute and either forwarded to your bot or handled by the agent following your instruction. Listed in Tasks, with a permission rule (asks by default)
 - Telegram widgets (Bot API 10.4): the agent sends small live HTML pages to your bot chat (dashboards, charts, tables, calculators) and can update their data later
 - render_html: turns an HTML file into a full-page PNG (also very tall ones) or a PDF with WebKit, WebGL and 3D included
 - Long jobs on the Linux machine: the agent starts a build, download or script in the background, keeps talking to you, and you get a message (bot) or a notification (Mac) when it ends; the machine stays awake meanwhile

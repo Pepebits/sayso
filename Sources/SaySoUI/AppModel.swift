@@ -84,6 +84,8 @@ public final class AppModel {
 
     // Tareas programadas
     public var tasks: [ScheduledTask] = []
+    /// Avisos por mensajes de Telegram.
+    public var watches: [MessageWatch] = []
 
     // Permisos · Telegram
     public var telegramEnabled = true
@@ -230,6 +232,7 @@ public protocol AppActions: AnyObject {
     func searchRecipients(_ query: String) async -> [TaskRecipient]
     func setTaskEnabled(_ enabled: Bool, id: Int64)
     func deleteTask(id: Int64)
+    func deleteWatch(id: String)
     func runTaskNow(id: Int64)
 
     // Telegram
