@@ -116,6 +116,7 @@ extension MacScript {
         case .readReminders: return "list.bullet.rectangle"
         case .changeReminder: return "checkmark.circle"
         case .note: return "note.text"
+        case .readNotes: return "doc.text.magnifyingglass"
         case .calendarToday: return "calendar"
         case .changeCalendar: return "calendar.badge.plus"
         case .openURL: return "link"

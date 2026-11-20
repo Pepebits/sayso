@@ -1365,3 +1365,6 @@
 "Base de datos" = "Database";
 "Otros" = "Other";
 "Archivos temporales" = "Temporary files";
+"Buscar y leer notas" = "Search and read notes";
+"Buscar «%@» en Notas" = "Search Notes for “%@”";
+"Leer una nota de Notas" = "Read a note from Notes";

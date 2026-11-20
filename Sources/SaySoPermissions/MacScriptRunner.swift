@@ -108,6 +108,11 @@ public final class MacScriptRunner: MacScriptRunning {
         case let .deleteEvent(_, title):
             summary = tr("Borrar el evento «%@»", title)
             params = ["título": title]
+        case let .searchNotes(query):
+            summary = tr("Buscar «%@» en Notas", query)
+            params = ["búsqueda": query]
+        case .readNote:
+            summary = tr("Leer una nota de Notas")
         case let .reminders(includeCompleted):
             summary = includeCompleted ? tr("Leer los recordatorios, también los completados") : tr("Leer los recordatorios pendientes")
         case let .changeReminder(_, title, change):
@@ -155,6 +160,34 @@ public final class MacScriptRunner: MacScriptRunning {
             return try await moveEvent(id: id, start: start, end: end)
         case let .deleteEvent(id, _):
             return try await deleteEvent(id: id)
+        case let .searchNotes(query):
+            let raw = try await osascript([
+                "on run argv",
+                "set q to item 1 of argv",
+                "set out to \"\"",
+                "set n to 0",
+                "tell application \"Notes\"",
+                "repeat with x in (every note whose name contains q or body contains q)",
+                "set n to n + 1",
+                "if n > \(maxNotes) then exit repeat",
+                "set out to out & (id of x) & tab & (name of x) & tab & ((modification date of x) as «class isot» as string) & linefeed",
+                "end repeat",
+                "end tell",
+                "return out",
+                "end run",
+            ], arguments: [query])
+            return format(notes: raw, query: query)
+        case let .readNote(id):
+            // El id va como argumento: nunca dentro del código del script.
+            let text = try await osascript([
+                "on run argv",
+                "tell application \"Notes\"",
+                "set x to note id (item 1 of argv)",
+                "return (name of x) & linefeed & linefeed & (plaintext of x)",
+                "end tell",
+                "end run",
+            ], arguments: [id])
+            return text.count > maxNoteChars ? String(text.prefix(maxNoteChars)) + "\n[… nota cortada]" : text
         case let .changeReminder(id, _, change):
             return try await changeReminder(id: id, change: change)
         case let .openURL(url):
@@ -287,6 +320,23 @@ public final class MacScriptRunner: MacScriptRunning {
             try store.remove(reminder, commit: true)
             return "Recordatorio «\(title)» borrado."
         }
+    }
+
+    // MARK: - Notas
+
+    /// Como mucho se enseñan estas notas por búsqueda, y este texto de una nota.
+    static let maxNotes = 20
+    static let maxNoteChars = 8_000
+
+    /// Lo que devuelve el script (id, título y fecha separados por tabuladores) en líneas legibles.
+    static func format(notes raw: String, query: String) -> String {
+        let lines = raw.split(separator: "\n").compactMap { line -> String? in
+            let parts = line.split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false).map(String.init)
+            guard parts.count == 3, !parts[0].isEmpty else { return nil }
+            let date = parts[2].prefix(10)
+            return "id \(parts[0]) · \(parts[1]) · \(date)"
+        }
+        return lines.isEmpty ? "No hay notas con «\(query)»." : lines.joined(separator: "\n")
     }
 
     // MARK: - Cambiar el calendario

@@ -152,6 +152,13 @@ final class MacScriptRunnerTests: XCTestCase {
         XCTAssertThrowsError(try MacScriptRunner.validated(.moveEvent(id: "x", title: "", start: ten, end: ten)))
     }
 
+    func testNotesSearchIsFormattedWithIDs() {
+        let raw = "x-coredata://A/ICNote/p1\tClave del wifi\t2026-11-20T10:00:00\nbasura\n"
+        XCTAssertEqual(MacScriptRunner.format(notes: raw, query: "wifi"), "id x-coredata://A/ICNote/p1 · Clave del wifi · 2026-11-20")
+        XCTAssertEqual(MacScriptRunner.format(notes: "", query: "wifi"), "No hay notas con «wifi».")
+        XCTAssertEqual(MacScriptCall.searchNotes(query: "x").script, .readNotes)
+    }
+
     func testRemindersListCarriesTheIDsForLaterChanges() {
         let due = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 24, hour: 9))!
         let text = MacScriptRunner.format(reminders: [

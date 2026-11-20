@@ -157,7 +157,7 @@ public enum TelegramAction {
 
 /// Lista cerrada de scripts del Mac. Añadir uno exige publicar una versión de la app.
 public enum MacScript: String, CaseIterable, Codable, Sendable {
-    case notification, volume, reminder, readReminders, changeReminder, note, calendarToday, changeCalendar, openURL
+    case notification, volume, reminder, readReminders, changeReminder, note, readNotes, calendarToday, changeCalendar, openURL
 
     public var action: ActionID { ActionID("mac.\(rawValue)") }
 
@@ -169,6 +169,7 @@ public enum MacScript: String, CaseIterable, Codable, Sendable {
         case .readReminders: return "Leer los recordatorios"
         case .changeReminder: return "Completar o borrar recordatorios"
         case .note: return "Crear una nota"
+        case .readNotes: return "Buscar y leer notas"
         case .calendarToday: return "Leer el calendario"
         case .changeCalendar: return "Crear, mover o borrar eventos"
         case .openURL: return "Abrir un enlace"
@@ -200,6 +201,10 @@ public enum MacScriptCall: Sendable, Hashable {
     /// `id` es el que da la lista de eventos; `title`, para el diálogo de confirmación.
     case moveEvent(id: String, title: String, start: Date, end: Date)
     case deleteEvent(id: String, title: String)
+    /// Notas cuyo título o texto contiene `query`.
+    case searchNotes(query: String)
+    /// El texto de una nota, por el id que da la búsqueda.
+    case readNote(id: String)
     case openURL(URL)
 
     public var script: MacScript {
@@ -210,6 +215,7 @@ public enum MacScriptCall: Sendable, Hashable {
         case .reminders: return .readReminders
         case .changeReminder: return .changeReminder
         case .createEvent, .moveEvent, .deleteEvent: return .changeCalendar
+        case .searchNotes, .readNote: return .readNotes
         case .note: return .note
         case .calendar: return .calendarToday
         case .openURL: return .openURL

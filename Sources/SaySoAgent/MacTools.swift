@@ -10,7 +10,7 @@ public enum MacTools {
         [
             MacNotificationTool(runner: runner), MacVolumeTool(runner: runner), MacReminderTool(runner: runner),
             MacRemindersTool(runner: runner), MacChangeReminderTool(runner: runner),
-            MacNoteTool(runner: runner), MacCalendarTool(runner: runner), MacCalendarEventTool(runner: runner),
+            MacNoteTool(runner: runner), MacNotesTool(runner: runner), MacCalendarTool(runner: runner), MacCalendarEventTool(runner: runner),
             MacOpenURLTool(runner: runner),
         ]
     }
@@ -141,6 +141,37 @@ public struct MacNoteTool: AgentTool {
         let title = try input.requiredString("title", maxLength: 200)
         let body = try input.requiredString("body", maxLength: 20000)
         return try await runner.run(.note(title: title, body: body), origin: context.origin)
+    }
+}
+
+public struct MacNotesTool: AgentTool {
+    let runner: MacScriptRunning
+    public init(runner: MacScriptRunning) { self.runner = runner }
+    public var name: String { "mac_notes" }
+    public var description: String {
+        "Busca en la app Notas del Mac (action «search» con «query»: notas cuyo título o texto lo contiene, con su id) " +
+            "y lee una nota entera (action «read» con el «id» que da la búsqueda)."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "action": ["type": "string", "enum": ["search", "read"]],
+            "query": .property("string", "Para search: texto a buscar"),
+            "id": .property("string", "Para read: el id de la nota"),
+        ], required: ["action"])
+    }
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        switch input["action"]?.stringValue {
+        case "search":
+            let query = try input.requiredString("query", maxLength: 200).trimmingCharacters(in: .whitespaces)
+            guard query.count >= 2 else { throw ToolInputError("«query» necesita al menos dos caracteres.") }
+            return try await runner.run(.searchNotes(query: query), origin: context.origin)
+        case "read":
+            let id = try input.requiredString("id", maxLength: 300).trimmingCharacters(in: .whitespaces)
+            guard id.hasPrefix("x-coredata://") else { throw ToolInputError("«id» es el que da mac_notes con action search.") }
+            return try await runner.run(.readNote(id: id), origin: context.origin)
+        default:
+            throw ToolInputError("«action» tiene que ser search o read.")
+        }
     }
 }
 

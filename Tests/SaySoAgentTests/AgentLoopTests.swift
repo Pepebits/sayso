@@ -119,7 +119,7 @@ final class AgentLoopTests: XCTestCase {
     func testMacToolsValidate() async throws {
         let runner = FakeMacRunner()
         let tools = MacTools.all(runner: runner)
-        XCTAssertEqual(tools.count, 9)
+        XCTAssertEqual(tools.count, 10)
         let volume = MacVolumeTool(runner: runner)
         _ = try await volume.call(input: ["percent": 30], context: ToolContext())
         do { _ = try await volume.call(input: ["percent": 150], context: ToolContext()); XCTFail() } catch is ToolInputError {}
@@ -154,6 +154,15 @@ final class AgentLoopTests: XCTestCase {
         catch is ToolInputError {}
         XCTAssertEqual(MacScript.changeCalendar.descriptor.defaultRule, .ask)
         XCTAssertTrue(GuardPolicy.isOutward(MacScript.changeCalendar.action))
+
+        // Notas: buscar y leer, preguntando por defecto.
+        let notes = MacNotesTool(runner: runner)
+        _ = try await notes.call(input: ["action": "search", "query": "wifi"], context: ToolContext())
+        _ = try await notes.call(input: ["action": "read", "id": "x-coredata://ABC/ICNote/p12"], context: ToolContext())
+        XCTAssertEqual(runner.calls.get().suffix(2), [.searchNotes(query: "wifi"), .readNote(id: "x-coredata://ABC/ICNote/p12")])
+        do { _ = try await notes.call(input: ["action": "read", "id": "\" & do shell script \"rm\""], context: ToolContext()); XCTFail() }
+        catch is ToolInputError {}
+        XCTAssertEqual(MacScript.readNotes.descriptor.defaultRule, .ask)
     }
 
     func testCalendarToolReadsAnyDayOrRange() async throws {
