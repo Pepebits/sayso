@@ -1418,3 +1418,10 @@
 "Por modelo" = "By model";
 "%@ entrada · %@ salida · %@ solicitudes" = "%@ in · %@ out · %@ requests";
 "≈: el proveedor no dice cuántos tokens usa y se estiman por la longitud del texto." = "≈: the provider doesn’t report token counts, so they’re estimated from the text length.";
+"ha terminado bien" = "finished successfully";
+"ha terminado con error (código %@)" = "finished with an error (code %@)";
+"se ha interrumpido" = "was interrupted";
+"El trabajo «%@» %@." = "The job “%@” %@.";
+"la máquina Linux se apagó antes de terminar" = "the Linux machine shut down before it finished";
+"Trabajo terminado" = "Job finished";
+"«%@» %@." = "“%@” %@.";

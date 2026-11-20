@@ -358,3 +358,32 @@ final class ComputerSecretsTests: XCTestCase {
     }
 }
 
+final class BackgroundJobTests: XCTestCase {
+    func testJobsStartInTheBackgroundAndCanBeCancelled() async throws {
+        let computer = FakeComputer()
+        let store = MemoryStore()
+        let start = StartJobTool(computer: computer, store: store)
+        let out = try await start.call(input: ["name": "Compilar", "command": "make all", "cwd": "proyecto"],
+                                       context: ToolContext(origin: "telegram:5"))
+        XCTAssertTrue(out.contains("lanzado"))
+        let job = try XCTUnwrap(BackgroundJob.load(store).first)
+        XCTAssertEqual(job.origin, "telegram:5", "el aviso irá por el bot")
+        let launch = try XCTUnwrap(computer.commands.get().last?.0)
+        XCTAssertTrue(launch.contains("setsid nohup") && launch.contains("$HOME/sayso/proyecto"), launch)
+        XCTAssertTrue(launch.contains("\(job.folder)/exit"))
+
+        do { _ = try await start.call(input: ["name": "x", "command": "y", "cwd": "../etc"], context: ToolContext()); XCTFail() }
+        catch is ToolInputError {}
+        for i in 0..<2 { _ = try await start.call(input: ["name": .string("n\(i)"), "command": "sleep 99"], context: ToolContext()) }
+        do { _ = try await start.call(input: ["name": "otro", "command": "sleep 1"], context: ToolContext()); XCTFail("tope de 3") }
+        catch is ToolInputError {}
+
+        let jobs = JobsTool(computer: computer, store: store)
+        let list = try await jobs.call(input: ["action": "list"], context: ToolContext())
+        XCTAssertTrue(list.contains("Compilar · en marcha"))
+        _ = try await jobs.call(input: ["action": "cancel", "id": .string(job.id)], context: ToolContext())
+        XCTAssertFalse(BackgroundJob.load(store).first { $0.id == job.id }?.isRunning ?? true)
+        XCTAssertTrue(computer.commands.get().last?.0.contains("kill -- -$(cat") ?? false)
+    }
+}
+

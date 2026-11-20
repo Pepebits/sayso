@@ -1408,3 +1408,10 @@
 "Por modelo" = "Par modèle";
 "%@ entrada · %@ salida · %@ solicitudes" = "%@ entrée · %@ sortie · %@ requêtes";
 "≈: el proveedor no dice cuántos tokens usa y se estiman por la longitud del texto." = "≈ : le fournisseur n’indique pas le nombre de tokens, ils sont estimés d’après la longueur du texte.";
+"ha terminado bien" = "s’est bien terminé";
+"ha terminado con error (código %@)" = "s’est terminé avec une erreur (code %@)";
+"se ha interrumpido" = "a été interrompu";
+"El trabajo «%@» %@." = "La tâche « %@ » %@.";
+"la máquina Linux se apagó antes de terminar" = "la machine Linux s’est éteinte avant la fin";
+"Trabajo terminado" = "Tâche terminée";
+"«%@» %@." = "« %@ » %@.";

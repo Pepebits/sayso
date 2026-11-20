@@ -936,8 +936,65 @@ final class AppController: AppActions {
     // MARK: - Tareas programadas
 
     private func tickScheduler() {
+        checkBackgroundJobs()
         guard model.agentRunning, !model.lockPaused, let scheduler else { return }
         Task { await scheduler.tick() }
+    }
+
+    // MARK: - Trabajos largos
+
+    private var checkingJobs = false
+
+    /// Mira si han acabado los trabajos largos de la máquina Linux y avisa. Preguntar mantiene la
+    /// máquina despierta mientras haya alguno en marcha.
+    private func checkBackgroundJobs() {
+        guard let store, let computer, !checkingJobs else { return }
+        let running = BackgroundJob.load(store).filter(\.isRunning)
+        guard !running.isEmpty else { return }
+        checkingJobs = true
+        Task { [weak self] in
+            defer { self?.checkingJobs = false }
+            switch computer.state {
+            case .running: break
+            case .stopped, .notInstalled, .failed:
+                // Apagada: lo que corría se ha perdido.
+                await self?.finishJobs(running.map { ($0, nil, tr("la máquina Linux se apagó antes de terminar")) })
+                return
+            default:
+                return // arrancando o en pausa: se mira en la siguiente vuelta
+            }
+            let probe = running.map { "echo \"\($0.id) $(cat \($0.folder)/exit 2>/dev/null || echo -)\"" }.joined(separator: "; ")
+            guard let output = (try? await computer.request(.exec(probe, timeout: 30), receiveTimeout: 40))?.stdout else { return }
+            var done: [(BackgroundJob, Int?, String)] = []
+            for line in output.split(separator: "\n") {
+                let parts = line.split(separator: " ").map(String.init)
+                guard parts.count == 2, parts[1] != "-", let job = running.first(where: { $0.id == parts[0] }) else { continue }
+                let tail = (try? await computer.request(.exec("tail -n 12 \(job.folder)/out.log 2>/dev/null", timeout: 30),
+                                                        receiveTimeout: 40))?.stdout ?? ""
+                done.append((job, Int(parts[1]), tail))
+            }
+            if !done.isEmpty { await self?.finishJobs(done) }
+        }
+    }
+
+    private func finishJobs(_ done: [(job: BackgroundJob, code: Int?, tail: String)]) async {
+        guard let store else { return }
+        var jobs = BackgroundJob.load(store)
+        for item in done {
+            guard let index = jobs.firstIndex(where: { $0.id == item.job.id }), jobs[index].isRunning else { continue }
+            jobs[index].finishedAt = Date()
+            jobs[index].exitCode = item.code
+            let state = item.code.map { $0 == 0 ? tr("ha terminado bien") : tr("ha terminado con error (código %@)", "\($0)") }
+                ?? tr("se ha interrumpido")
+            let tail = (services?.redactor.redact(item.tail) ?? item.tail).trimmingCharacters(in: .whitespacesAndNewlines)
+            let text = "🛠 " + tr("El trabajo «%@» %@.", item.job.name, state) + (tail.isEmpty ? "" : "\n\n" + String(tail.suffix(1500)))
+            model.log(item.code == 0 ? .info : .warning, LogCategory.computer, tr("El trabajo «%@» %@.", item.job.name, state))
+            // Por donde se pidió: el bot si vino de Telegram; si no, una notificación del Mac.
+            if item.job.origin?.hasPrefix("telegram") == true, await telegram?.sendToOwner(text) == true { continue }
+            _ = try? await services?.runner.run(.notification(title: tr("Trabajo terminado"), body: tr("«%@» %@.", item.job.name, state)),
+                                                origin: "trabajo:\(item.job.id)")
+        }
+        BackgroundJob.save(jobs, store)
     }
 
     /// El resultado va a Telegram; si no hay bot emparejado, queda en la pantalla Tareas.

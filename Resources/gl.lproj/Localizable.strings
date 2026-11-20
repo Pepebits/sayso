@@ -1417,3 +1417,10 @@
 "Por modelo" = "Por modelo";
 "%@ entrada · %@ salida · %@ solicitudes" = "%@ entrada · %@ saída · %@ solicitudes";
 "≈: el proveedor no dice cuántos tokens usa y se estiman por la longitud del texto." = "≈: o provedor non di cantos tokens usa e estímanse pola lonxitude do texto.";
+"ha terminado bien" = "rematou ben";
+"ha terminado con error (código %@)" = "rematou cun erro (código %@)";
+"se ha interrumpido" = "interrompeuse";
+"El trabajo «%@» %@." = "O traballo «%@» %@.";
+"la máquina Linux se apagó antes de terminar" = "a máquina Linux apagouse antes de rematar";
+"Trabajo terminado" = "Traballo rematado";
+"«%@» %@." = "«%@» %@.";

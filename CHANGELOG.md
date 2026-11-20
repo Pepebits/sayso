@@ -23,6 +23,7 @@ All notable changes to SaySo are documented here. The format follows
 - Images: with a model that sees them (Claude, OpenAI, Grok, or one you mark in Model), the agent looks at photos you send to your bot, photos in your Telegram chats and images on the Linux machine
 - Notes: the agent can search the Notes app and read a note (asks by default)
 - Calendar: the agent can create, move and delete events, not only read them; the event list now carries the IDs it needs
+- Long jobs on the Linux machine: the agent starts a build, download or script in the background, keeps talking to you, and you get a message (bot) or a notification (Mac) when it ends; the machine stays awake meanwhile
 - Statistics → Tokens: input and output tokens per day and per model (exact when the provider reports them, estimated otherwise), also as a chart metric
 - Space deleted inside the Linux machine goes back to the Mac (fstrim) every time it starts, and with a «Free up space on the Mac» button in Resources
 - Linux machine size in Computer: cores, memory (up to half of the Mac's) and disk (16 to 256 GB, grow only; the partition is extended on the next start)

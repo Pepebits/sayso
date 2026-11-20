@@ -242,3 +242,50 @@ public extension SettingsKey {
     /// `ComputerResources` en JSON.
     static let computerResources = "computer.resources"
 }
+
+
+/// Un trabajo largo lanzado en la máquina Linux (una compilación, una descarga…). Sigue aunque el
+/// agente termine de responder; la app avisa cuando acaba.
+public struct BackgroundJob: Codable, Hashable, Sendable, Identifiable {
+    public var id: String
+    public var name: String
+    public var command: String
+    public var startedAt: Date
+    /// De dónde salió («telegram:123», «voz»…): por ahí se avisa al terminar.
+    public var origin: String?
+    public var finishedAt: Date?
+    /// `nil` si terminó sin código (la máquina se apagó o se canceló).
+    public var exitCode: Int?
+
+    public init(id: String, name: String, command: String, startedAt: Date = Date(), origin: String? = nil,
+                finishedAt: Date? = nil, exitCode: Int? = nil) {
+        self.id = id
+        self.name = name
+        self.command = command
+        self.startedAt = startedAt
+        self.origin = origin
+        self.finishedAt = finishedAt
+        self.exitCode = exitCode
+    }
+
+    public var isRunning: Bool { finishedAt == nil }
+    /// Carpeta del trabajo en la máquina: `run.sh`, `out.log`, `exit` y `pid`.
+    public var folder: String { "$HOME/.sayso-jobs/\(id)" }
+
+    /// Trabajos en marcha a la vez, como mucho.
+    public static let maxRunning = 3
+    /// Se recuerdan los últimos.
+    public static let keep = 30
+
+    public static func load(_ store: SaySoStoring) -> [BackgroundJob] {
+        ((try? store.codableSetting(SettingsKey.backgroundJobs)) ?? nil) ?? []
+    }
+
+    public static func save(_ jobs: [BackgroundJob], _ store: SaySoStoring) {
+        try? store.setCodableSetting(Array(jobs.suffix(keep)), for: SettingsKey.backgroundJobs)
+    }
+}
+
+public extension SettingsKey {
+    static let backgroundJobs = "computer.jobs"
+}

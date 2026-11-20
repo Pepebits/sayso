@@ -20,9 +20,11 @@ public struct ComputerSecrets: Sendable {
 public enum ComputerTools {
     /// Sin `secrets` (el modo invitado), los comandos no pueden usar claves.
     /// `vision`: el modelo ve imágenes, así que puede mirar las de la máquina.
-    public static func all(computer: AgentComputer, secrets: ComputerSecrets? = nil, vision: Bool = false) -> [AgentTool] {
+    public static func all(computer: AgentComputer, secrets: ComputerSecrets? = nil, vision: Bool = false,
+                           jobs: SaySoStoring? = nil) -> [AgentTool] {
         [ComputerRunTool(computer: computer, secrets: secrets), ComputerReadFileTool(computer: computer),
          ComputerWriteFileTool(computer: computer)] + (vision ? [ViewImageTool(computer: computer)] : [])
+            + (jobs.map { [StartJobTool(computer: computer, store: $0), JobsTool(computer: computer, store: $0)] } ?? [])
     }
 
     /// Texto que recibe el modelo tras un comando.
@@ -161,5 +163,103 @@ public struct ComputerWriteFileTool: AgentTool {
         guard content.utf8.count <= 2_000_000 else { throw ToolInputError("«content» supera 2 MB.") }
         try await computer.writeFile(path, content: content, origin: context.origin)
         return "Archivo escrito: \(path)"
+    }
+}
+
+
+// MARK: - Trabajos largos
+
+/// `computer_start_job`: lanza un comando largo y vuelve enseguida. La app avisa al terminar.
+public struct StartJobTool: AgentTool {
+    let computer: AgentComputer
+    let store: SaySoStoring
+    public var name: String { "computer_start_job" }
+    public var description: String {
+        """
+        Lanza en tu ordenador Linux un comando que tarda (compilar, descargar, entrenar, un script largo) y \
+        vuelve enseguida, sin esperar. Sigue aunque termines de responder, la máquina no se apaga mientras \
+        tanto y al usuario le llega un aviso cuando acaba. Para comandos cortos usa computer_run. Mira cómo \
+        va con computer_jobs.
+        """
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "name": .property("string", "Nombre corto para el aviso («Compilar el proyecto»)"),
+            "command": .property("string", "Comando de bash"),
+            "cwd": .property("string", "Directorio; relativo a ~/sayso"),
+        ], required: ["name", "command"])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let name = try input.requiredString("name", maxLength: 80)
+        let command = try input.requiredString("command", maxLength: 20_000)
+        let cwd = try input.optionalString("cwd", maxLength: 500) ?? ""
+        guard cwd.range(of: #"^[A-Za-z0-9._/ -]*$"#, options: .regularExpression) != nil, !cwd.contains("..") else {
+            throw ToolInputError("«cwd» solo admite una ruta sencilla dentro de ~/sayso.")
+        }
+        var jobs = BackgroundJob.load(store)
+        guard jobs.filter(\.isRunning).count < BackgroundJob.maxRunning else {
+            throw ToolInputError("Ya hay \(BackgroundJob.maxRunning) trabajos en marcha: espera a que acabe alguno o cancélalo con computer_jobs.")
+        }
+        let job = BackgroundJob(id: String(UUID().uuidString.prefix(8)).lowercased(), name: name, command: command,
+                                origin: context.origin)
+        let dir = "~/.sayso-jobs/\(job.id)"
+        try await computer.writeFile("\(dir)/run.sh", content: command + "\n", origin: context.origin)
+        let workdir = cwd.isEmpty ? "$HOME/sayso" : "$HOME/sayso/\(cwd)"
+        // setsid + nohup: sobrevive a que el agente termine; el pid es el del grupo, para poder cancelarlo.
+        let launch = "mkdir -p \"\(workdir)\" && cd \"\(workdir)\" && setsid nohup bash -c " +
+            "'bash \(job.folder)/run.sh > \(job.folder)/out.log 2>&1; echo $? > \(job.folder)/exit' " +
+            ">/dev/null 2>&1 < /dev/null & echo $! > \(job.folder)/pid"
+        let result = try await computer.run(launch, cwd: nil, timeout: 30, origin: context.origin)
+        guard result.exitCode == 0 else { return "No se pudo lanzar: " + ComputerTools.render(result) }
+        jobs.append(job)
+        BackgroundJob.save(jobs, store)
+        return "Trabajo «\(name)» lanzado (id \(job.id)). Se avisará al usuario cuando termine; no hace falta que esperes."
+    }
+}
+
+/// `computer_jobs`: cómo van los trabajos largos, su salida y cancelarlos.
+public struct JobsTool: AgentTool {
+    let computer: AgentComputer
+    let store: SaySoStoring
+    public var name: String { "computer_jobs" }
+    public var description: String {
+        "Trabajos largos lanzados con computer_start_job: «list» los enseña con su estado; «log» da las últimas " +
+            "líneas de la salida de uno («id»); «cancel» lo detiene."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "action": ["type": "string", "enum": ["list", "log", "cancel"]],
+            "id": .property("string", "Para log y cancel"),
+        ], required: ["action"])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        var jobs = BackgroundJob.load(store)
+        switch input["action"]?.stringValue {
+        case "list":
+            guard !jobs.isEmpty else { return "No hay trabajos." }
+            return jobs.reversed().map { job in
+                let state = job.isRunning ? "en marcha" : (job.exitCode.map { $0 == 0 ? "terminado bien" : "terminado con código \($0)" } ?? "interrumpido")
+                return "\(job.id) · \(job.name) · \(state)"
+            }.joined(separator: "\n")
+        case "log", "cancel":
+            let id = try input.requiredString("id", maxLength: 20)
+            guard let index = jobs.firstIndex(where: { $0.id == id }) else { throw ToolInputError("No hay ningún trabajo \(id).") }
+            let job = jobs[index]
+            if input["action"]?.stringValue == "log" {
+                let result = try await computer.run("tail -n 40 \(job.folder)/out.log 2>/dev/null", cwd: nil, timeout: 30,
+                                                    origin: context.origin)
+                let out = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+                return "«\(job.name)» (\(job.isRunning ? "en marcha" : "terminado")):\n" + (out.isEmpty ? "(sin salida todavía)" : out)
+            }
+            guard job.isRunning else { return "«\(job.name)» ya había terminado." }
+            _ = try await computer.run("kill -- -$(cat \(job.folder)/pid) 2>/dev/null; true", cwd: nil, timeout: 30, origin: context.origin)
+            jobs[index].finishedAt = Date()
+            BackgroundJob.save(jobs, store)
+            return "«\(job.name)» cancelado."
+        default:
+            throw ToolInputError("«action» tiene que ser list, log o cancel.")
+        }
     }
 }

@@ -126,7 +126,7 @@ public enum AgentTools {
                                 vision: Bool = false) -> [AgentTool] {
         MacTools.all(runner: runner) + [RememberTool(store: store), MemorySearchTool(store: store), NewConversationTool(store: store),
                                         RequestSecretTool(store: store)]
-            + (computer.map { ComputerTools.all(computer: $0, secrets: secrets, vision: vision) } ?? [])
+            + (computer.map { ComputerTools.all(computer: $0, secrets: secrets, vision: vision, jobs: store) } ?? [])
     }
 }
 
