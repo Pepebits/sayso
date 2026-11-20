@@ -1460,3 +1460,14 @@
 "Leer los avisos en voz alta" = "Ler os avisos em voz alta";
 "Los avisos de mensajes y de trabajos terminados, con la voz del Mac. Esperan si estás dictando o si SaySo está hablando." = "Os avisos de mensagens e de trabalhos terminados, com a voz do Mac. Esperam se estiveres a ditar ou se o SaySo estiver a falar.";
 "Aviso de %@." = "Aviso de %@.";
+"No se pudo preparar la copia: %@" = "Não foi possível preparar a cópia: %@";
+"La copia lleva la memoria, las tareas, los avisos, las reglas y los ajustes. No lleva claves ni conversaciones." = "A cópia leva a memória, as tarefas, os avisos, as regras e as definições. Não leva chaves nem conversas.";
+"Copia de seguridad guardada: %@ notas, %@ tareas y %@ ajustes" = "Cópia de segurança guardada: %@ notas, %@ tarefas e %@ definições";
+"No se pudo guardar la copia: %@" = "Não foi possível guardar a cópia: %@";
+"Se añaden las notas y tareas que falten, y se recuperan reglas y ajustes. No se borra nada." = "Adicionam-se as notas e tarefas em falta, e recuperam-se regras e definições. Não se apaga nada.";
+"Esta copia es de una versión más nueva de SaySo. Actualiza la app para recuperarla." = "Esta cópia é de uma versão mais recente do SaySo. Atualiza a app para a recuperar.";
+"Copia recuperada: %@ notas, %@ tareas, %@ reglas y %@ ajustes. Faltan %@ secretos por guardar." = "Cópia recuperada: %@ notas, %@ tarefas, %@ regras e %@ definições. Faltam %@ segredos por guardar.";
+"No se pudo leer la copia: %@" = "Não foi possível ler a cópia: %@";
+"Copia de seguridad" = "Cópia de segurança";
+"Memoria, tareas, avisos, reglas, cuentas y ajustes en un archivo, para otro Mac o para guardarla. Sin claves ni conversaciones." = "Memória, tarefas, avisos, regras, contas e definições num ficheiro, para outro Mac ou para guardar. Sem chaves nem conversas.";
+"Importar" = "Importar";

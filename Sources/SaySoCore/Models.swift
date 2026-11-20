@@ -360,6 +360,8 @@ public protocol SaySoStoring: Sendable {
     // Ajustes clave-valor
     func setting(_ key: String) throws -> String?
     func setSetting(_ value: String?, for key: String) throws
+    /// Todos los ajustes guardados, para la copia de seguridad.
+    func allSettings() throws -> [String: String]
 
     // Metadatos de secretos
     func secrets() throws -> [SecretMeta]
@@ -385,6 +387,7 @@ public protocol SaySoStoring: Sendable {
 public extension SaySoStoring {
     func recordDictation(words: Int, seconds: Double, on day: Date) throws {}
     func recordTokens(model: String, input: Int, output: Int, estimated: Bool, on day: Date) throws {}
+    func allSettings() throws -> [String: String] { [:] }
     func activityCount(scope: String?) throws -> Int { try recentActivity(limit: .max, scope: scope).count }
     func setNoteKind(_ kind: MemoryNote.Kind, id: Int64) throws {}
     func updateNoteText(_ text: String, id: Int64) throws {}

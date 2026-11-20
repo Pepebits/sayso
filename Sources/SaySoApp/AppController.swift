@@ -1801,6 +1801,61 @@ final class AppController: AppActions {
         model.language = choice
     }
 
+    // MARK: - Copia de seguridad
+
+    func exportBackup() {
+        guard let store else { return }
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let backup: SaySoBackup
+        do { backup = try SaySoBackup.make(store: store, tasks: store, appVersion: version) } catch {
+            model.lastError = tr("No se pudo preparar la copia: %@", error.localizedDescription)
+            return
+        }
+        let panel = NSSavePanel()
+        let day = ISO8601DateFormatter.string(from: Date(), timeZone: .current, formatOptions: [.withFullDate])
+        panel.nameFieldStringValue = "SaySo-copia-\(day).json"
+        panel.allowedContentTypes = [.json]
+        panel.message = tr("La copia lleva la memoria, las tareas, los avisos, las reglas y los ajustes. No lleva claves ni conversaciones.")
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            encoder.dateEncodingStrategy = .iso8601
+            try encoder.encode(backup).write(to: url, options: .atomic)
+            model.log(.info, LogCategory.app, tr("Copia de seguridad guardada: %@ notas, %@ tareas y %@ ajustes",
+                                                 "\(backup.notes.count)", "\(backup.tasks.count)", "\(backup.settings.count)"))
+        } catch {
+            model.lastError = tr("No se pudo guardar la copia: %@", error.localizedDescription)
+        }
+    }
+
+    func importBackup() {
+        guard let store else { return }
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        panel.message = tr("Se añaden las notas y tareas que falten, y se recuperan reglas y ajustes. No se borra nada.")
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let backup = try decoder.decode(SaySoBackup.self, from: Data(contentsOf: url))
+            guard backup.format <= SaySoBackup.currentFormat else {
+                model.lastError = tr("Esta copia es de una versión más nueva de SaySo. Actualiza la app para recuperarla.")
+                return
+            }
+            let summary = try backup.restore(into: store, tasks: store)
+            model.log(.info, LogCategory.app, tr("Copia recuperada: %@ notas, %@ tareas, %@ reglas y %@ ajustes. Faltan %@ secretos por guardar.",
+                                                 "\(summary.notes)", "\(summary.tasks)", "\(summary.rules)", "\(summary.settings)",
+                                                 "\(summary.secrets)"))
+            // Las cuentas, el dictado y lo demás se leen otra vez de los ajustes recién guardados.
+            loadSettings()
+            refresh()
+        } catch {
+            model.lastError = tr("No se pudo leer la copia: %@", error.localizedDescription)
+        }
+    }
+
     func revealDataFolder() {
         guard let folder = try? AppPaths.supportDirectory() else { return }
         NSWorkspace.shared.activateFileViewerSelecting([folder])

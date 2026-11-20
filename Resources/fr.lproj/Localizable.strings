@@ -1451,3 +1451,14 @@
 "Leer los avisos en voz alta" = "Lire les alertes à voix haute";
 "Los avisos de mensajes y de trabajos terminados, con la voz del Mac. Esperan si estás dictando o si SaySo está hablando." = "Les alertes de messages et de tâches terminées, avec la voix du Mac. Elles attendent si vous dictez ou si SaySo parle.";
 "Aviso de %@." = "Alerte de %@.";
+"No se pudo preparar la copia: %@" = "Impossible de préparer la sauvegarde : %@";
+"La copia lleva la memoria, las tareas, los avisos, las reglas y los ajustes. No lleva claves ni conversaciones." = "La sauvegarde contient la mémoire, les tâches, les alertes, les règles et les réglages. Ni clés ni conversations.";
+"Copia de seguridad guardada: %@ notas, %@ tareas y %@ ajustes" = "Sauvegarde enregistrée : %@ notes, %@ tâches et %@ réglages";
+"No se pudo guardar la copia: %@" = "Impossible d’enregistrer la sauvegarde : %@";
+"Se añaden las notas y tareas que falten, y se recuperan reglas y ajustes. No se borra nada." = "Les notes et tâches manquantes sont ajoutées, et les règles et réglages restaurés. Rien n’est supprimé.";
+"Esta copia es de una versión más nueva de SaySo. Actualiza la app para recuperarla." = "Cette sauvegarde provient d’une version plus récente de SaySo. Mettez l’app à jour pour la restaurer.";
+"Copia recuperada: %@ notas, %@ tareas, %@ reglas y %@ ajustes. Faltan %@ secretos por guardar." = "Sauvegarde restaurée : %@ notes, %@ tâches, %@ règles et %@ réglages. %@ secrets restent à enregistrer.";
+"No se pudo leer la copia: %@" = "Impossible de lire la sauvegarde : %@";
+"Copia de seguridad" = "Sauvegarde";
+"Memoria, tareas, avisos, reglas, cuentas y ajustes en un archivo, para otro Mac o para guardarla. Sin claves ni conversaciones." = "Mémoire, tâches, alertes, règles, comptes et réglages dans un fichier, pour un autre Mac ou à conserver. Sans clés ni conversations.";
+"Importar" = "Importer";

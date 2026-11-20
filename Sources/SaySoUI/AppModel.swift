@@ -160,6 +160,10 @@ public protocol AppActions: AnyObject {
     func setOpenAtLogin(_ enabled: Bool)
     func setKeepAwake(_ enabled: Bool)
     func setSpeakAlerts(_ enabled: Bool)
+    /// Guarda la configuración en un archivo (sin secretos ni conversaciones).
+    func exportBackup()
+    /// Recupera la configuración de un archivo de copia.
+    func importBackup()
     func setPauseWhenLocked(_ enabled: Bool)
     func setGuardReview(_ enabled: Bool)
     func setGuardDetector(_ choice: GuardSettings.Detector)

@@ -23,6 +23,7 @@ All notable changes to SaySo are documented here. The format follows
 - Images: with a model that sees them (Claude, OpenAI, Grok, or one you mark in Model), the agent looks at photos you send to your bot, photos in your Telegram chats and images on the Linux machine
 - Notes: the agent can search the Notes app and read a note (asks by default)
 - Calendar: the agent can create, move and delete events, not only read them; the event list now carries the IDs it needs
+- Backup in Settings: export memory, tasks, alerts, rules, accounts, plugins and settings to a JSON file and import it on another Mac. Keys, secrets, the Telegram session and conversations are never included; secrets come back as pending
 - Alerts and finished jobs are also read aloud with the Mac's voice (Settings → «Read alerts aloud»), waiting while you dictate or SaySo is speaking
 - Progress in the bot: while the agent works, a «⏳ Working…» message lists each step (searching, running on Linux, sending…) and disappears when the answer arrives
 - Message alerts: «let me know when Anna writes» or «summarize what's new in this group»; new messages are batched for a minute and either forwarded to your bot or handled by the agent following your instruction. Listed in Tasks, with a permission rule (asks by default)

@@ -315,6 +315,14 @@ public final class SQLiteStore: SaySoStoring, TaskStoring {
 
     // MARK: - Ajustes
 
+    public func allSettings() throws -> [String: String] {
+        try db.read { db in
+            var out: [String: String] = [:]
+            for row in try Row.fetchAll(db, sql: "SELECT key, value FROM settings") { out[row["key"]] = row["value"] }
+            return out
+        }
+    }
+
     public func setting(_ key: String) throws -> String? {
         try db.read { db in
             try String.fetchOne(db, sql: "SELECT value FROM settings WHERE key = ?", arguments: [key])

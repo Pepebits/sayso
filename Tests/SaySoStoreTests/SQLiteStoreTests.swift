@@ -10,6 +10,37 @@ final class SQLiteStoreTests: XCTestCase {
         store = try SQLiteStore.inMemory()
     }
 
+    func testBackupTravelsToAnotherMacWithoutSecretsOrLocalState() throws {
+        try store.addNote(MemoryNote(text: "Respóndeme en gallego", kind: .instruction))
+        try store.addTask(ScheduledTask(instruction: "Resumen del día", schedule: .daily(hour: 9, minute: 0, weekdays: [])))
+        try store.setRule(.never, for: "telegram.deleteMessages")
+        try store.setSetting("1", for: SettingsKey.keepAwake)
+        try store.setSetting("{}", for: SettingsKey.contextUsage)
+        try store.upsertSecret(SecretMeta(name: "GITHUB_TOKEN", reason: "repos", status: .stored))
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let json = try encoder.encode(try SaySoBackup.make(store: store, tasks: store, appVersion: "0.3.0"))
+        let backup = try decoder.decode(SaySoBackup.self, from: json)
+        XCTAssertNil(backup.settings[SettingsKey.contextUsage], "lo medido en este Mac no viaja")
+
+        let other = try SQLiteStore.inMemory()
+        let summary = try backup.restore(into: other, tasks: other)
+        XCTAssertEqual(summary.notes, 1)
+        XCTAssertEqual(try other.notes().first?.kind, .instruction)
+        XCTAssertEqual(try other.tasks().first?.instruction, "Resumen del día")
+        XCTAssertEqual(try other.rule(for: "telegram.deleteMessages"), .never)
+        XCTAssertEqual(try other.setting(SettingsKey.keepAwake), "1")
+        XCTAssertEqual(try other.secrets().first?.status, .requested, "el valor no viaja: hay que volver a guardarlo")
+        // Importar otra vez no duplica nada.
+        let again = try backup.restore(into: other, tasks: other)
+        XCTAssertEqual(again.notes + again.tasks + again.secrets, 0)
+        XCTAssertEqual(try other.notes().count, 1)
+        XCTAssertEqual(try other.tasks().count, 1)
+    }
+
     func testRules() throws {
         XCTAssertNil(try store.rule(for: "mac.volume"))
         try store.setRule(.allow, for: "mac.volume")

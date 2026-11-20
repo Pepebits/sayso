@@ -58,6 +58,14 @@ struct PreferencesScreen: View {
                             .accessibilityLabel("Abrir la guía de inicio")
                     }
                     CardDivider()
+                    SettingRow(icon: "externaldrive", title: "Copia de seguridad",
+                               detail: "Memoria, tareas, avisos, reglas, cuentas y ajustes en un archivo, para otro Mac o para guardarla. Sin claves ni conversaciones.") {
+                        HStack(spacing: Theme.Space.s) {
+                            BlockButton("Exportar", compact: true) { model.actions?.exportBackup() }
+                            BlockButton("Importar", compact: true) { model.actions?.importBackup() }
+                        }
+                    }
+                    CardDivider()
                     SettingRow(icon: "folder", title: "Carpeta de datos",
                                detail: "Base de datos, registro, modelos de voz y la máquina Linux.") {
                         BlockButton("Mostrar en Finder", compact: true) { model.actions?.revealDataFolder() }
