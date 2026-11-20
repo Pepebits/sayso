@@ -475,10 +475,17 @@ public struct SendWidgetTool: AgentTool {
             throw ToolInputError("No hay bot de Telegram conectado: no se pueden enviar widgets.")
         }
         let page = html
-        let id = try await broker.run(ActionRequest(
-            action: Self.action, summary: "Enviarte un widget" + (caption.map { ": \(String($0.prefix(120)))" } ?? ""),
-            parameters: ["Tamaño": "\(html.utf8.count / 1024) KB"], origin: context.origin)) {
-            try await send(page, height, data, caption)
+        let id: Int64
+        do {
+            id = try await broker.run(ActionRequest(
+                action: Self.action, summary: "Enviarte un widget" + (caption.map { ": \(String($0.prefix(120)))" } ?? ""),
+                parameters: ["Tamaño": "\(html.utf8.count / 1024) KB"], origin: context.origin)) {
+                try await send(page, height, data, caption)
+            }
+        } catch let TelegramError.api(_, description) where description.contains("WIDGET_NOT_ALLOWED") {
+            // Telegram los va activando por fases: hasta entonces, la misma página como imagen.
+            throw ToolInputError("Telegram aún no deja a este bot enviar widgets. Guarda el HTML en tu ordenador Linux, " +
+                                 "conviértelo en imagen con render_html y mándalo con send_file.")
         }
         return "Widget enviado (mensaje \(id)). Para cambiar sus datos: telegram_update_widget con message_id \(id)."
     }

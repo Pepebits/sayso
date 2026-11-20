@@ -35,6 +35,10 @@ final class HTMLRenderer: NSObject, WKNavigationDelegate {
         }
         // Tiempo para scripts, fuentes y animaciones (una escena 3D tarda en pintar).
         try await Task.sleep(nanoseconds: UInt64(min(max(options.wait, 0.5), 15) * 1_000_000_000))
+        // Con la vista casi sin alto, scrollHeight es el alto del contenido y no el de la ventana.
+        window.setContentSize(NSSize(width: width, height: 10))
+        webView.frame = NSRect(x: 0, y: 0, width: width, height: 10)
+        try await Task.sleep(nanoseconds: 150_000_000)
         let measured = try await webView.evaluateJavaScript(
             "Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0)") as? Double ?? 900
         let height = min(max(CGFloat(measured), 200), Self.maxHeight)

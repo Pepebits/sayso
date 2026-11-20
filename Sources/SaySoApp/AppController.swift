@@ -1226,6 +1226,7 @@ final class AppController: AppActions {
                 } catch { lines.append("FALLO \(name).\(format.rawValue): \(error)") }
                 flush()
             }
+            if ProcessInfo.processInfo.environment["SAYSO_FEATURE_ONLY_RENDER"] == "1" { lines.append("fin"); return flush() }
             for _ in 0..<30 where telegram == nil { try? await Task.sleep(nanoseconds: 1_000_000_000) }
             if let services, let send = services.widgets.current?.send, let update = services.widgets.current?.update {
                 let html = "<div style='font:15px system-ui;padding:12px'><b>Prueba de SaySo</b><div id=v style='font-size:28px;margin-top:8px'></div></div>" +
