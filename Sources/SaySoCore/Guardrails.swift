@@ -36,7 +36,7 @@ public enum GuardPolicy {
         TelegramAction.forward, TelegramAction.edit, TelegramAction.react,
         TelegramAction.pin, TelegramAction.contacts, TelegramAction.groups, TelegramAction.vote,
         MacScript.openURL.action, MacScript.note.action, MacScript.reminder.action, MacScript.changeReminder.action,
-        TaskAction.schedule, TaskAction.cancel,
+        TaskAction.schedule, TaskAction.cancel, ComputerAction.useSecrets,
     ]
 
     public static func isOutward(_ action: ActionID) -> Bool { outwardActions.contains(action) }

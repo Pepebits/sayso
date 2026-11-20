@@ -1325,3 +1325,6 @@
 "Marcar como hecho el recordatorio «%@»" = "Marquer le rappel « %@ » comme terminé";
 "Volver a dejar pendiente el recordatorio «%@»" = "Remettre le rappel « %@ » en attente";
 "Borrar el recordatorio «%@»" = "Supprimer le rappel « %@ »";
+"Usar secretos en comandos" = "Utiliser des secrets dans les commandes";
+"Pasar una clave guardada en Secretos a un comando de la máquina Linux. El agente no ve su valor." = "Transmettre une clé enregistrée dans Secrets à une commande de la machine Linux. L’agent ne voit jamais sa valeur.";
+"Uso en la máquina Linux" = "Utilisation sur la machine Linux";

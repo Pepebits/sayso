@@ -192,10 +192,16 @@ public enum ComputerAction {
     public static let run: ActionID = "vm.run"
     public static let readFile: ActionID = "vm.readFile"
     public static let writeFile: ActionID = "vm.writeFile"
+    /// Pasar a un comando una clave guardada en Secretos. Pregunta por defecto: con la clave en la
+    /// mano, un comando puede mandarla a cualquier sitio.
+    public static let useSecrets: ActionID = "vm.useSecrets"
 
     public static let descriptors: [ActionDescriptor] = [
         .init(id: run, title: "Ejecutar comandos", detail: "Dentro de la máquina Linux.", defaultRule: .allow),
         .init(id: readFile, title: "Leer archivos", detail: "Solo archivos de la máquina Linux.", defaultRule: .allow),
         .init(id: writeFile, title: "Escribir archivos", detail: "Solo archivos de la máquina Linux.", defaultRule: .allow),
+        .init(id: useSecrets, title: "Usar secretos en comandos",
+              detail: "Pasar una clave guardada en Secretos a un comando de la máquina Linux. El agente no ve su valor.",
+              defaultRule: .ask),
     ]
 }

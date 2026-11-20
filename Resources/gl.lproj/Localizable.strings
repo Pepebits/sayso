@@ -1334,3 +1334,6 @@
 "Marcar como hecho el recordatorio «%@»" = "Marcar como feito o recordatorio «%@»";
 "Volver a dejar pendiente el recordatorio «%@»" = "Deixar outra vez pendente o recordatorio «%@»";
 "Borrar el recordatorio «%@»" = "Borrar o recordatorio «%@»";
+"Usar secretos en comandos" = "Usar segredos en comandos";
+"Pasar una clave guardada en Secretos a un comando de la máquina Linux. El agente no ve su valor." = "Pasar unha clave gardada en Segredos a un comando da máquina Linux. O axente non ve o seu valor.";
+"Uso en la máquina Linux" = "Uso na máquina Linux";

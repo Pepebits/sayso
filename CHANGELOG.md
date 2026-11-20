@@ -19,6 +19,7 @@ All notable changes to SaySo are documented here. The format follows
 - Voice and your bot now share one conversation, so what you said on one side counts on the other
 - Guest mode: a quoted message goes through the prompt-injection detector, and the reply to a mention is reviewed before it is posted in someone else's chat
 - Mac reminders: the agent can list them and mark them done, pending again or delete them (it could only add them)
+- Secrets on the Linux machine: a command can ask for keys stored in Secrets and gets them as environment variables, after your OK, without the agent ever seeing their value
 - A fixed cap on stored activity and conversations, even with retention set to "Forever"
 
 ### Fixed

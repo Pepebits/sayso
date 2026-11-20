@@ -1335,3 +1335,6 @@
 "Marcar como hecho el recordatorio «%@»" = "Mark the reminder “%@” as done";
 "Volver a dejar pendiente el recordatorio «%@»" = "Mark the reminder “%@” as pending again";
 "Borrar el recordatorio «%@»" = "Delete the reminder “%@”";
+"Usar secretos en comandos" = "Use secrets in commands";
+"Pasar una clave guardada en Secretos a un comando de la máquina Linux. El agente no ve su valor." = "Pass a key stored in Secrets to a command on the Linux machine. The agent never sees its value.";
+"Uso en la máquina Linux" = "Use on the Linux machine";

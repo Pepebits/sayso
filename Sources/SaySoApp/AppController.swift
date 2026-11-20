@@ -2127,7 +2127,8 @@ final class AgentServices: Sendable {
         // En pasos sueltos: como una sola suma, el compilador de CI no llegaba a deducir los tipos.
         let installedComputer: AgentComputer? = vmFiles.isInstalled ? computer : nil
         let userSession = telegramUser.readySession
-        var tools = AgentTools.standard(runner: runner, store: store, computer: installedComputer)
+        var tools = AgentTools.standard(runner: runner, store: store, computer: installedComputer,
+                                        secrets: ComputerSecrets(vault: vault, store: store, broker: broker))
         tools += TaskTools.all(tasks: tasks, broker: broker, userAPI: userSession)
         tools.append(WebSearchTool(store: store, vault: vault, broker: broker, browser: browser))
         // Mandar archivos solo tiene sentido con ordenador del que sacarlos.

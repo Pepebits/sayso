@@ -22,6 +22,25 @@ struct SecretsScreen: View {
     private var requested: [SecretMeta] { model.secrets.filter { $0.status == .requested } }
     private var stored: [SecretMeta] { model.secrets.filter { $0.status == .stored } }
 
+    /// La regla de pasar claves a los comandos de la máquina Linux.
+    private var useInCommandsPanel: some View {
+        let descriptor = ComputerAction.descriptors.first { $0.id == ComputerAction.useSecrets }!
+        let rule = model.rule(for: descriptor)
+        return Panel(fill: true) {
+            HStack(alignment: .top, spacing: Theme.Space.m) {
+                IconTile("terminal", size: 28)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(tr(descriptor.title)).font(Theme.bodyStrong).foregroundStyle(Theme.ink)
+                    Text(tr(descriptor.detail))
+                        .font(Theme.caption).foregroundStyle(Theme.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            RuleSegmented(descriptor.title,
+                          rule: Binding(get: { rule }, set: { model.actions?.setRule($0, for: descriptor.id) }))
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.xl) {
             ScreenHeader(icon: "key", title: "Secretos",
@@ -59,6 +78,11 @@ struct SecretsScreen: View {
                 } else {
                     TileGrid(stored, columns: 3, minTileWidth: 200) { storedCard($0) }
                 }
+            }
+
+            VStack(alignment: .leading, spacing: Theme.Space.s) {
+                SectionBar("Uso en la máquina Linux")
+                useInCommandsPanel
             }
 
             VStack(alignment: .leading, spacing: Theme.Space.s) {

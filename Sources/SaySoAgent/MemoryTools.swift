@@ -72,9 +72,9 @@ public struct RequestSecretTool: AgentTool {
 public enum AgentTools {
     /// Herramientas base del host: Mac, memoria y secretos; y las del ordenador Linux si existe.
     public static func standard(runner: MacScriptRunning, store: SaySoStoring,
-                                computer: AgentComputer? = nil) -> [AgentTool] {
+                                computer: AgentComputer? = nil, secrets: ComputerSecrets? = nil) -> [AgentTool] {
         MacTools.all(runner: runner) + [RememberTool(store: store), NewConversationTool(store: store), RequestSecretTool(store: store)]
-            + (computer.map(ComputerTools.all) ?? [])
+            + (computer.map { ComputerTools.all(computer: $0, secrets: secrets) } ?? [])
     }
 }
 

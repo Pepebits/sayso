@@ -313,3 +313,48 @@ final class PluginManagerTests: XCTestCase {
         XCTAssertFalse(broker.requests.get().contains { $0.summary.contains("sk-ant-x") })
     }
 }
+
+final class ComputerSecretsTests: XCTestCase {
+    func testCommandsGetStoredSecretsAsEnvironmentWithoutSeeingThem() async throws {
+        let computer = FakeComputer()
+        let store = MemoryStore()
+        try store.upsertSecret(SecretMeta(name: "GITHUB_TOKEN", reason: "repos", status: .stored))
+        let broker = FakeBroker(allow: true)
+        let secrets = ComputerSecrets(vault: FakeVault(values: [KeychainName.workSecret("GITHUB_TOKEN"): "ghp_valorsecreto123"]),
+                                      store: store, broker: broker)
+        let tool = ComputerRunTool(computer: computer, secrets: secrets)
+        XCTAssertNotNil(tool.inputSchema["properties"]?["secrets"])
+
+        _ = try await tool.call(input: ["command": "gh repo list", "secrets": ["GITHUB_TOKEN"]], context: ToolContext())
+        XCTAssertEqual(computer.commands.get().last?.1["GITHUB_TOKEN"], "ghp_valorsecreto123")
+        let asked = try XCTUnwrap(broker.requests.get().last)
+        XCTAssertEqual(asked.action, ComputerAction.useSecrets)
+        XCTAssertEqual(asked.parameters["Secretos"], "GITHUB_TOKEN")
+        XCTAssertFalse(asked.summary.contains("ghp_valorsecreto123"), "el valor no sale ni en el diálogo")
+        XCTAssertNotNil(try store.secrets().first?.lastUsed)
+
+        // Sin guardar: no se ejecuta y se le dice que lo pida.
+        let missing = try await tool.call(input: ["command": "x", "secrets": ["OPENAI_API_KEY"]], context: ToolContext())
+        XCTAssertTrue(missing.contains("request_secret"))
+        XCTAssertEqual(computer.commands.get().count, 1)
+        do { _ = try await tool.call(input: ["command": "x", "secrets": ["rm -rf"]], context: ToolContext()); XCTFail() }
+        catch is ToolInputError {}
+
+        // Denegado: no corre.
+        let denied = ComputerRunTool(computer: computer, secrets: ComputerSecrets(
+            vault: FakeVault(values: [KeychainName.workSecret("GITHUB_TOKEN"): "ghp_valorsecreto123"]), store: store,
+            broker: FakeBroker(allow: false)))
+        do { _ = try await denied.call(input: ["command": "x", "secrets": ["GITHUB_TOKEN"]], context: ToolContext()); XCTFail() }
+        catch is PermissionError {}
+        XCTAssertEqual(computer.commands.get().count, 1)
+
+        // Sin acceso a secretos (modo invitado), ni se ofrece ni se acepta.
+        let guest = ComputerRunTool(computer: computer)
+        XCTAssertNil(guest.inputSchema["properties"]?["secrets"])
+        do { _ = try await guest.call(input: ["command": "x", "secrets": ["GITHUB_TOKEN"]], context: ToolContext()); XCTFail() }
+        catch is ToolInputError {}
+        XCTAssertTrue(GuardPolicy.isOutward(ComputerAction.useSecrets), "tras leer contenido ajeno, pasa por el revisor")
+        XCTAssertEqual(ComputerAction.descriptors.first { $0.id == ComputerAction.useSecrets }?.defaultRule, .ask)
+    }
+}
+
