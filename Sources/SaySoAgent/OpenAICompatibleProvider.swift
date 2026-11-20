@@ -9,9 +9,11 @@ public struct OpenAICompatibleProvider: ModelProvider {
     /// Opcional: los modelos locales no la necesitan.
     private let apiKey: String?
     private let transport: HTTPTransport
+    public let supportsImages: Bool
 
     public init(baseURL: URL, apiKey: String?, fullModel: String, fastModel: String,
-                transport: HTTPTransport = URLSessionTransport()) {
+                transport: HTTPTransport = URLSessionTransport(), supportsImages: Bool = false) {
+        self.supportsImages = supportsImages
         self.baseURL = baseURL
         self.apiKey = apiKey
         self.fullModel = fullModel
@@ -60,6 +62,7 @@ public struct OpenAICompatibleProvider: ModelProvider {
         var texts: [String] = []
         var calls: [JSONValue] = []
         var results: [JSONValue] = []
+        var images: [JSONValue] = []
         for block in message.content {
             switch block {
             case let .text(t): texts.append(t)
@@ -70,6 +73,9 @@ public struct OpenAICompatibleProvider: ModelProvider {
             case let .toolResult(id, content, isError):
                 results.append(["role": "tool", "tool_call_id": .string(id),
                                 "content": .string(isError ? "ERROR: \(content)" : content)])
+            case let .image(mediaType, data):
+                images.append(["type": "image_url",
+                               "image_url": ["url": .string("data:\(mediaType);base64,\(data.base64EncodedString())")]])
             }
         }
         let text = texts.joined(separator: "\n")
@@ -80,7 +86,13 @@ public struct OpenAICompatibleProvider: ModelProvider {
             return [.object(m)]
         case .user:
             var out = results
-            if !text.isEmpty { out.append(["role": "user", "content": .string(text)]) }
+            // Los mensajes de herramienta no llevan imágenes: van en un mensaje del usuario detrás.
+            if !images.isEmpty {
+                let parts: [JSONValue] = (text.isEmpty ? [] : [["type": "text", "text": .string(text)]]) + images
+                out.append(["role": "user", "content": .array(parts)])
+            } else if !text.isEmpty {
+                out.append(["role": "user", "content": .string(text)])
+            }
             return out
         }
     }

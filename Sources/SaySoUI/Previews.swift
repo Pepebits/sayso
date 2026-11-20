@@ -22,6 +22,9 @@ final class PreviewActions: AppActions {
     }
     func removeAccount(id: UUID) { model.accounts.removeAll { $0.id == id } }
     func selectAccount(id: UUID) { model.activeAccountID = id }
+    func setAccountVision(id: UUID, _ enabled: Bool) {
+        if let i = model.accounts.firstIndex(where: { $0.id == id }) { model.accounts[i].vision = enabled }
+    }
     func setAutoSpeed(_ enabled: Bool) { model.autoSpeed = enabled }
     func startComputer() { model.computerState = .running }
     func stopComputer() { model.computerState = .stopped }

@@ -287,6 +287,7 @@ public final class AgentLoop: Sendable {
                         maxTokens: Int? = nil, recipients: [TaskRecipient] = [],
                         recipientsPreapproved: Bool = false, useHistory: Bool = true,
                         untrusted: [(source: String, text: String)] = [],
+                        images: [ModelImage] = [],
                         onGuard: (@Sendable (GuardContext) -> Void)? = nil) async throws -> String {
         let maxTokens = maxTokens ?? self.maxTokens
         // Sin historial, cada vez empieza de cero (las tareas programadas: con quince ejecuciones
@@ -300,6 +301,10 @@ public final class AgentLoop: Sendable {
             : Self.summary(for: chatID, store: store, conversationStart: conversation.map(\.date).min())
         var messages = Self.messages(from: history)
         Self.appendUser(userText, to: &messages)
+        // Fotos que manda el usuario con su mensaje (solo si el modelo las ve).
+        if provider.supportsImages, !images.isEmpty, let last = messages.indices.last {
+            messages[last].content += images.prefix(Self.maxImagesPerStep).map { .image(mediaType: $0.mediaType, data: $0.data) }
+        }
         try store.appendTurn(ConversationTurn(chatID: chatID, role: .user, text: userText, date: now()))
 
         let notes = (try? store.notes()) ?? []
@@ -381,13 +386,17 @@ public final class AgentLoop: Sendable {
                 break
             }
             var results: [ContentBlock] = []
+            var seen: [ModelImage] = []
             for call in calls {
-                let (block, succeeded) = await GuardContext.$current.withValue(guardContext) {
+                let (block, succeeded, images) = await GuardContext.$current.withValue(guardContext) {
                     await run(call, context: context, guard: &guardContext)
                 }
                 if succeeded { executed.append(call.name) } else { failed.append(call.name) }
                 results.append(block)
+                seen += images
             }
+            // Las imágenes van detrás de los resultados, en el mismo mensaje.
+            results += seen.prefix(Self.maxImagesPerStep).map { .image(mediaType: $0.mediaType, data: $0.data) }
             messages.append(ModelMessage(role: .user, content: results))
         }
 
@@ -523,14 +532,23 @@ public final class AgentLoop: Sendable {
     }
 
     /// Ejecuta una llamada. El segundo valor dice si terminó sin error.
-    private func run(_ call: ToolCall, context: ToolContext, guard guardContext: inout GuardContext) async -> (ContentBlock, Bool) {
+    /// Imágenes que se adjuntan como mucho tras un paso, para no disparar el tamaño de la petición.
+    static let maxImagesPerStep = 4
+
+    private func run(_ call: ToolCall, context: ToolContext,
+                     guard guardContext: inout GuardContext) async -> (ContentBlock, Bool, [ModelImage]) {
         guard let tool = tools.first(where: { $0.name == call.name }) else {
-            return (.toolResult(toolUseID: call.id, content: "Herramienta desconocida: \(call.name)", isError: true), false)
+            return (.toolResult(toolUseID: call.id, content: "Herramienta desconocida: \(call.name)", isError: true), false, [])
         }
         var output: String
         var isError = false
+        var images: [ModelImage] = []
         do {
-            output = try await tool.call(input: call.input, context: context)
+            if let imaging = tool as? ImageProducingTool, provider.supportsImages {
+                (output, images) = try await imaging.callWithImages(input: call.input, context: context)
+            } else {
+                output = try await tool.call(input: call.input, context: context)
+            }
         } catch let PermissionError.denied(action, reason) {
             output = "Permiso denegado para \(action.rawValue): \(reason). No lo intentes por otra vía."
             isError = true
@@ -548,7 +566,7 @@ public final class AgentLoop: Sendable {
                 output = Self.injectionWarning + "\n\n" + output
             }
         }
-        return (.toolResult(toolUseID: call.id, content: output, isError: isError), !isError)
+        return (.toolResult(toolUseID: call.id, content: output, isError: isError), !isError, isError ? [] : images)
     }
 
     /// Lo que se le antepone al agente cuando el detector ve una inyección.
@@ -586,6 +604,8 @@ public final class AgentLoop: Sendable {
                 case let .toolUse(id, name, input): return .toolUse(id: id, name: name, input: redact(input, redactor))
                 case let .toolResult(id, content, isError):
                     return .toolResult(toolUseID: id, content: redactor.redact(content), isError: isError)
+                case .image:
+                    return block
                 }
             })
         }

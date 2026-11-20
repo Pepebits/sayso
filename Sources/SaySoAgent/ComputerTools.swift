@@ -19,9 +19,10 @@ public struct ComputerSecrets: Sendable {
 
 public enum ComputerTools {
     /// Sin `secrets` (el modo invitado), los comandos no pueden usar claves.
-    public static func all(computer: AgentComputer, secrets: ComputerSecrets? = nil) -> [AgentTool] {
+    /// `vision`: el modelo ve imágenes, así que puede mirar las de la máquina.
+    public static func all(computer: AgentComputer, secrets: ComputerSecrets? = nil, vision: Bool = false) -> [AgentTool] {
         [ComputerRunTool(computer: computer, secrets: secrets), ComputerReadFileTool(computer: computer),
-         ComputerWriteFileTool(computer: computer)]
+         ComputerWriteFileTool(computer: computer)] + (vision ? [ViewImageTool(computer: computer)] : [])
     }
 
     /// Texto que recibe el modelo tras un comando.

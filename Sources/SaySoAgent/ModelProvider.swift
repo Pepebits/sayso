@@ -6,6 +6,8 @@ public enum ContentBlock: Sendable, Hashable {
     case text(String)
     case toolUse(id: String, name: String, input: JSONValue)
     case toolResult(toolUseID: String, content: String, isError: Bool)
+    /// Una imagen para modelos que las ven (JPEG o PNG).
+    case image(mediaType: String, data: Data)
 }
 
 public struct ModelMessage: Sendable, Hashable {
@@ -97,6 +99,12 @@ public protocol ModelProvider: Sendable {
     /// Modelo rápido, para corrección y respuestas triviales.
     var fastModel: String { get }
     func complete(_ request: ModelRequest) async throws -> ModelResponse
+    /// El modelo puede ver imágenes.
+    var supportsImages: Bool { get }
+}
+
+public extension ModelProvider {
+    var supportsImages: Bool { false }
 }
 
 public enum ProviderError: Error, LocalizedError, Sendable, Equatable {

@@ -189,6 +189,8 @@ public protocol AppActions: AnyObject {
     func removeAccount(id: UUID)
     func selectAccount(id: UUID)
     func setAutoSpeed(_ enabled: Bool)
+    /// Dice si el modelo de una cuenta ve imágenes (fotos de Telegram, imágenes de la máquina Linux).
+    func setAccountVision(id: UUID, _ enabled: Bool)
 
     // Ordenador
     /// Descarga la imagen si falta y arranca la máquina.

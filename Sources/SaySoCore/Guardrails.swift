@@ -46,7 +46,7 @@ public enum GuardPolicy {
         switch tool {
         case "web_search": return "una búsqueda web"
         case "telegram_read_messages", "telegram_search_messages", "telegram_list_chats", "telegram_transcribe",
-             "telegram_profile", "telegram_stories":
+             "telegram_profile", "telegram_stories", "telegram_view_image":
             return "mensajes de Telegram de otras personas"
         case "computer_run":
             // Un comando que descarga algo de internet trae contenido ajeno en su salida.

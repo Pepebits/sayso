@@ -6,6 +6,7 @@ public struct AnthropicProvider: ModelProvider {
     public let baseURL: URL
     public let fullModel: String
     public let fastModel: String
+    public var supportsImages: Bool { true }
     private let apiKey: String
     private let transport: HTTPTransport
 
@@ -55,6 +56,9 @@ public struct AnthropicProvider: ModelProvider {
                 var r: [String: JSONValue] = ["type": "tool_result", "tool_use_id": .string(id), "content": .string(content)]
                 if isError { r["is_error"] = true }
                 return .object(r)
+            case let .image(mediaType, data):
+                return ["type": "image", "source": ["type": "base64", "media_type": .string(mediaType),
+                                                    "data": .string(data.base64EncodedString())]]
             }
         }
         return ["role": .string(message.role.rawValue), "content": .array(blocks)]

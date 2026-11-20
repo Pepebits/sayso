@@ -20,6 +20,7 @@ All notable changes to SaySo are documented here. The format follows
 - Voice and your bot now share one conversation, so what you said on one side counts on the other
 - Guest mode: a quoted message goes through the prompt-injection detector, and the reply to a mention is reviewed before it is posted in someone else's chat
 - Mac reminders: the agent can list them and mark them done, pending again or delete them (it could only add them)
+- Images: with a model that sees them (Claude, OpenAI, Grok, or one you mark in Model), the agent looks at photos you send to your bot, photos in your Telegram chats and images on the Linux machine
 - Notes: the agent can search the Notes app and read a note (asks by default)
 - Calendar: the agent can create, move and delete events, not only read them; the event list now carries the IDs it needs
 - Statistics → Resources: disk space by part (Linux machine, dictation models, Telegram, database, logs) and memory used by SaySo and assigned to the Linux machine, with buttons to measure again, clean Telegram files and show the folder in Finder

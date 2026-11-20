@@ -85,6 +85,7 @@ final class FakeTransport: HTTPTransport, @unchecked Sendable {
 final class FakeProvider: ModelProvider, @unchecked Sendable {
     let fullModel = "full-model"
     let fastModel = "fast-model"
+    var supportsImages = false
     let requests = Locked<[ModelRequest]>([])
     private let responses: Locked<[ModelResponse]>
     private let fallback: ModelResponse?

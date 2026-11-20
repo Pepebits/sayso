@@ -1368,3 +1368,13 @@
 "Buscar y leer notas" = "Search and read notes";
 "Buscar «%@» en Notas" = "Search Notes for “%@”";
 "Leer una nota de Notas" = "Read a note from Notes";
+"Ve imágenes" = "Sees images";
+"Este proveedor ve imágenes: el agente puede mirar fotos de Telegram y de la máquina Linux." = "This provider sees images: the agent can look at photos from Telegram and the Linux machine.";
+"No consta que este modelo vea imágenes. Actívalo si sabes que sí (por ejemplo, un modelo local con visión)." = "This model isn’t known to see images. Turn it on if you know it does (for example, a local vision model).";
+"Cambiado a mano. Si el modelo no las ve, el proveedor devolverá un error al mandarle una foto." = "Changed by hand. If the model can’t see them, the provider will return an error when it gets a photo.";
+"No he podido abrir la foto: %@" = "I couldn’t open the photo: %@";
+"Te mando esta foto." = "I’m sending you this photo.";
+"El modelo de tu cuenta no ve imágenes. Elige uno que sí lo haga en SaySo → Modelo, o descríbemela." = "Your account’s model can’t see images. Pick one that can in SaySo → Model, or describe it to me.";
+"De momento entiendo texto, notas de voz y fotos." = "For now I understand text, voice notes and photos.";
+"Ese archivo no es una imagen que se pueda abrir." = "That file isn’t an image that can be opened.";
+"La imagen pasa de 20 MB." = "The image is over 20 MB.";

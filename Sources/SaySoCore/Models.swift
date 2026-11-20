@@ -91,6 +91,8 @@ public struct ProviderAccount: Identifiable, Hashable, Codable, Sendable {
     public var fastModel: String
     /// Nombre de la entrada del Llavero con la clave; `nil` en modelos locales.
     public var keychainKey: String?
+    /// El modelo ve imágenes. `nil`: se deduce del proveedor (`seesImages`).
+    public var vision: Bool?
 
     public init(id: UUID = UUID(), name: String, kind: ProviderKind, baseURL: URL,
                 fullModel: String, fastModel: String, keychainKey: String?) {
@@ -102,6 +104,16 @@ public struct ProviderAccount: Identifiable, Hashable, Codable, Sendable {
         self.fastModel = fastModel
         self.keychainKey = keychainKey
     }
+
+    /// Lo que se sabe sin preguntar: Claude, OpenAI, Grok y Gemini ven imágenes; DeepSeek y los
+    /// modelos locales, depende del modelo, así que se da por hecho que no.
+    public var defaultVision: Bool {
+        if kind == .anthropic { return true }
+        let host = baseURL.host?.lowercased() ?? ""
+        return ["api.openai.com", "api.x.ai", "generativelanguage.googleapis.com"].contains(host)
+    }
+
+    public var seesImages: Bool { vision ?? defaultVision }
 }
 
 /// Plantillas para «Añadir cuenta». Los nombres de modelo son editables por el usuario.

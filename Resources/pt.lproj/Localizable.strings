@@ -1367,3 +1367,13 @@
 "Buscar y leer notas" = "Procurar e ler notas";
 "Buscar «%@» en Notas" = "Procurar «%@» nas Notas";
 "Leer una nota de Notas" = "Ler uma nota das Notas";
+"Ve imágenes" = "Vê imagens";
+"Este proveedor ve imágenes: el agente puede mirar fotos de Telegram y de la máquina Linux." = "Este fornecedor vê imagens: o agente pode ver fotos do Telegram e da máquina Linux.";
+"No consta que este modelo vea imágenes. Actívalo si sabes que sí (por ejemplo, un modelo local con visión)." = "Não consta que este modelo veja imagens. Ativa-o se sabes que sim (por exemplo, um modelo local com visão).";
+"Cambiado a mano. Si el modelo no las ve, el proveedor devolverá un error al mandarle una foto." = "Alterado à mão. Se o modelo não as vê, o fornecedor devolverá um erro ao receber uma foto.";
+"No he podido abrir la foto: %@" = "Não consegui abrir a foto: %@";
+"Te mando esta foto." = "Envio-te esta foto.";
+"El modelo de tu cuenta no ve imágenes. Elige uno que sí lo haga en SaySo → Modelo, o descríbemela." = "O modelo da tua conta não vê imagens. Escolhe um que veja em SaySo → Modelo, ou descreve-ma.";
+"De momento entiendo texto, notas de voz y fotos." = "Por agora entendo texto, notas de voz e fotos.";
+"Ese archivo no es una imagen que se pueda abrir." = "Esse ficheiro não é uma imagem que se possa abrir.";
+"La imagen pasa de 20 MB." = "A imagem passa de 20 MB.";

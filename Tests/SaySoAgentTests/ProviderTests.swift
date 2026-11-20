@@ -165,3 +165,73 @@ final class SpeedTests: XCTestCase {
         XCTAssertTrue(sent.system.contains("una sola pregunta"))
     }
 }
+
+final class ImageTests: XCTestCase {
+    /// Un PNG de 3000×2000 hecho al vuelo.
+    static func bigPNG() -> Data {
+        let ctx = CGContext(data: nil, width: 3000, height: 2000, bitsPerComponent: 8, bytesPerRow: 0,
+                            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        ctx.setFillColor(red: 0.2, green: 0.6, blue: 0.4, alpha: 1)
+        ctx.fill(CGRect(x: 0, y: 0, width: 3000, height: 2000))
+        let out = NSMutableData()
+        let dest = CGImageDestinationCreateWithData(out, "public.png" as CFString, 1, nil)!
+        CGImageDestinationAddImage(dest, ctx.makeImage()!, nil)
+        CGImageDestinationFinalize(dest)
+        return out as Data
+    }
+
+    func testImagesAreShrunkToJPEG() throws {
+        let image = try ModelImage.prepared(from: Self.bigPNG())
+        XCTAssertEqual(image.mediaType, "image/jpeg")
+        XCTAssertEqual(max(image.width, image.height), ModelImage.maxSide)
+        XCTAssertThrowsError(try ModelImage.prepared(from: Data("no soy una imagen".utf8)))
+    }
+
+    func testProvidersEncodeImages() {
+        let message = ModelMessage(role: .user, content: [.toolResult(toolUseID: "t1", content: "ok", isError: false),
+                                                          .image(mediaType: "image/jpeg", data: Data([1, 2, 3]))])
+        let anthropic = AnthropicProvider.encode(message)
+        XCTAssertEqual(anthropic["content"]?[1]?["source"]?["data"]?.stringValue, "AQID")
+        let openai = OpenAICompatibleProvider.encode(message)
+        XCTAssertEqual(openai.count, 2, "el resultado de la herramienta y, detrás, un mensaje del usuario con la imagen")
+        XCTAssertEqual(openai[1]["content"]?[0]?["image_url"]?["url"]?.stringValue, "data:image/jpeg;base64,AQID")
+    }
+
+    func testOnlyVisionAccountsSeeImages() {
+        let url = URL(string: "https://api.deepseek.com")!
+        XCTAssertFalse(ProviderAccount(name: "DeepSeek", kind: .openAICompatible, baseURL: url, fullModel: "m", fastModel: "m",
+                                       keychainKey: nil).seesImages)
+        XCTAssertTrue(ProviderAccount(name: "Claude", kind: .anthropic, baseURL: URL(string: "https://api.anthropic.com")!,
+                                      fullModel: "m", fastModel: "m", keychainKey: nil).seesImages)
+        var local = ProviderAccount(name: "Ollama", kind: .openAICompatible, baseURL: URL(string: "http://localhost:11434/v1")!,
+                                    fullModel: "llava", fastModel: "llava", keychainKey: nil)
+        local.vision = true
+        XCTAssertTrue(local.seesImages)
+    }
+
+    func testTheLoopAttachesImagesOnlyWhenTheModelSeesThem() async throws {
+        struct Looker: ImageProducingTool {
+            var name: String { "view_image" }
+            var description: String { "" }
+            var inputSchema: JSONValue { .objectSchema([:]) }
+            func callWithImages(input: JSONValue, context: ToolContext) async throws -> (String, [ModelImage]) {
+                ("Imagen adjunta.", [ModelImage(mediaType: "image/jpeg", data: Data([9]), width: 1, height: 1)])
+            }
+        }
+        for sees in [true, false] {
+            let provider = FakeProvider([.tool("view_image", [:]), .text("Un gato")])
+            provider.supportsImages = sees
+            _ = try await AgentLoop(provider: provider, tools: [Looker()], store: MemoryStore()).respond(to: "¿Qué hay?", chatID: "voz")
+            let second = provider.requests.get()[1].messages.last?.content ?? []
+            let hasImage = second.contains { if case .image = $0 { return true }; return false }
+            XCTAssertEqual(hasImage, sees)
+        }
+        // Una foto que manda el usuario va en su mensaje.
+        let provider = FakeProvider([.text("Es un gato")])
+        provider.supportsImages = true
+        _ = try await AgentLoop(provider: provider, tools: [], store: MemoryStore())
+            .respond(to: "¿Qué es?", chatID: "voz", images: [ModelImage(mediaType: "image/jpeg", data: Data([7]), width: 1, height: 1)])
+        XCTAssertTrue(provider.requests.get()[0].messages.last?.content.contains { if case .image = $0 { return true }; return false } ?? false)
+    }
+}
+

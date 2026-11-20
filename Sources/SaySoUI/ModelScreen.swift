@@ -113,6 +113,16 @@ struct ModelScreen: View {
                 BlockToggle(isOn: Binding(get: { model.autoSpeed }, set: { model.actions?.setAutoSpeed($0) }),
                             label: "Velocidad automática")
             }
+            CardDivider()
+            SettingRow(title: "Ve imágenes",
+                       detail: active.vision == nil
+                           ? (active.defaultVision ? "Este proveedor ve imágenes: el agente puede mirar fotos de Telegram y de la máquina Linux."
+                              : "No consta que este modelo vea imágenes. Actívalo si sabes que sí (por ejemplo, un modelo local con visión).")
+                           : "Cambiado a mano. Si el modelo no las ve, el proveedor devolverá un error al mandarle una foto.") {
+                BlockToggle(isOn: Binding(get: { active.seesImages },
+                                          set: { model.actions?.setAccountVision(id: active.id, $0) }),
+                            label: "Ve imágenes")
+            }
         }
     }
 

@@ -174,7 +174,8 @@ public enum TelegramUserTools {
     public static func all(api: TelegramUserAPI, broker: PermissionBrokering,
                            limiter: SendRateLimiter = SendRateLimiter(),
                            ownBotID: @escaping @Sendable () -> Int64? = { nil },
-                           computer: AgentComputer? = nil, transcribe: Transcribe? = nil) -> [AgentTool] {
+                           computer: AgentComputer? = nil, transcribe: Transcribe? = nil,
+                           vision: Bool = false) -> [AgentTool] {
         var tools: [AgentTool] = [
             ListChatsTool(api: api, broker: broker), FindChatTool(api: api, broker: broker),
             ReadMessagesTool(api: api, broker: broker),
@@ -185,6 +186,7 @@ public enum TelegramUserTools {
         ]
         if let computer { tools.append(DownloadMediaTool(api: api, broker: broker, computer: computer)) }
         if let transcribe { tools.append(TranscribeVoiceTool(api: api, broker: broker, transcribe: transcribe)) }
+        if vision { tools.append(ViewTelegramImageTool(api: api, broker: broker)) }
         return tools + more(api: api, broker: broker, limiter: limiter, computer: computer)
     }
 

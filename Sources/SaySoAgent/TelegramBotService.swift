@@ -317,8 +317,10 @@ public actor TelegramBotService {
             await reply(to: text, chatID: chatID)
         } else if let voice = message.voice ?? message.audio {
             await handleVoice(voice, chatID: chatID)
+        } else if let photo = message.photo?.last {
+            await handlePhoto(photo, caption: message.caption, chatID: chatID)
         } else {
-            await send(chatID, tr("De momento solo entiendo texto y notas de voz."))
+            await send(chatID, tr("De momento entiendo texto, notas de voz y fotos."))
         }
     }
 
@@ -345,13 +347,38 @@ public actor TelegramBotService {
         await send(message.chat.id, tr("Emparejado. A partir de ahora solo te responderé a ti, %@.", "\(from.displayName)"))
     }
 
-    private func reply(to text: String, chatID: Int64) async {
+    /// Una foto del dueño: el agente la ve si el modelo de la cuenta ve imágenes.
+    private func handlePhoto(_ photo: TGPhotoSize, caption: String?, chatID: Int64) async {
+        let typing = startTyping(chatID)
+        let image: ModelImage
+        do {
+            let file = try await client.getFile(fileID: photo.fileId)
+            guard let path = file.filePath else { throw TelegramError.invalidResponse }
+            image = try ModelImage.prepared(from: try await client.downloadFile(path: path))
+        } catch {
+            typing.cancel()
+            await send(chatID, tr("No he podido abrir la foto: %@", "\(error.localizedDescription)"))
+            return
+        }
+        typing.cancel()
+        let said = caption?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let text = said.isEmpty ? tr("Te mando esta foto.") : said
+        await reply(to: text + "\n[foto adjunta]", chatID: chatID, images: [image])
+    }
+
+    private func reply(to text: String, chatID: Int64, images: [ModelImage] = []) async {
         let typing = startTyping(chatID)
         defer { typing.cancel() }
         do {
             let loop = try await makeLoop()
+            if !images.isEmpty, !loop.provider.supportsImages {
+                typing.cancel()
+                await send(chatID, tr("El modelo de tu cuenta no ve imágenes. Elige uno que sí lo haga en SaySo → Modelo, o descríbemela."))
+                return
+            }
             let answer = try await loop.respond(to: text, chatID: String(chatID),
-                                                useFastModel: AgentLoop.prefersFastModel(for: text, store: store))
+                                                useFastModel: images.isEmpty && AgentLoop.prefersFastModel(for: text, store: store),
+                                                images: images)
             typing.cancel()
             await send(chatID, answer)
         } catch {
