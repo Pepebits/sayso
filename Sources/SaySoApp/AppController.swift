@@ -322,6 +322,15 @@ final class AppController: AppActions {
         let today = "\(Calendar.current.startOfDay(for: Date()).timeIntervalSince1970)"
         guard today != lastPruneDay else { return }
         lastPruneDay = today
+        // Los archivos de Telegram tienen su propio tope, sea cual sea el plazo elegido.
+        if let session = telegramUser.session {
+            Task { [weak self] in
+                do { try await session.optimizeStorage() } catch {
+                    self?.model.log(.warning, LogCategory.telegram,
+                                    tr("No se pudieron limpiar los archivos de Telegram: %@", error.localizedDescription))
+                }
+            }
+        }
         let days = model.retentionDays
         guard days > 0, let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: Date()),
               let removed = try? store.prune(olderThan: cutoff), removed.activity + removed.turns > 0 else { return }
@@ -1871,9 +1880,16 @@ enum Timings {
         let parts = seconds.sorted { $0.key < $1.key }.map { "\($0.key)=\(String(format: "%.1f", $0.value))s" }
         let line = "\(stamp) \(what) \(parts.joined(separator: " ")) \(detail)\n"
         if let handle = try? FileHandle(forWritingTo: file) {
-            defer { try? handle.close() }
             _ = try? handle.seekToEnd()
             try? handle.write(contentsOf: Data(line.utf8))
+            let size = (try? handle.offset()) ?? 0
+            try? handle.close()
+            // Tope de 256 KB: al pasarlo se queda con la mitad más reciente.
+            if size > 256 * 1024, let data = try? Data(contentsOf: file) {
+                var tail = data.suffix(128 * 1024)
+                if let newline = tail.firstIndex(of: 0x0A) { tail = tail[(newline + 1)...] }
+                try? Data(tail).write(to: file, options: .atomic)
+            }
         } else {
             try? Data(line.utf8).write(to: file)
         }

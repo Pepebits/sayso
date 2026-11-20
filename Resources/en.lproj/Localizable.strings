@@ -1308,3 +1308,4 @@
 "Ver en Hugging Face" = "View on Hugging Face";
 "Buscar clasificadores en Hugging Face" = "Search classifiers on Hugging Face";
 "Ver su ficha" = "View its page";
+"No se pudieron limpiar los archivos de Telegram: %@" = "Couldn’t clean up Telegram files: %@";

@@ -253,6 +253,23 @@ public actor TDLibSession: TelegramUserAPI {
         }
     }
 
+    /// Límite de lo que TDLib guarda en disco (fotos, audios y archivos descargados).
+    public static let storageLimitBytes = 300 * 1024 * 1024
+    public static let storageMaxAgeDays = 14
+
+    /// Borra los archivos descargados que no se han usado en `storageMaxAgeDays` días y, si aun
+    /// así pasan de `storageLimitBytes`, los más antiguos. TDLib los vuelve a bajar si hacen falta.
+    public func optimizeStorage() async throws {
+        _ = try await request([
+            "@type": "optimizeStorage",
+            "size": .number(Double(Self.storageLimitBytes)),
+            "ttl": .number(Double(Self.storageMaxAgeDays * 86_400)),
+            "count": -1, "immunity_delay": -1,
+            "file_types": [], "chat_ids": [], "exclude_chat_ids": [],
+            "return_deleted_file_statistics": false, "chat_limit": 0,
+        ])
+    }
+
     // MARK: Inicio de sesión (los datos los escribe el usuario en la app)
 
     public func submitPhone(_ phone: String) async throws {

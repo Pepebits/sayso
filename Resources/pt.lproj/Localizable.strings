@@ -1307,3 +1307,4 @@
 "Ver en Hugging Face" = "Ver no Hugging Face";
 "Buscar clasificadores en Hugging Face" = "Procurar classificadores no Hugging Face";
 "Ver su ficha" = "Ver a ficha";
+"No se pudieron limpiar los archivos de Telegram: %@" = "Não foi possível limpar os ficheiros do Telegram: %@";
