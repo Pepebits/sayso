@@ -1,0 +1,45 @@
+name: Announce release
+
+# Posts a Telegram rich message for each release, through Pepebits' reusable
+# workflow. The DMG is built, notarized and attached on a Mac (scripts/release.sh
+# and `gh release create`), so this runs when the GitHub release is published,
+# not when the tag is pushed: by then the download button works. Run it by hand
+# (Actions → Announce release → Run workflow) to preview a message or send it to
+# the test chat.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to announce, e.g. v0.2.0
+        type: string
+        required: true
+      chat:
+        description: Where to send it
+        type: choice
+        options: [test, announcements]
+        default: test
+      dry_run:
+        description: Only print the message, send nothing
+        type: boolean
+        default: true
+
+jobs:
+  announce:
+    if: ${{ !github.event.repository.private && !github.event.release.prerelease }}
+    permissions:
+      contents: read
+    uses: Pepebits/release-announce/.github/workflows/announce.yml@v1
+    with:
+      tag: ${{ inputs.tag || github.event.release.tag_name }}
+      chat: ${{ inputs.chat || 'announcements' }}
+      dry_run: ${{ inputs.dry_run || false }}
+      notes_source: changelog
+      project_name: SaySo
+      install_title: 🍏 macOS 14+ · Apple Silicon
+      install_command: open https://github.com/Pepebits/sayso/releases/download/{tag}/SaySo-{version}.dmg
+      buttons: >-
+        [{"text": "⬇️ Download DMG", "url": "{repo_url}/releases/download/{tag}/SaySo-{version}.dmg"},
+         {"text": "📝 Changelog", "url": "{repo_url}/blob/{tag}/CHANGELOG.md"}]
+    secrets: inherit
