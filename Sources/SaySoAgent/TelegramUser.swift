@@ -67,6 +67,29 @@ public protocol TelegramUserAPI: Sendable {
     func markRead(chatID: Int64) async throws -> Int
     func download(chatID: Int64, messageID: Int64) async throws -> TGDownloadedMedia
     func delete(chatID: Int64, messageIDs: [Int64], forEveryone: Bool) async throws
+    // Envíos más completos (TelegramUserMore.swift). Como requisitos del protocolo y no solo en la
+    // extensión: si no, la llamada se resuelve con la versión por defecto y nunca llega a TDLib.
+    func send(chatID: Int64, text: String, at date: Date?) async throws
+    func sendAlbum(chatID: Int64, files: [TGOutgoingFile], caption: String?) async throws
+    func sendSpecial(chatID: Int64, content: TGSpecialContent) async throws
+    func scheduledMessages(chatID: Int64) async throws -> [TGUserMessage]
+    // Gestión de chats y de la cuenta
+    func pin(chatID: Int64, messageID: Int64, pinned: Bool, onlyForSelf: Bool) async throws
+    func setMuted(chatID: Int64, muted: Bool) async throws
+    func setArchived(chatID: Int64, archived: Bool) async throws
+    func profile(chatID: Int64) async throws -> String
+    func addContact(chatID: Int64, firstName: String, lastName: String) async throws
+    func setBlocked(chatID: Int64, blocked: Bool) async throws
+    func createGroup(title: String, memberChatIDs: [Int64]) async throws -> TGUserChat
+    func addMembers(chatID: Int64, memberChatIDs: [Int64]) async throws
+    func removeMember(chatID: Int64, memberChatID: Int64) async throws
+    func join(inviteLink: String) async throws -> TGUserChat?
+    func leave(chatID: Int64) async throws
+    func messageLink(chatID: Int64, messageID: Int64) async throws -> String
+    // Menos habitual
+    func vote(chatID: Int64, messageID: Int64, options: [Int]) async throws
+    func savedMessagesChat() async throws -> TGUserChat
+    func stories(chatID: Int64) async throws -> [TGStory]
 }
 
 /// Exclusiones fijas en código, no configurables.
@@ -155,7 +178,7 @@ public enum TelegramUserTools {
         ]
         if let computer { tools.append(DownloadMediaTool(api: api, broker: broker, computer: computer)) }
         if let transcribe { tools.append(TranscribeVoiceTool(api: api, broker: broker, transcribe: transcribe)) }
-        return tools
+        return tools + more(api: api, broker: broker, limiter: limiter, computer: computer)
     }
 
     static func messageID(_ input: JSONValue, key: String = "message_id") throws -> Int64 {
@@ -367,17 +390,19 @@ public struct SendMessageTool: AgentTool {
     var ownBotID: @Sendable () -> Int64? = { nil }
     public var name: String { "telegram_send_message" }
     public var description: String {
-        "Envía un mensaje de texto desde la cuenta de Telegram del usuario. En «chat» pon directamente el nombre de la persona o del grupo, o su @alias: la herramienta lo busca en sus contactos y chats. Nunca le pidas un identificador al usuario. Si hay varias coincidencias te las devuelve para que se las ofrezcas. El usuario confirma el envío en el Mac salvo que haya cambiado la regla. Redacta el texto final exacto."
+        "Envía un mensaje de texto desde la cuenta de Telegram del usuario. En «chat» pon directamente el nombre de la persona o del grupo, o su @alias: la herramienta lo busca en sus contactos y chats. Nunca le pidas un identificador al usuario. Si hay varias coincidencias te las devuelve para que se las ofrezcas. El usuario confirma el envío en el Mac salvo que haya cambiado la regla. Redacta el texto final exacto. Con «send_at» queda programado en Telegram y sale a esa hora aunque el Mac esté apagado."
     }
     public var inputSchema: JSONValue {
         .objectSchema([
             "chat": TelegramUserTools.chatProperty,
             "text": .property("string", "Texto exacto del mensaje"),
+            "send_at": ["type": "string", "description": "Opcional: fecha y hora de envío, como 2026-11-21T09:00 (hora del Mac)"],
         ], required: ["chat", "text"])
     }
 
     public func call(input: JSONValue, context: ToolContext) async throws -> String {
         let text = try input.requiredString("text", maxLength: 4096)
+        let sendAt = try input["send_at"]?.stringValue.map { try TelegramUserTools.futureDate($0) }
         let chat = try await TelegramUserTools.resolveChat(input, api: api)
         let id = chat.id
         guard id != ownBotID() else {
@@ -387,14 +412,18 @@ public struct SendMessageTool: AgentTool {
         }
         let api = self.api
         let limiter = self.limiter
+        let when = sendAt.map { " el \(TelegramUserTools.stamp($0))" } ?? ""
+        var parameters = ["Para": chat.title, "Mensaje": text]
+        if let sendAt { parameters["Cuándo"] = TelegramUserTools.stamp(sendAt) }
         try await broker.run(ActionRequest(
-            action: TelegramAction.sendMessages, summary: "Enviar a «\(chat.title)»: \(String(text.prefix(200)))",
-            parameters: ["Para": chat.title, "Mensaje": text], origin: context.origin)) {
+            action: TelegramAction.sendMessages,
+            summary: "\(sendAt == nil ? "Enviar" : "Programar") a «\(chat.title)»\(when): \(String(text.prefix(200)))",
+            parameters: parameters, origin: context.origin)) {
             // El tope cuenta envíos reales: se comprueba después de la confirmación.
             try await limiter.take()
-            try await api.send(chatID: id, text: text)
+            if let sendAt { try await api.send(chatID: id, text: text, at: sendAt) } else { try await api.send(chatID: id, text: text) }
         }
-        return "Mensaje enviado a «\(chat.title)»."
+        return sendAt == nil ? "Mensaje enviado a «\(chat.title)»." : "Mensaje programado para «\(chat.title)»\(when)."
     }
 }
 

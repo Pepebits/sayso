@@ -118,6 +118,12 @@ public enum TelegramAction {
     public static let react: ActionID = "telegram.react"
     public static let markRead: ActionID = "telegram.markRead"
     public static let download: ActionID = "telegram.download"
+    public static let pin: ActionID = "telegram.pin"
+    public static let organize: ActionID = "telegram.organize"
+    public static let contacts: ActionID = "telegram.contacts"
+    public static let groups: ActionID = "telegram.groups"
+    public static let vote: ActionID = "telegram.vote"
+    public static let savedMessages: ActionID = "telegram.savedMessages"
 
     public static let descriptors: [ActionDescriptor] = [
         .init(id: listChats, title: "Listar chats", defaultRule: .allow),
@@ -130,6 +136,16 @@ public enum TelegramAction {
         .init(id: markRead, title: "Marcar como leído", detail: "Dejar un chat sin mensajes pendientes.", defaultRule: .allow),
         .init(id: download, title: "Descargar archivos recibidos",
               detail: "Bajar a la máquina Linux una foto, audio o documento que te han enviado.", defaultRule: .allow),
+        .init(id: pin, title: "Fijar mensajes", detail: "Fijar o desfijar un mensaje en un chat.", defaultRule: .ask),
+        .init(id: organize, title: "Silenciar y archivar", detail: "Silenciar, archivar o recuperar un chat. Solo cambia lo que ves tú.",
+              defaultRule: .allow),
+        .init(id: contacts, title: "Contactos y bloqueos", detail: "Añadir a alguien a tus contactos, bloquearlo o desbloquearlo.",
+              defaultRule: .ask),
+        .init(id: groups, title: "Grupos", detail: "Crear grupos, añadir o quitar miembros, unirte por enlace o salir de un chat.",
+              defaultRule: .ask),
+        .init(id: vote, title: "Votar en encuestas", detail: "Responder a una encuesta de un chat.", defaultRule: .ask),
+        .init(id: savedMessages, title: "Mensajes guardados", detail: "Guardar notas en tus Mensajes guardados y leerlas.",
+              defaultRule: .allow),
         // Apagado mientras no se elija otra cosa: la respuesta se publica en un chat ajeno.
         .init(id: "telegram.sendFile", title: "Enviarte archivos",
               detail: "Mandarte por el bot una imagen o un archivo del ordenador del agente.", defaultRule: .allow),

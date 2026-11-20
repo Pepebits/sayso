@@ -6,6 +6,20 @@ All notable changes to SaySo are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Telegram account: send albums, polls and quizzes (groups and channels), locations, contact cards and dice
+- Telegram scheduled messages, sent by Telegram at their time even with the Mac off, with a list to review and cancel them
+- Pin and unpin messages, mute and archive chats, read profiles, add contacts, block and unblock people
+- Groups: create them, add or remove members, join through an invite link and leave
+- Message links, voting in polls, notes in Saved Messages and active stories
+- Polls, locations, contacts and dice now show their content when the agent reads a chat
+- Six new permission rules in the Telegram screen for these actions
+
+### Fixed
+
+- Message IDs above 10^15 (Telegram's scheduled messages) were dropped when read
+
 ### Changed
 
 - Telegram downloads are cleaned up daily: files unused for 14 days go, and the oldest ones when the cache passes 300 MB

@@ -1153,6 +1153,103 @@ final class AppController: AppActions {
                         lines.append("buscar «\(query)»: " + hits.map { "\($0.title) [\($0.kind.rawValue)]" }.joined(separator: ", "))
                     }
                 }
+                if env["SAYSO_TELEGRAM_TEST_ACTIONS"] == "3" {
+                    // Solo mensajes programados: programar, listar y anular.
+                    let recentText = ((try? await session.messages(chatID: chat.id, limit: 8)) ?? [])
+                        .map { "#\($0.id) \($0.outgoing ? "yo" : "él") \($0.date) \($0.text)" }
+                    lines.append("recientes: " + recentText.joined(separator: " | "))
+                    if env["SAYSO_TELEGRAM_TEST_SKIP_SEND"] != "1" { do {
+                        try await session.send(chatID: chat.id, text: "Prueba de SaySo: programado", at: Date().addingTimeInterval(86_400))
+                        lines.append("OK programar")
+                    } catch { lines.append("FALLO programar: \(error)") } }
+                    for attempt in 1...3 {
+                        do {
+                            let list = try await session.scheduledMessages(chatID: chat.id)
+                            lines.append("intento \(attempt): \(list.count) programados " + list.map { "#\($0.id) \($0.date) \($0.text)" }.joined(separator: " | "))
+                            let ours = list.filter { $0.text == "Prueba de SaySo: programado" }.map(\.id)
+                            if !ours.isEmpty {
+                                try await session.delete(chatID: chat.id, messageIDs: ours, forEveryone: true)
+                                lines.append("OK anulados \(ours)")
+                                break
+                            }
+                        } catch { lines.append("intento \(attempt): error \(error)") }
+                        flush()
+                        try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    }
+                    lines.append("fin")
+                    return flush()
+                }
+                if env["SAYSO_TELEGRAM_TEST_ACTIONS"] == "2" {
+                    // Envíos más completos y gestión del chat, todo reversible y en el chat de prueba.
+                    // Bloquear, contactos y grupos no se prueban aquí: cambian la cuenta de verdad.
+                    func step(_ name: String, _ work: () async throws -> String) async {
+                        do { lines.append("OK \(name): " + (try await work())) } catch { lines.append("FALLO \(name): \(error)") }
+                        flush()
+                    }
+                    let images = ((try? FileManager.default.contentsOfDirectory(atPath: folder)) ?? []).sorted()
+                        .filter { ["jpg", "jpeg", "png"].contains(($0 as NSString).pathExtension.lowercased()) }.prefix(2)
+                    if images.count == 2 {
+                        await step("álbum") {
+                            let files = try images.map { name in
+                                TGOutgoingFile(data: try Data(contentsOf: URL(fileURLWithPath: folder).appendingPathComponent(name)),
+                                               filename: name, kind: .photo)
+                            }
+                            try await session.sendAlbum(chatID: chat.id, files: files, caption: "Prueba de SaySo: álbum")
+                            return images.joined(separator: ", ")
+                        }
+                    }
+                    await step("encuesta") {
+                        try await session.sendSpecial(chatID: chat.id, content: .poll(
+                            question: "Prueba de SaySo: ¿funciona?", options: ["Sí", "No"], anonymous: false,
+                            multipleAnswers: false, correctOption: nil))
+                        return "enviada"
+                    }
+                    await step("ubicación") { try await session.sendSpecial(chatID: chat.id, content: .location(latitude: 42.8806, longitude: -8.5446)); return "Santiago" }
+                    await step("dado") { try await session.sendSpecial(chatID: chat.id, content: .dice(emoji: "🎲")); return "🎲" }
+                    await step("tarjeta de contacto") { try await session.sendSpecial(chatID: chat.id, content: .contact(chatID: chat.id)); return chat.title }
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    let recent = try await session.messages(chatID: chat.id, limit: 12)
+                    for message in recent.prefix(6) { lines.append("  leído: #\(message.id) \(message.text)") }
+                    if let poll = recent.first(where: { $0.text.hasPrefix("[encuesta") }) {
+                        await step("votar") { try await session.vote(chatID: chat.id, messageID: poll.id, options: [0]); return "#\(poll.id)" }
+                        let after = try await session.messages(chatID: chat.id, limit: 12)
+                        lines.append("  tras votar: " + (after.first { $0.id == poll.id }?.text ?? "?"))
+                    }
+                    if let place = recent.first(where: { $0.text.hasPrefix("[ubicación") }) {
+                        await step("fijar") { try await session.pin(chatID: chat.id, messageID: place.id, pinned: true, onlyForSelf: true); return "#\(place.id)" }
+                        await step("desfijar") { try await session.pin(chatID: chat.id, messageID: place.id, pinned: false, onlyForSelf: false); return "#\(place.id)" }
+                    }
+                    await step("programar") {
+                        try await session.send(chatID: chat.id, text: "Prueba de SaySo: programado", at: Date().addingTimeInterval(86_400))
+                        return "mañana"
+                    }
+                    var scheduled: [TGUserMessage] = []
+                    for _ in 0..<5 where scheduled.isEmpty {
+                        do { scheduled = try await session.scheduledMessages(chatID: chat.id) }
+                        catch { lines.append("  error al listar programados: \(error)") }
+                        if scheduled.isEmpty { try? await Task.sleep(nanoseconds: 1_000_000_000) }
+                    }
+                    lines.append("  programados: " + scheduled.map { "#\($0.id) \($0.date) \($0.text)" }.joined(separator: " | "))
+                    let ours = scheduled.filter { $0.text == "Prueba de SaySo: programado" }.map(\.id)
+                    if !ours.isEmpty {
+                        await step("anular programado") { try await session.delete(chatID: chat.id, messageIDs: ours, forEveryone: true); return "\(ours)" }
+                    }
+                    await step("silenciar") { try await session.setMuted(chatID: chat.id, muted: true); return "sí" }
+                    await step("quitar silencio") { try await session.setMuted(chatID: chat.id, muted: false); return "sí" }
+                    await step("archivar") { try await session.setArchived(chatID: chat.id, archived: true); return "sí" }
+                    await step("desarchivar") { try await session.setArchived(chatID: chat.id, archived: false); return "sí" }
+                    await step("perfil") { try await session.profile(chatID: chat.id).replacingOccurrences(of: "\n", with: " | ") }
+                    await step("historias") { "\(try await session.stories(chatID: chat.id).count) activas" }
+                    await step("Mensajes guardados") {
+                        let saved = try await session.savedMessagesChat()
+                        try await session.send(chatID: saved.id, text: "Prueba de SaySo: nota")
+                        try? await Task.sleep(nanoseconds: 1_000_000_000)
+                        let notes = try await session.messages(chatID: saved.id, limit: 3)
+                        return "chat \(saved.id), última: \(notes.last?.text ?? notes.first?.text ?? "-")"
+                    }
+                    lines.append("fin")
+                    return flush()
+                }
                 if env["SAYSO_TELEGRAM_TEST_ACTIONS"] == "1" {
                     // Responder, editar, reaccionar, reenviar, marcar como leído, descargar y transcribir.
                     func step(_ name: String, _ work: () async throws -> String) async {

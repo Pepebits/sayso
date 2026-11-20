@@ -286,7 +286,7 @@ public actor TDLibSession: TelegramUserAPI {
 
     // MARK: TelegramUserAPI
 
-    private func requireReady() throws {
+    func requireReady() throws {
         guard state.isReady else { throw TelegramUserError.notReady }
     }
 
@@ -570,7 +570,7 @@ public actor TDLibSession: TelegramUserAPI {
 
     /// Espera a que Telegram confirme o rechace un mensaje en cola. Si pasa el tiempo sin noticia
     /// (una subida lenta), se da por bueno: sigue subiendo.
-    private func waitForDelivery(messageID: Int64, timeout: TimeInterval = 90) async throws {
+    func waitForDelivery(messageID: Int64, timeout: TimeInterval = 90) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             deliveries[messageID] = continuation
             Task { [weak self] in
@@ -585,7 +585,7 @@ public actor TDLibSession: TelegramUserAPI {
         if let error { continuation.resume(throwing: error) } else { continuation.resume() }
     }
 
-    private static func textContent(_ text: String) -> JSONValue {
+    static func textContent(_ text: String) -> JSONValue {
         ["@type": "inputMessageText", "text": ["@type": "formattedText", "text": .string(text)]]
     }
 
@@ -707,7 +707,7 @@ public actor TDLibSession: TelegramUserAPI {
 
     // MARK: Conversión
 
-    private func convert(_ raw: [JSONValue]) async -> [TGUserMessage] {
+    func convert(_ raw: [JSONValue]) async -> [TGUserMessage] {
         var out: [TGUserMessage] = []
         for message in raw {
             guard let id = message["id"]?.intValue, let chatID = message["chat_id"]?.intValue else { continue }
@@ -741,6 +741,7 @@ public actor TDLibSession: TelegramUserAPI {
         let content = message["content"]
         let type = content?["@type"]?.stringValue ?? ""
         if type == "messageText" { return content?["text"]?["text"]?.stringValue ?? "" }
+        if let detail = detail(of: content) { return detail }
         let label: String
         switch type {
         case "messagePhoto": label = "[foto]"
@@ -758,5 +759,38 @@ public actor TDLibSession: TelegramUserAPI {
         }
         let caption = content?["caption"]?["text"]?.stringValue ?? ""
         return caption.isEmpty ? label : "\(label) \(caption)"
+    }
+
+    /// Encuestas, ubicaciones, contactos y dados con lo que hace falta para usarlos: las respuestas
+    /// de una encuesta van numeradas desde 0, que es lo que pide telegram_vote.
+    static func detail(of content: JSONValue?) -> String? {
+        switch content?["@type"]?.stringValue {
+        case "messagePoll":
+            guard let poll = content?["poll"] else { return nil }
+            let question = poll["question"]?["text"]?.stringValue ?? ""
+            let options = (poll["options"]?.arrayValue ?? []).enumerated().map { index, option -> String in
+                var text = "\(index)) \(option["text"]?["text"]?.stringValue ?? "")"
+                if let votes = option["voter_count"]?.intValue, votes > 0 { text += " (\(votes))" }
+                if option["is_chosen"]?.boolValue == true { text += " ✓ tu voto" }
+                return text
+            }
+            let closed = poll["is_closed"]?.boolValue == true ? " (cerrada)" : ""
+            return "[encuesta\(closed)] \(question) · " + options.joined(separator: " · ")
+        case "messageLocation":
+            guard let lat = content?["location"]?["latitude"]?.doubleValue,
+                  let lon = content?["location"]?["longitude"]?.doubleValue else { return nil }
+            return String(format: "[ubicación] %.5f, %.5f", lat, lon)
+        case "messageContact":
+            let contact = content?["contact"]
+            let name = [contact?["first_name"]?.stringValue, contact?["last_name"]?.stringValue]
+                .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ")
+            return name.isEmpty ? nil : "[contacto] \(name)"
+        case "messageDice":
+            let emoji = content?["emoji"]?.stringValue ?? "🎲"
+            let value = content?["value"]?.intValue ?? 0
+            return value > 0 ? "[dado \(emoji) \(value)]" : "[dado \(emoji)]"
+        default:
+            return nil
+        }
     }
 }

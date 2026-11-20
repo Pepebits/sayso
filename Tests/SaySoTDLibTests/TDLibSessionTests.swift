@@ -340,4 +340,42 @@ final class TDLibSessionTests: XCTestCase {
         XCTAssertEqual(TDLibSession.mediaFile(in: doc)?.name, "factura.pdf")
         XCTAssertNil(TDLibSession.mediaFile(in: ["id": 8, "content": ["@type": "messageText"]]))
     }
+
+    func testPollsLocationsAndDiceAreReadable() {
+        let poll: JSONValue = ["content": ["@type": "messagePoll", "poll": [
+            "question": ["text": "¿Cena?"], "is_closed": false,
+            "options": [["text": ["text": "Viernes"], "voter_count": 3, "is_chosen": true], ["text": ["text": "Sábado"], "voter_count": 0]],
+        ]]]
+        XCTAssertEqual(TDLibSession.text(of: poll), "[encuesta] ¿Cena? · 0) Viernes (3) ✓ tu voto · 1) Sábado")
+        let place: JSONValue = ["content": ["@type": "messageLocation", "location": ["latitude": 42.88, "longitude": -8.54]]]
+        XCTAssertEqual(TDLibSession.text(of: place), "[ubicación] 42.88000, -8.54000")
+        let dice: JSONValue = ["content": ["@type": "messageDice", "emoji": "🎲", "value": 5]]
+        XCTAssertEqual(TDLibSession.text(of: dice), "[dado 🎲 5]")
+        let card: JSONValue = ["content": ["@type": "messageContact", "contact": ["first_name": "Lucas", "last_name": "Moreno"]]]
+        XCTAssertEqual(TDLibSession.text(of: card), "[contacto] Lucas Moreno")
+    }
+
+    func testSpecialContentMatchesTheTDLibScheme() {
+        let quiz = TDLibSession.specialContent(.poll(question: "2+2", options: ["3", "4"], anonymous: false,
+                                                     multipleAnswers: false, correctOption: 1))
+        XCTAssertEqual(quiz["@type"]?.stringValue, "inputMessagePoll")
+        XCTAssertEqual(quiz["options"]?.arrayValue?.first?["@type"]?.stringValue, "inputPollOption")
+        XCTAssertEqual(quiz["options"]?.arrayValue?.last?["text"]?["text"]?.stringValue, "4")
+        XCTAssertEqual(quiz["type"]?["@type"]?.stringValue, "inputPollTypeQuiz")
+        XCTAssertEqual(quiz["type"]?["correct_option_ids"]?.arrayValue?.first?.intValue, 1)
+        let regular = TDLibSession.specialContent(.poll(question: "?", options: ["a", "b"], anonymous: true,
+                                                        multipleAnswers: true, correctOption: nil))
+        XCTAssertEqual(regular["type"]?["@type"]?.stringValue, "inputPollTypeRegular")
+        XCTAssertEqual(regular["allows_multiple_answers"]?.boolValue, true)
+        XCTAssertEqual(TDLibSession.specialContent(.location(latitude: 1, longitude: 2))["location"]?["@type"]?.stringValue, "location")
+        XCTAssertEqual(TDLibSession.specialContent(.dice(emoji: "🎯"))["emoji"]?.stringValue, "🎯")
+    }
+
+    func testScheduledMessageIDsSurviveTheJSONRoundTrip() {
+        // Los programados de Telegram llevan identificadores de unos 1,5·10^15 (visto contra la API).
+        let raw: JSONValue = ["id": .number(1_513_184_422_789_164), "chat_id": .number(123_456_789)]
+        XCTAssertEqual(raw["id"]?.intValue, 1_513_184_422_789_164)
+        XCTAssertNil(JSONValue.number(1e17).intValue, "por encima de 2^53 ya no es exacto")
+        XCTAssertNil(JSONValue.number(2.5).intValue)
+    }
 }

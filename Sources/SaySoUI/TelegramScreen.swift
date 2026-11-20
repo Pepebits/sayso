@@ -301,6 +301,12 @@ struct TelegramScreen: View {
         case TelegramAction.react: return "face.smiling"
         case TelegramAction.markRead: return "checkmark.circle"
         case TelegramAction.download: return "arrow.down.circle"
+        case TelegramAction.pin: return "pin"
+        case TelegramAction.organize: return "archivebox"
+        case TelegramAction.contacts: return "person.crop.circle.badge.plus"
+        case TelegramAction.groups: return "person.3"
+        case TelegramAction.vote: return "chart.bar"
+        case TelegramAction.savedMessages: return "bookmark"
         default: return "gearshape"
         }
     }

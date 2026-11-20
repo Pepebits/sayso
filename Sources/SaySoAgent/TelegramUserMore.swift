@@ -1,0 +1,705 @@
+import Foundation
+import SaySoCore
+
+// Más herramientas con la cuenta de Telegram del usuario: envíos más completos (álbumes, encuestas,
+// ubicación, contactos, dados, mensajes programados), gestión de chats y de la cuenta (fijar,
+// silenciar, archivar, perfiles, contactos, bloqueos, grupos, enlaces) y lo menos habitual (votar,
+// Mensajes guardados e historias). Todas pasan por el motor de permisos.
+
+/// Un archivo para un álbum.
+public struct TGOutgoingFile: Sendable, Hashable {
+    public var data: Data
+    public var filename: String
+    public var kind: TGMediaKind
+
+    public init(data: Data, filename: String, kind: TGMediaKind) {
+        self.data = data
+        self.filename = filename
+        self.kind = kind
+    }
+}
+
+/// Mensajes que no son texto ni archivo.
+public enum TGSpecialContent: Sendable, Hashable {
+    /// `correctOption`: con valor, es un cuestionario con esa respuesta buena (desde 0).
+    case poll(question: String, options: [String], anonymous: Bool, multipleAnswers: Bool, correctOption: Int?)
+    case location(latitude: Double, longitude: Double)
+    /// La tarjeta de contacto de una persona de los chats del usuario.
+    case contact(chatID: Int64)
+    /// 🎲 🎯 🏀 ⚽ 🎳 🎰
+    case dice(emoji: String)
+
+    public static let diceEmojis = ["🎲", "🎯", "🏀", "⚽", "🎳", "🎰"]
+
+    var label: String {
+        switch self {
+        case .poll(let question, _, _, _, let correct): return correct == nil ? "la encuesta «\(question)»" : "el cuestionario «\(question)»"
+        case .location(let lat, let lon): return String(format: "la ubicación %.5f, %.5f", lat, lon)
+        case .contact: return "una tarjeta de contacto"
+        case .dice(let emoji): return "el dado \(emoji)"
+        }
+    }
+}
+
+/// Una historia activa de un chat.
+public struct TGStory: Sendable, Hashable {
+    public var id: Int
+    public var date: Date
+    public var caption: String
+    /// «foto» o «vídeo».
+    public var kind: String
+
+    public init(id: Int, date: Date, caption: String, kind: String) {
+        self.id = id
+        self.date = date
+        self.caption = caption
+        self.kind = kind
+    }
+}
+
+/// Por defecto, una sesión que no sabe hacerlo lo dice.
+public extension TelegramUserAPI {
+    func send(chatID: Int64, text: String, at date: Date?) async throws {
+        guard date == nil else { throw ToolInputError("Esta sesión de Telegram no puede programar mensajes.") }
+        try await send(chatID: chatID, text: text)
+    }
+    func sendAlbum(chatID: Int64, files: [TGOutgoingFile], caption: String?) async throws { throw unsupported("enviar álbumes") }
+    func sendSpecial(chatID: Int64, content: TGSpecialContent) async throws { throw unsupported("enviar ese tipo de mensaje") }
+    func scheduledMessages(chatID: Int64) async throws -> [TGUserMessage] { throw unsupported("ver los mensajes programados") }
+    func pin(chatID: Int64, messageID: Int64, pinned: Bool, onlyForSelf: Bool) async throws { throw unsupported("fijar mensajes") }
+    func setMuted(chatID: Int64, muted: Bool) async throws { throw unsupported("silenciar chats") }
+    func setArchived(chatID: Int64, archived: Bool) async throws { throw unsupported("archivar chats") }
+    func profile(chatID: Int64) async throws -> String { throw unsupported("ver perfiles") }
+    func addContact(chatID: Int64, firstName: String, lastName: String) async throws { throw unsupported("añadir contactos") }
+    func setBlocked(chatID: Int64, blocked: Bool) async throws { throw unsupported("bloquear usuarios") }
+    func createGroup(title: String, memberChatIDs: [Int64]) async throws -> TGUserChat { throw unsupported("crear grupos") }
+    func addMembers(chatID: Int64, memberChatIDs: [Int64]) async throws { throw unsupported("añadir miembros") }
+    func removeMember(chatID: Int64, memberChatID: Int64) async throws { throw unsupported("quitar miembros") }
+    func join(inviteLink: String) async throws -> TGUserChat? { throw unsupported("unirse por enlace") }
+    func leave(chatID: Int64) async throws { throw unsupported("salir de chats") }
+    func messageLink(chatID: Int64, messageID: Int64) async throws -> String { throw unsupported("copiar enlaces") }
+    func vote(chatID: Int64, messageID: Int64, options: [Int]) async throws { throw unsupported("votar en encuestas") }
+    func savedMessagesChat() async throws -> TGUserChat { throw unsupported("usar Mensajes guardados") }
+    func stories(chatID: Int64) async throws -> [TGStory] { throw unsupported("ver historias") }
+
+    private func unsupported(_ what: String) -> ToolInputError {
+        ToolInputError("Esta sesión de Telegram no puede \(what).")
+    }
+}
+
+extension TelegramUserTools {
+    /// Las herramientas de este archivo. `computer` hace falta para los álbumes (los archivos salen de ahí).
+    static func more(api: TelegramUserAPI, broker: PermissionBrokering, limiter: SendRateLimiter,
+                     computer: AgentComputer?) -> [AgentTool] {
+        var tools: [AgentTool] = [
+            SendPollTool(api: api, broker: broker, limiter: limiter),
+            SendOtherTool(api: api, broker: broker, limiter: limiter),
+            ScheduledMessagesTool(api: api, broker: broker),
+            PinMessageTool(api: api, broker: broker),
+            ChatSettingsTool(api: api, broker: broker),
+            ProfileTool(api: api, broker: broker),
+            ContactTool(api: api, broker: broker),
+            GroupTool(api: api, broker: broker, limiter: limiter),
+            MessageLinkTool(api: api, broker: broker),
+            VoteTool(api: api, broker: broker),
+            SavedMessagesTool(api: api, broker: broker),
+            StoriesTool(api: api, broker: broker),
+        ]
+        if let computer { tools.insert(SendAlbumTool(api: api, broker: broker, limiter: limiter, computer: computer), at: 0) }
+        return tools
+    }
+
+    /// Una fecha futura: ISO 8601 («2026-11-21T09:00»), con o sin zona; sin zona, la del Mac.
+    static func futureDate(_ text: String, now: Date = Date()) throws -> Date {
+        let trimmed = text.trimmingCharacters(in: .whitespaces)
+        let full = ISO8601DateFormatter()
+        var date = full.date(from: trimmed)
+        if date == nil {
+            let local = DateFormatter()
+            local.locale = Locale(identifier: "en_US_POSIX")
+            local.timeZone = .current
+            for format in ["yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd'T'HH:mm", "yyyy-MM-dd HH:mm"] {
+                local.dateFormat = format
+                if let parsed = local.date(from: trimmed) { date = parsed; break }
+            }
+        }
+        guard let date else { throw ToolInputError("«send_at» debe ser una fecha como 2026-11-21T09:00.") }
+        guard date > now.addingTimeInterval(30) else { throw ToolInputError("«send_at» tiene que ser en el futuro.") }
+        guard date < now.addingTimeInterval(365 * 86_400) else { throw ToolInputError("Telegram solo programa hasta un año vista.") }
+        return date
+    }
+
+    static func stamp(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "es_ES")
+        f.dateFormat = "d MMM yyyy HH:mm"
+        return f.string(from: date)
+    }
+
+    /// Varios chats de personas por nombre, @alias o número.
+    static func resolvePeople(_ values: [JSONValue], api: TelegramUserAPI) async throws -> [TGUserChat] {
+        var people: [TGUserChat] = []
+        for value in values {
+            let chat = try await resolveChat(["chat": value], api: api)
+            guard chat.kind == .personal else { throw ToolInputError("«\(chat.title)» no es una persona: es un \(chat.kind.rawValue).") }
+            if !people.contains(where: { $0.id == chat.id }) { people.append(chat) }
+        }
+        return people
+    }
+}
+
+// MARK: - Envíos más completos
+
+public struct SendAlbumTool: AgentTool {
+    let api: TelegramUserAPI
+    let broker: PermissionBrokering
+    let limiter: SendRateLimiter
+    let computer: AgentComputer
+    public var name: String { "telegram_send_album" }
+    public var description: String {
+        "Envía de 2 a 10 fotos o vídeos de tu ordenador Linux en un solo mensaje (un álbum), desde la cuenta del " +
+            "usuario. También vale para varios documentos o varios audios, pero sin mezclarlos con fotos."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "chat": TelegramUserTools.chatProperty,
+            "paths": ["type": "array", "items": ["type": "string"], "description": "Rutas en el ordenador Linux (2 a 10)"],
+            "caption": ["type": "string", "description": "Texto bajo el álbum (opcional)"],
+        ], required: ["chat", "paths"])
+    }
+
+    /// Fotos y vídeos se pueden mezclar; documentos y audios van cada uno con los suyos.
+    static func group(of kind: TGMediaKind) -> String {
+        switch kind {
+        case .photo, .video: return "fotos y vídeos"
+        case .document: return "documentos"
+        case .audio: return "audios"
+        case .animation, .voice: return "no"
+        }
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let paths = (input["paths"]?.arrayValue ?? []).compactMap(\.stringValue)
+        guard (2...10).contains(paths.count) else { throw ToolInputError("Un álbum lleva entre 2 y 10 archivos.") }
+        let kinds = paths.map(TGMediaKind.infer(from:))
+        let groups = Set(kinds.map(Self.group(of:)))
+        guard groups.count == 1, groups.first != "no" else {
+            throw ToolInputError("Un álbum junta fotos y vídeos, o solo documentos, o solo audios. Los GIF y las notas de voz van sueltos.")
+        }
+        let caption = input["caption"]?.stringValue.map { String($0.prefix(1024)) }
+        let chat = try await TelegramUserTools.resolveChat(input, api: api)
+        var files: [TGOutgoingFile] = []
+        for (path, kind) in zip(paths, kinds) {
+            let data = try await computer.readData(path, origin: context.origin)
+            guard data.count <= 50 * 1024 * 1024 else { throw ToolInputError("\(path) pasa de 50 MB.") }
+            // Los documentos de un álbum van como documento aunque sean fotos.
+            files.append(TGOutgoingFile(data: data, filename: (path as NSString).lastPathComponent, kind: kind))
+        }
+        let id = chat.id
+        let api = self.api
+        let limiter = self.limiter
+        let album = files
+        try await broker.run(ActionRequest(
+            action: TelegramAction.sendMessages, summary: "Enviar a «\(chat.title)» un álbum de \(files.count) archivos",
+            parameters: ["Para": chat.title, "Archivos": files.map(\.filename).joined(separator: ", "), "Texto": caption ?? ""],
+            origin: context.origin)) {
+            try await limiter.take()
+            try await api.sendAlbum(chatID: id, files: album, caption: caption)
+        }
+        return "Álbum de \(files.count) archivos enviado a «\(chat.title)»."
+    }
+}
+
+public struct SendPollTool: AgentTool {
+    let api: TelegramUserAPI
+    let broker: PermissionBrokering
+    let limiter: SendRateLimiter
+    public var name: String { "telegram_send_poll" }
+    public var description: String {
+        "Crea una encuesta en un chat desde la cuenta del usuario. Con «correct_option» es un cuestionario con una respuesta buena."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "chat": TelegramUserTools.chatProperty,
+            "question": .property("string", "La pregunta"),
+            "options": ["type": "array", "items": ["type": "string"], "description": "Respuestas posibles (2 a 10)"],
+            "anonymous": ["type": "boolean", "description": "Votos anónimos (sí por defecto)"],
+            "multiple_answers": ["type": "boolean", "description": "Permitir varias respuestas (no por defecto)"],
+            "correct_option": ["type": "integer", "description": "Solo para un cuestionario: la respuesta buena, desde 0"],
+        ], required: ["chat", "question", "options"])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let question = try input.requiredString("question", maxLength: 300)
+        let options = (input["options"]?.arrayValue ?? []).compactMap(\.stringValue)
+            .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        guard (2...10).contains(options.count) else { throw ToolInputError("Una encuesta lleva entre 2 y 10 respuestas.") }
+        guard options.allSatisfy({ $0.count <= 100 }) else { throw ToolInputError("Cada respuesta tiene 100 caracteres como mucho.") }
+        let correct = input["correct_option"]?.intValue
+        if let correct, !options.indices.contains(correct) { throw ToolInputError("«correct_option» no es ninguna de las respuestas.") }
+        let multiple = input["multiple_answers"]?.boolValue ?? false
+        if correct != nil, multiple { throw ToolInputError("Un cuestionario tiene una sola respuesta buena: sin «multiple_answers».") }
+        let content = TGSpecialContent.poll(question: question, options: options,
+                                            anonymous: input["anonymous"]?.boolValue ?? true,
+                                            multipleAnswers: multiple, correctOption: correct)
+        let chat = try await TelegramUserTools.resolveChat(input, api: api)
+        // Telegram no deja mandar encuestas a un chat con una persona (comprobado contra la API).
+        guard chat.kind != .personal else {
+            throw ToolInputError("Telegram solo admite encuestas en grupos y canales, no en un chat con una persona.")
+        }
+        let id = chat.id
+        let api = self.api
+        let limiter = self.limiter
+        try await broker.run(ActionRequest(
+            action: TelegramAction.sendMessages, summary: "Enviar a «\(chat.title)» \(content.label)",
+            parameters: ["Para": chat.title, "Pregunta": question, "Respuestas": options.joined(separator: " · ")],
+            origin: context.origin)) {
+            try await limiter.take()
+            try await api.sendSpecial(chatID: id, content: content)
+        }
+        return "Enviada a «\(chat.title)» \(content.label)."
+    }
+}
+
+public struct SendOtherTool: AgentTool {
+    let api: TelegramUserAPI
+    let broker: PermissionBrokering
+    let limiter: SendRateLimiter
+    public var name: String { "telegram_send_other" }
+    public var description: String {
+        "Envía desde la cuenta del usuario una ubicación (type «location» con latitude y longitude), la tarjeta de " +
+            "contacto de alguien de sus chats (type «contact» con «contact»: a quién se comparte) o un dado animado " +
+            "(type «dice» con «emoji»: 🎲 🎯 🏀 ⚽ 🎳 o 🎰)."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "chat": TelegramUserTools.chatProperty,
+            "type": ["type": "string", "enum": ["location", "contact", "dice"]],
+            "latitude": ["type": "number"], "longitude": ["type": "number"],
+            "contact": ["type": "string", "description": "Para «contact»: la persona cuya tarjeta se envía"],
+            "emoji": ["type": "string", "description": "Para «dice»"],
+        ], required: ["chat", "type"])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let content: TGSpecialContent
+        var shared: TGUserChat?
+        switch input["type"]?.stringValue {
+        case "location":
+            guard let lat = input["latitude"]?.doubleValue, let lon = input["longitude"]?.doubleValue,
+                  (-90...90).contains(lat), (-180...180).contains(lon) else {
+                throw ToolInputError("Para una ubicación hacen falta «latitude» (−90 a 90) y «longitude» (−180 a 180).")
+            }
+            content = .location(latitude: lat, longitude: lon)
+        case "contact":
+            let person = try await TelegramUserTools.resolveChat(["chat": input["contact"] ?? .null], api: api)
+            guard person.kind == .personal else { throw ToolInputError("Solo se comparte la tarjeta de una persona.") }
+            shared = person
+            content = .contact(chatID: person.id)
+        case "dice":
+            let emoji = input["emoji"]?.stringValue ?? "🎲"
+            guard TGSpecialContent.diceEmojis.contains(emoji) else {
+                throw ToolInputError("«emoji» tiene que ser uno de \(TGSpecialContent.diceEmojis.joined(separator: " ")).")
+            }
+            content = .dice(emoji: emoji)
+        default:
+            throw ToolInputError("«type» tiene que ser location, contact o dice.")
+        }
+        let chat = try await TelegramUserTools.resolveChat(input, api: api)
+        let id = chat.id
+        let api = self.api
+        let limiter = self.limiter
+        let what = shared.map { "la tarjeta de contacto de «\($0.title)»" } ?? content.label
+        try await broker.run(ActionRequest(
+            action: TelegramAction.sendMessages, summary: "Enviar a «\(chat.title)» \(what)",
+            parameters: ["Para": chat.title, "Contenido": what], origin: context.origin)) {
+            try await limiter.take()
+            try await api.sendSpecial(chatID: id, content: content)
+        }
+        return "Enviada a «\(chat.title)» \(what)."
+    }
+}
+
+public struct ScheduledMessagesTool: AgentTool {
+    let api: TelegramUserAPI
+    let broker: PermissionBrokering
+    public var name: String { "telegram_scheduled" }
+    public var description: String {
+        "Mensajes programados en Telegram (los que se crean con «send_at» en telegram_send_message y se envían aunque " +
+            "el Mac esté apagado): action «list» los enseña con su número y «cancel» anula los de «message_ids»."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "chat": TelegramUserTools.chatProperty,
+            "action": ["type": "string", "enum": ["list", "cancel"]],
+            "message_ids": ["type": "array", "items": ["type": "integer"], "description": "Para «cancel»"],
+        ], required: ["chat", "action"])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let chat = try await TelegramUserTools.resolveChat(input, api: api)
+        let id = chat.id
+        let api = self.api
+        switch input["action"]?.stringValue {
+        case "list":
+            let items = try await broker.run(ActionRequest(
+                action: TelegramAction.readMessages, summary: "Ver los mensajes programados de «\(chat.title)»",
+                parameters: ["Chat": chat.title], origin: context.origin)) { try await api.scheduledMessages(chatID: id) }
+            guard !items.isEmpty else { return "No hay mensajes programados en «\(chat.title)»." }
+            return "Programados en «\(chat.title)»:\n" + items.sorted { $0.date < $1.date }
+                .map { "#\($0.id) · \(TelegramUserTools.stamp($0.date)) · \($0.text)" }.joined(separator: "\n")
+        case "cancel":
+            let ids = (input["message_ids"]?.arrayValue ?? []).compactMap(\.intValue).map(Int64.init)
+            guard (1...20).contains(ids.count) else { throw ToolInputError("«message_ids» admite entre 1 y 20 mensajes.") }
+            try await broker.run(ActionRequest(
+                action: TelegramAction.deleteMessages, summary: "Anular \(ids.count) mensaje(s) programado(s) de «\(chat.title)»",
+                parameters: ["Chat": chat.title, "Mensajes": ids.map { "#\($0)" }.joined(separator: ", ")], origin: context.origin)) {
+                try await api.delete(chatID: id, messageIDs: ids, forEveryone: true)
+            }
+            return "Anulado(s) \(ids.count) mensaje(s) programado(s) de «\(chat.title)»."
+        default:
+            throw ToolInputError("«action» tiene que ser list o cancel.")
+        }
+    }
+}
+
+// MARK: - Gestión de chats y de la cuenta
+
+public struct PinMessageTool: AgentTool {
+    let api: TelegramUserAPI
+    let broker: PermissionBrokering
+    public var name: String { "telegram_pin" }
+    public var description: String {
+        "Fija (pinned true) o desfija (false) un mensaje en un chat. En un chat con otra persona, «only_for_self» lo fija solo para el usuario."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "chat": TelegramUserTools.chatProperty,
+            "message_id": ["type": "integer", "description": "Número del mensaje"],
+            "pinned": ["type": "boolean", "description": "true fija, false desfija"],
+            "only_for_self": ["type": "boolean", "description": "Solo en chats con una persona (falso por defecto)"],
+        ], required: ["chat", "message_id", "pinned"])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let messageID = try TelegramUserTools.messageID(input)
+        guard let pinned = input["pinned"]?.boolValue else { throw ToolInputError("Falta «pinned»: true o false.") }
+        let selfOnly = input["only_for_self"]?.boolValue ?? false
+        let chat = try await TelegramUserTools.resolveChat(input, api: api)
+        let id = chat.id
+        let api = self.api
+        let verb = pinned ? "Fijar" : "Desfijar"
+        try await broker.run(ActionRequest(
+            action: TelegramAction.pin, summary: "\(verb) el mensaje #\(messageID) de «\(chat.title)»",
+            parameters: ["Chat": chat.title, "Mensaje": "#\(messageID)"], origin: context.origin)) {
+            try await api.pin(chatID: id, messageID: messageID, pinned: pinned, onlyForSelf: selfOnly)
+        }
+        return "Mensaje #\(messageID) \(pinned ? "fijado" : "desfijado") en «\(chat.title)»."
+    }
+}
+
+public struct ChatSettingsTool: AgentTool {
+    let api: TelegramUserAPI
+    let broker: PermissionBrokering
+    public var name: String { "telegram_chat_settings" }
+    public var description: String {
+        "Silencia (mute), vuelve a activar las notificaciones (unmute), archiva (archive) o saca del archivo (unarchive) un chat del usuario."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "chat": TelegramUserTools.chatProperty,
+            "action": ["type": "string", "enum": ["mute", "unmute", "archive", "unarchive"]],
+        ], required: ["chat", "action"])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let action = input["action"]?.stringValue ?? ""
+        let labels = ["mute": ("Silenciar", "silenciado"), "unmute": ("Activar las notificaciones de", "con notificaciones"),
+                      "archive": ("Archivar", "archivado"), "unarchive": ("Sacar del archivo", "fuera del archivo")]
+        guard let label = labels[action] else { throw ToolInputError("«action» tiene que ser mute, unmute, archive o unarchive.") }
+        let chat = try await TelegramUserTools.resolveChat(input, api: api)
+        let id = chat.id
+        let api = self.api
+        try await broker.run(ActionRequest(
+            action: TelegramAction.organize, summary: "\(label.0) «\(chat.title)»",
+            parameters: ["Chat": chat.title], origin: context.origin)) {
+            switch action {
+            case "mute", "unmute": try await api.setMuted(chatID: id, muted: action == "mute")
+            default: try await api.setArchived(chatID: id, archived: action == "archive")
+            }
+        }
+        return "«\(chat.title)» \(label.1)."
+    }
+}
+
+public struct ProfileTool: AgentTool {
+    let api: TelegramUserAPI
+    let broker: PermissionBrokering
+    public var name: String { "telegram_profile" }
+    public var description: String {
+        "Ve el perfil de una persona (nombre, @alias, biografía, última conexión, si es contacto o está bloqueada) o la descripción y los miembros de un grupo o canal."
+    }
+    public var inputSchema: JSONValue { .objectSchema(["chat": TelegramUserTools.chatProperty], required: ["chat"]) }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let chat = try await TelegramUserTools.resolveChat(input, api: api)
+        let id = chat.id
+        let api = self.api
+        let text = try await broker.run(ActionRequest(
+            action: TelegramAction.readMessages, summary: "Ver el perfil de «\(chat.title)»",
+            parameters: ["Chat": chat.title], origin: context.origin)) { try await api.profile(chatID: id) }
+        return TelegramUserTools.untrusted + "\n" + text
+    }
+}
+
+public struct ContactTool: AgentTool {
+    let api: TelegramUserAPI
+    let broker: PermissionBrokering
+    public var name: String { "telegram_contact" }
+    public var description: String {
+        "Añade una persona a los contactos del usuario (action «add», con el nombre con que guardarla), la bloquea («block») o la desbloquea («unblock»)."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "chat": TelegramUserTools.chatProperty,
+            "action": ["type": "string", "enum": ["add", "block", "unblock"]],
+            "first_name": ["type": "string", "description": "Para «add»: nombre con que guardarla (por defecto, el suyo)"],
+            "last_name": ["type": "string", "description": "Para «add»: apellidos (opcional)"],
+        ], required: ["chat", "action"])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let action = input["action"]?.stringValue ?? ""
+        guard ["add", "block", "unblock"].contains(action) else { throw ToolInputError("«action» tiene que ser add, block o unblock.") }
+        let chat = try await TelegramUserTools.resolveChat(input, api: api)
+        guard chat.kind == .personal else { throw ToolInputError("«\(chat.title)» no es una persona.") }
+        let id = chat.id
+        let api = self.api
+        let first = String((input["first_name"]?.stringValue ?? chat.title).prefix(64))
+        let last = String((input["last_name"]?.stringValue ?? "").prefix(64))
+        let summary: String
+        switch action {
+        case "add": summary = "Añadir a «\(chat.title)» a tus contactos como «\([first, last].filter { !$0.isEmpty }.joined(separator: " "))»"
+        case "block": summary = "Bloquear a «\(chat.title)»"
+        default: summary = "Desbloquear a «\(chat.title)»"
+        }
+        try await broker.run(ActionRequest(action: TelegramAction.contacts, summary: summary,
+                                           parameters: ["Persona": chat.title], origin: context.origin)) {
+            switch action {
+            case "add": try await api.addContact(chatID: id, firstName: first, lastName: last)
+            default: try await api.setBlocked(chatID: id, blocked: action == "block")
+            }
+        }
+        switch action {
+        case "add": return "«\(chat.title)» añadido a tus contactos."
+        case "block": return "«\(chat.title)» bloqueado."
+        default: return "«\(chat.title)» desbloqueado."
+        }
+    }
+}
+
+public struct GroupTool: AgentTool {
+    let api: TelegramUserAPI
+    let broker: PermissionBrokering
+    let limiter: SendRateLimiter
+    public var name: String { "telegram_group" }
+    public var description: String {
+        """
+        Grupos desde la cuenta del usuario: «create» crea uno con «title» y «members»; «add_members» añade \
+        «members» al grupo «chat»; «remove_member» saca a «member» de «chat»; «join» entra con un «invite_link» \
+        (t.me/+…); «leave» sale de «chat». Los miembros van por nombre, @alias o número.
+        """
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "action": ["type": "string", "enum": ["create", "add_members", "remove_member", "join", "leave"]],
+            "chat": ["type": "string", "description": "El grupo (salvo en create y join)"],
+            "title": ["type": "string", "description": "Para «create»"],
+            "members": ["type": "array", "items": ["type": "string"], "description": "Para «create» y «add_members» (hasta 20)"],
+            "member": ["type": "string", "description": "Para «remove_member»"],
+            "invite_link": ["type": "string", "description": "Para «join»"],
+        ], required: ["action"])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let api = self.api
+        let limiter = self.limiter
+        switch input["action"]?.stringValue {
+        case "create":
+            let title = try input.requiredString("title", maxLength: 128)
+            let people = try await TelegramUserTools.resolvePeople(input["members"]?.arrayValue ?? [], api: api)
+            guard (1...20).contains(people.count) else { throw ToolInputError("Un grupo nuevo lleva entre 1 y 20 personas.") }
+            let ids = people.map(\.id)
+            let created = try await broker.run(ActionRequest(
+                action: TelegramAction.groups, summary: "Crear el grupo «\(title)» con \(people.map(\.title).joined(separator: ", "))",
+                parameters: ["Grupo": title, "Miembros": people.map(\.title).joined(separator: ", ")], origin: context.origin)) {
+                try await limiter.take()
+                return try await api.createGroup(title: title, memberChatIDs: ids)
+            }
+            return "Grupo «\(created.title)» creado (id \(created.id)) con \(people.count) persona(s)."
+        case "add_members":
+            let group = try await TelegramUserTools.resolveChat(input, api: api)
+            guard group.kind == .group || group.kind == .channel else { throw ToolInputError("«\(group.title)» no es un grupo ni un canal.") }
+            let people = try await TelegramUserTools.resolvePeople(input["members"]?.arrayValue ?? [], api: api)
+            guard (1...20).contains(people.count) else { throw ToolInputError("Se añaden entre 1 y 20 personas de una vez.") }
+            let ids = people.map(\.id)
+            try await broker.run(ActionRequest(
+                action: TelegramAction.groups, summary: "Añadir a «\(group.title)»: \(people.map(\.title).joined(separator: ", "))",
+                parameters: ["Grupo": group.title, "Miembros": people.map(\.title).joined(separator: ", ")], origin: context.origin)) {
+                try await limiter.take()
+                try await api.addMembers(chatID: group.id, memberChatIDs: ids)
+            }
+            return "Añadido(s) \(people.count) a «\(group.title)»."
+        case "remove_member":
+            let group = try await TelegramUserTools.resolveChat(input, api: api)
+            let person = try await TelegramUserTools.resolvePeople([input["member"] ?? .null], api: api)[0]
+            try await broker.run(ActionRequest(
+                action: TelegramAction.groups, summary: "Sacar a «\(person.title)» de «\(group.title)»",
+                parameters: ["Grupo": group.title, "Persona": person.title], origin: context.origin)) {
+                try await api.removeMember(chatID: group.id, memberChatID: person.id)
+            }
+            return "«\(person.title)» ya no está en «\(group.title)»."
+        case "join":
+            let link = try input.requiredString("invite_link", maxLength: 200).trimmingCharacters(in: .whitespaces)
+            guard link.range(of: #"^(https?://)?(t\.me|telegram\.me)/(\+|joinchat/)[A-Za-z0-9_-]+$"#, options: .regularExpression) != nil
+            else { throw ToolInputError("«invite_link» tiene que ser un enlace de invitación como t.me/+AbCd…") }
+            let joined = try await broker.run(ActionRequest(
+                action: TelegramAction.groups, summary: "Unirte al chat del enlace \(link)",
+                parameters: ["Enlace": link], origin: context.origin)) { try await api.join(inviteLink: link) }
+            return joined.map { "Te has unido a «\($0.title)» (id \($0.id))." }
+                ?? "Solicitud enviada: un administrador del chat tiene que aprobarla."
+        case "leave":
+            let group = try await TelegramUserTools.resolveChat(input, api: api)
+            guard group.kind != .personal else { throw ToolInputError("«\(group.title)» es una persona: para dejar de hablar con ella, archiva o bloquea.") }
+            try await broker.run(ActionRequest(
+                action: TelegramAction.groups, summary: "Salir de «\(group.title)»",
+                parameters: ["Chat": group.title], origin: context.origin)) { try await api.leave(chatID: group.id) }
+            return "Has salido de «\(group.title)»."
+        default:
+            throw ToolInputError("«action» tiene que ser create, add_members, remove_member, join o leave.")
+        }
+    }
+}
+
+public struct MessageLinkTool: AgentTool {
+    let api: TelegramUserAPI
+    let broker: PermissionBrokering
+    public var name: String { "telegram_message_link" }
+    public var description: String { "Da el enlace (t.me/…) de un mensaje de un grupo o canal, para compartirlo." }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "chat": TelegramUserTools.chatProperty,
+            "message_id": ["type": "integer", "description": "Número del mensaje"],
+        ], required: ["chat", "message_id"])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let messageID = try TelegramUserTools.messageID(input)
+        let chat = try await TelegramUserTools.resolveChat(input, api: api)
+        guard chat.kind != .personal else { throw ToolInputError("Los mensajes de un chat con una persona no tienen enlace: solo los de grupos y canales.") }
+        let id = chat.id
+        let api = self.api
+        let link = try await broker.run(ActionRequest(
+            action: TelegramAction.readMessages, summary: "Copiar el enlace del mensaje #\(messageID) de «\(chat.title)»",
+            parameters: ["Chat": chat.title], origin: context.origin)) { try await api.messageLink(chatID: id, messageID: messageID) }
+        return "Enlace del mensaje #\(messageID) de «\(chat.title)»: \(link)"
+    }
+}
+
+// MARK: - Menos habitual
+
+public struct VoteTool: AgentTool {
+    let api: TelegramUserAPI
+    let broker: PermissionBrokering
+    public var name: String { "telegram_vote" }
+    public var description: String {
+        "Vota en una encuesta de un chat. telegram_read_messages enseña las encuestas con sus respuestas numeradas desde 0; " +
+            "«options» son esos números (vacío retira el voto)."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "chat": TelegramUserTools.chatProperty,
+            "message_id": ["type": "integer", "description": "Número del mensaje con la encuesta"],
+            "options": ["type": "array", "items": ["type": "integer"], "description": "Respuestas elegidas, desde 0"],
+        ], required: ["chat", "message_id", "options"])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let messageID = try TelegramUserTools.messageID(input)
+        let options = (input["options"]?.arrayValue ?? []).compactMap(\.intValue)
+        guard options.count <= 10, options.allSatisfy({ (0..<10).contains($0) }) else {
+            throw ToolInputError("«options» son los números de las respuestas, de 0 a 9.")
+        }
+        let chat = try await TelegramUserTools.resolveChat(input, api: api)
+        let id = chat.id
+        let api = self.api
+        let what = options.isEmpty ? "Retirar tu voto" : "Votar \(options.map(String.init).joined(separator: ", "))"
+        try await broker.run(ActionRequest(
+            action: TelegramAction.vote, summary: "\(what) en la encuesta #\(messageID) de «\(chat.title)»",
+            parameters: ["Chat": chat.title, "Encuesta": "#\(messageID)", "Respuestas": options.map(String.init).joined(separator: ", ")],
+            origin: context.origin)) { try await api.vote(chatID: id, messageID: messageID, options: options) }
+        return options.isEmpty ? "Voto retirado de la encuesta #\(messageID)." : "Votado en la encuesta #\(messageID) de «\(chat.title)»."
+    }
+}
+
+public struct SavedMessagesTool: AgentTool {
+    let api: TelegramUserAPI
+    let broker: PermissionBrokering
+    public var name: String { "telegram_saved_messages" }
+    public var description: String {
+        "Los Mensajes guardados del usuario, su bloc de notas en Telegram: «save» guarda «text» y «read» lee las últimas notas."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "action": ["type": "string", "enum": ["save", "read"]],
+            "text": ["type": "string", "description": "Para «save»"],
+            "limit": ["type": "integer", "minimum": 1, "maximum": 100, "description": "Para «read» (20 por defecto)"],
+        ], required: ["action"])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let api = self.api
+        switch input["action"]?.stringValue {
+        case "save":
+            let text = try input.requiredString("text", maxLength: 4096)
+            try await broker.run(ActionRequest(
+                action: TelegramAction.savedMessages, summary: "Guardar en Mensajes guardados: \(String(text.prefix(200)))",
+                parameters: ["Nota": text], origin: context.origin)) {
+                let saved = try await api.savedMessagesChat()
+                try await api.send(chatID: saved.id, text: text)
+            }
+            return "Guardado en tus Mensajes guardados."
+        case "read":
+            let limit = try TelegramUserTools.limit(input, default: 20)
+            let notes = try await broker.run(ActionRequest(
+                action: TelegramAction.savedMessages, summary: "Leer \(limit) notas de Mensajes guardados", origin: context.origin)) {
+                let saved = try await api.savedMessagesChat()
+                return try await api.messages(chatID: saved.id, limit: limit)
+            }
+            return "Mensajes guardados.\n" + TelegramUserTools.render(notes)
+        default:
+            throw ToolInputError("«action» tiene que ser save o read.")
+        }
+    }
+}
+
+public struct StoriesTool: AgentTool {
+    let api: TelegramUserAPI
+    let broker: PermissionBrokering
+    public var name: String { "telegram_stories" }
+    public var description: String { "Lista las historias activas de una persona o canal: fecha, si es foto o vídeo, y su texto." }
+    public var inputSchema: JSONValue { .objectSchema(["chat": TelegramUserTools.chatProperty], required: ["chat"]) }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let chat = try await TelegramUserTools.resolveChat(input, api: api)
+        let id = chat.id
+        let api = self.api
+        let stories = try await broker.run(ActionRequest(
+            action: TelegramAction.readMessages, summary: "Ver las historias de «\(chat.title)»",
+            parameters: ["Chat": chat.title], origin: context.origin)) { try await api.stories(chatID: id) }
+        guard !stories.isEmpty else { return "«\(chat.title)» no tiene historias activas." }
+        return TelegramUserTools.untrusted + "\nHistorias de «\(chat.title)»:\n" + stories.sorted { $0.date < $1.date }.map {
+            "[\(TelegramUserTools.stamp($0.date))] \($0.kind)\($0.caption.isEmpty ? "" : ": \($0.caption)")"
+        }.joined(separator: "\n")
+    }
+}

@@ -34,6 +34,7 @@ public enum GuardPolicy {
     public static let outwardActions: Set<ActionID> = [
         TelegramAction.sendMessages, TelegramAction.deleteMessages, "telegram.sendFile",
         TelegramAction.forward, TelegramAction.edit, TelegramAction.react,
+        TelegramAction.pin, TelegramAction.contacts, TelegramAction.groups, TelegramAction.vote,
         MacScript.openURL.action, MacScript.note.action, MacScript.reminder.action,
         TaskAction.schedule, TaskAction.cancel,
     ]
@@ -44,7 +45,8 @@ public enum GuardPolicy {
     public static func thirdPartySource(tool: String, input: String) -> String? {
         switch tool {
         case "web_search": return "una búsqueda web"
-        case "telegram_read_messages", "telegram_search_messages", "telegram_list_chats", "telegram_transcribe":
+        case "telegram_read_messages", "telegram_search_messages", "telegram_list_chats", "telegram_transcribe",
+             "telegram_profile", "telegram_stories":
             return "mensajes de Telegram de otras personas"
         case "computer_run":
             // Un comando que descarga algo de internet trae contenido ajeno en su salida.

@@ -1309,3 +1309,15 @@
 "Buscar clasificadores en Hugging Face" = "Search classifiers on Hugging Face";
 "Ver su ficha" = "View its page";
 "No se pudieron limpiar los archivos de Telegram: %@" = "Couldn’t clean up Telegram files: %@";
+"Fijar mensajes" = "Pin messages";
+"Fijar o desfijar un mensaje en un chat." = "Pin or unpin a message in a chat.";
+"Silenciar y archivar" = "Mute and archive";
+"Silenciar, archivar o recuperar un chat. Solo cambia lo que ves tú." = "Mute, archive or unarchive a chat. It only changes what you see.";
+"Contactos y bloqueos" = "Contacts and blocking";
+"Añadir a alguien a tus contactos, bloquearlo o desbloquearlo." = "Add someone to your contacts, block or unblock them.";
+"Grupos" = "Groups";
+"Crear grupos, añadir o quitar miembros, unirte por enlace o salir de un chat." = "Create groups, add or remove members, join through a link or leave a chat.";
+"Votar en encuestas" = "Vote in polls";
+"Responder a una encuesta de un chat." = "Answer a poll in a chat.";
+"Guardar notas en tus Mensajes guardados y leerlas." = "Save notes to your Saved Messages and read them.";
+"Mensajes guardados" = "Saved Messages";

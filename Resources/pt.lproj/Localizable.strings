@@ -1308,3 +1308,15 @@
 "Buscar clasificadores en Hugging Face" = "Procurar classificadores no Hugging Face";
 "Ver su ficha" = "Ver a ficha";
 "No se pudieron limpiar los archivos de Telegram: %@" = "Não foi possível limpar os ficheiros do Telegram: %@";
+"Fijar mensajes" = "Fixar mensagens";
+"Fijar o desfijar un mensaje en un chat." = "Fixar ou desafixar uma mensagem numa conversa.";
+"Silenciar y archivar" = "Silenciar e arquivar";
+"Silenciar, archivar o recuperar un chat. Solo cambia lo que ves tú." = "Silenciar, arquivar ou desarquivar uma conversa. Só muda o que tu vês.";
+"Contactos y bloqueos" = "Contactos e bloqueios";
+"Añadir a alguien a tus contactos, bloquearlo o desbloquearlo." = "Adicionar alguém aos teus contactos, bloqueá-lo ou desbloqueá-lo.";
+"Grupos" = "Grupos";
+"Crear grupos, añadir o quitar miembros, unirte por enlace o salir de un chat." = "Criar grupos, adicionar ou remover membros, entrar por ligação ou sair de uma conversa.";
+"Votar en encuestas" = "Votar em sondagens";
+"Responder a una encuesta de un chat." = "Responder a uma sondagem de uma conversa.";
+"Guardar notas en tus Mensajes guardados y leerlas." = "Guardar notas nas tuas Mensagens guardadas e lê-las.";
+"Mensajes guardados" = "Mensagens guardadas";
