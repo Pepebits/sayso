@@ -111,9 +111,15 @@ struct StatsScreen: View {
                     Panel {
                         PanelLabel("Dentro de la máquina Linux")
                         vmRows(inside)
-                        Text(tr("Borrar algo dentro libera sitio para la máquina, pero el archivo de su disco en el Mac no encoge."))
-                            .font(Theme.caption).foregroundStyle(Theme.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        HStack(alignment: .center, spacing: Theme.Space.m) {
+                            Text(tr("Lo que se borra dentro se devuelve al Mac al arrancar la máquina, o ahora con este botón."))
+                                .font(Theme.caption).foregroundStyle(Theme.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: Theme.Space.s)
+                            BlockButton("Liberar espacio en el Mac", systemImage: "arrow.down.right.and.arrow.up.left", compact: true) {
+                                model.actions?.freeComputerSpace()
+                            }
+                        }
                     }
                 } else if usage.vmMemory != nil {
                     InlineNote("Enciende la máquina Linux para ver qué ocupa por dentro: modelos del detector, Python, archivos del agente…",

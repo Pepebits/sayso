@@ -1400,3 +1400,7 @@
 "Disco de la máquina Linux" = "Disco da máquina Linux";
 "Los cambios se aplican la próxima vez que arranque la máquina." = "As alterações aplicam-se no próximo arranque da máquina.";
 "Recursos de la máquina Linux: %@ núcleos, %@ GB de memoria y %@ GB de disco. Se aplican al siguiente arranque." = "Recursos da máquina Linux: %@ núcleos, %@ GB de memória e %@ GB de disco. Aplicam-se no próximo arranque.";
+"No se pudo liberar espacio: la máquina Linux tiene que estar en marcha." = "Não foi possível libertar espaço: a máquina Linux tem de estar a funcionar.";
+"Espacio devuelto al Mac: %@" = "Espaço devolvido ao Mac: %@";
+"Lo que se borra dentro se devuelve al Mac al arrancar la máquina, o ahora con este botón." = "O que se apaga lá dentro volta para o Mac quando a máquina arranca, ou agora com este botão.";
+"Liberar espacio en el Mac" = "Libertar espaço no Mac";

@@ -23,4 +23,10 @@ final class MachineSizeTests: XCTestCase {
         XCTAssertEqual(ComputerResources.diskOptions(current: 16), [16, 32, 64, 128, 256])
         XCTAssertEqual(ComputerResources.diskOptions(current: 40), [40, 64, 128, 256], "nunca por debajo del actual")
     }
+
+    func testTrimOutputIsRead() {
+        // Salida real de la prueba en la máquina (20/11/2026).
+        XCTAssertEqual(ComputerManager.trimmedBytes("/: 25.3 GiB (27138314240 bytes) trimmed\n"), 27_138_314_240)
+        XCTAssertNil(ComputerManager.trimmedBytes("fstrim: /: the discard operation is not supported"))
+    }
 }

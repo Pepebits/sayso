@@ -268,6 +268,8 @@ public protocol AppActions: AnyObject {
     func refreshResources()
     /// Borra los archivos descargados de Telegram que no se estén usando.
     func cleanTelegramFiles()
+    /// Devuelve al Mac el espacio que se ha borrado dentro de la máquina Linux (`fstrim`).
+    func freeComputerSpace()
     /// Guarda los recursos de la máquina Linux; se aplican al siguiente arranque.
     func setComputerResources(_ resources: ComputerResources)
     /// Borra de la máquina Linux un modelo del detector que no está en uso (`folder`: «org--nombre»).

@@ -95,6 +95,24 @@ public final class ComputerManager: NSObject, VZVirtualMachineDelegate {
         if grew { await growFilesystem() }
         activity.touch()
         state = .running
+        // Devuelve al Mac lo que se borró dentro en la sesión anterior. En segundo plano: no retrasa nada.
+        Task { [weak self] in _ = await self?.trim() }
+    }
+
+    /// `fstrim /`: avisa al disco de qué bloques están libres y el Mac los recupera (el disco es un
+    /// archivo disperso). Devuelve los bytes marcados como libres, o `nil` si no se pudo.
+    @discardableResult
+    public func trim() async -> UInt64? {
+        guard state == .running,
+              let output = (try? await send(.exec("sudo fstrim -v / 2>&1", timeout: 300), receiveTimeout: 330))?.commandResult?.stdout
+        else { return nil }
+        return Self.trimmedBytes(output)
+    }
+
+    /// «/: 25.3 GiB (27138314240 bytes) trimmed» → 27138314240.
+    nonisolated static func trimmedBytes(_ output: String) -> UInt64? {
+        guard let range = output.range(of: #"\((\d+) bytes\)"#, options: .regularExpression) else { return nil }
+        return UInt64(output[range].filter(\.isNumber))
     }
 
     /// Extiende la partición raíz y su sistema de archivos al tamaño del disco. cloud-init suele

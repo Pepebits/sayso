@@ -131,6 +131,7 @@ final class AppController: AppActions {
             runSelfTestIfRequested()
             runPluginSelfTestIfRequested()
         runTelegramSelfTestIfRequested()
+        runVMSelfTestIfRequested()
         runGuardSelfTestIfRequested()
             runConsoleSelfTestIfRequested()
             runDesktopSelfTestIfRequested()
@@ -1148,6 +1149,26 @@ final class AppController: AppActions {
     /// Ayuda de desarrollo: con SAYSO_TELEGRAM_SELFTEST=<ruta de salida>, SAYSO_TELEGRAM_TEST_CHAT=<@alias>
     /// y SAYSO_TELEGRAM_TEST_DIR=<carpeta> envía cada archivo de la carpeta a ese chat desde la cuenta
     /// del usuario, con el tipo que le corresponde por extensión, y apunta el resultado de cada uno.
+    /// Ayuda de desarrollo: con SAYSO_VM_SELFTEST=<ruta de salida> y SAYSO_VM_SCRIPT=<archivo con un
+    /// script de bash>, arranca la máquina Linux si hace falta, ejecuta el script dentro y apunta la salida.
+    private func runVMSelfTestIfRequested() {
+        let env = ProcessInfo.processInfo.environment
+        guard let path = env["SAYSO_VM_SELFTEST"], let scriptPath = env["SAYSO_VM_SCRIPT"],
+              let script = try? String(contentsOfFile: scriptPath, encoding: .utf8), let computer else { return }
+        let output = URL(fileURLWithPath: path)
+        Task { @MainActor in
+            var text = ""
+            do {
+                let response = try await computer.request(.exec(script, timeout: 300), receiveTimeout: 330)
+                let result = response.commandResult
+                text = "salida \(result?.exitCode ?? -1)\n\(result?.stdout ?? "")\n\(result?.stderr ?? "")"
+            } catch {
+                text = "ERROR: \(error.localizedDescription)"
+            }
+            try? (text + "\nfin\n").write(to: output, atomically: true, encoding: .utf8)
+        }
+    }
+
     private func runTelegramSelfTestIfRequested() {
         let env = ProcessInfo.processInfo.environment
         guard let path = env["SAYSO_TELEGRAM_SELFTEST"], let target = env["SAYSO_TELEGRAM_TEST_CHAT"],
@@ -2038,6 +2059,21 @@ final class AppController: AppActions {
         computer?.update(config: Self.vmConfig(r))
         model.log(.info, LogCategory.computer, tr("Recursos de la máquina Linux: %@ núcleos, %@ GB de memoria y %@ GB de disco. Se aplican al siguiente arranque.",
                                                   "\(r.cpuCount)", "\(r.memoryGB)", "\(r.diskGB)"))
+    }
+
+    func freeComputerSpace() {
+        guard let computer else { return }
+        let before = DiskMeasure.allocated(computer.files.disk)
+        Task { [weak self] in
+            guard await computer.trim() != nil else {
+                self?.model.lastError = tr("No se pudo liberar espacio: la máquina Linux tiene que estar en marcha.")
+                return
+            }
+            let freed = max(0, before - DiskMeasure.allocated(computer.files.disk))
+            self?.model.log(.info, LogCategory.computer, tr("Espacio devuelto al Mac: %@",
+                                                            ByteCountFormatter.string(fromByteCount: freed, countStyle: .file)))
+            self?.refreshResources()
+        }
     }
 
     func removeGuardModel(folder: String) {
