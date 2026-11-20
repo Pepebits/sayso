@@ -66,6 +66,18 @@ final class FakeTelegramUser: TelegramUserAPI, @unchecked Sendable {
     func messageLink(chatID: Int64, messageID: Int64) async throws -> String { "https://t.me/c/2/\(messageID)" }
     func vote(chatID: Int64, messageID: Int64, options: [Int]) async throws { actions.update { $0.append("vote \(chatID) #\(messageID) \(options)") } }
     func savedMessagesChat() async throws -> TGUserChat { TGUserChat(id: 99, title: "Mensajes guardados", kind: .personal) }
+    func stickerPacks() async throws -> [TGStickerPack] { [TGStickerPack(id: "123", title: "Gatos", count: 30)] }
+    func sendSticker(chatID: Int64, emoji: String, packID: String?) async throws -> String {
+        actions.update { $0.append("sticker \(chatID) \(emoji) \(packID ?? "-")") }; return emoji
+    }
+    func folders() async throws -> [TGFolder] { [TGFolder(id: 2, name: "Trabajo"), TGFolder(id: 3, name: "Familia")] }
+    func folderChats(folderID: Int, limit: Int) async throws -> [TGUserChat] { folderID == 2 ? [chatList[1], chatList[2]] : [] }
+    func setInFolder(chatID: Int64, folderID: Int, included: Bool) async throws {
+        actions.update { $0.append("folder \(chatID) \(folderID) \(included)") }
+    }
+    func createFolder(name: String, chatIDs: [Int64]) async throws -> TGFolder {
+        actions.update { $0.append("newfolder \(name) \(chatIDs)") }; return TGFolder(id: 9, name: name)
+    }
     func stories(chatID: Int64) async throws -> [TGStory] {
         [TGStory(id: 1, date: Date(timeIntervalSince1970: 1_800_000_000), caption: "En la playa", kind: "foto")]
     }
@@ -132,7 +144,8 @@ final class TelegramUserTests: XCTestCase {
         let api = FakeTelegramUser()
         let broker = FakeBroker(allow: true)
         for id in [3, 777_000] {
-            for tool in TelegramUserTools.all(api: api, broker: broker).dropFirst(2) { // listar y buscar no reciben un chat
+            // Listar, buscar y ver los packs de stickers no reciben un chat.
+            for tool in TelegramUserTools.all(api: api, broker: broker).dropFirst(2) where tool.name != "telegram_sticker_packs" {
                 let input: JSONValue = ["chat_id": .number(Double(id)), "text": "hola", "query": "x", "message_ids": [1],
                                         "message_id": 1, "emoji": "👍", "from_chat": .number(Double(id)),
                                         "to_chat": .number(Double(id))]
@@ -411,6 +424,35 @@ final class TelegramUserTests: XCTestCase {
         XCTAssertTrue(GuardPolicy.isOutward(TelegramAction.groups) && GuardPolicy.isOutward(TelegramAction.vote))
         XCTAssertFalse(GuardPolicy.isOutward(TelegramAction.organize), "silenciar o archivar solo cambia lo que ve el usuario")
         XCTAssertNotNil(GuardPolicy.thirdPartySource(tool: "telegram_profile", input: "{}"))
+    }
+
+    func testStickersAndFolders() async throws {
+        let api = FakeTelegramUser()
+        let broker = FakeBroker(allow: true)
+        let tools = TelegramUserTools.all(api: api, broker: broker)
+        func call(_ name: String, _ input: JSONValue) async throws -> String {
+            try await XCTUnwrap(tools.first { $0.name == name }).call(input: input, context: ToolContext())
+        }
+        let packs = try await call("telegram_sticker_packs", [:])
+        XCTAssertTrue(packs.contains("123 · Gatos"))
+        _ = try await call("telegram_send_sticker", ["chat": "anna", "emoji": "😂"])
+        _ = try await call("telegram_send_sticker", ["chat": "anna", "emoji": "👍", "pack": "123"])
+        let folders = try await call("telegram_folders", ["action": "list"])
+        XCTAssertTrue(folders.contains("2 · Trabajo"))
+        let inside = try await call("telegram_folders", ["action": "chats", "folder": "trabajo"])
+        XCTAssertTrue(inside.contains("Equipo"))
+        XCTAssertFalse(inside.contains("Secreto"), "los chats secretos no salen ni dentro de una carpeta")
+        _ = try await call("telegram_folders", ["action": "add", "folder": "Familia", "chat": "anna"])
+        _ = try await call("telegram_folders", ["action": "remove", "folder": "2", "chat": "equipo"])
+        _ = try await call("telegram_folders", ["action": "create", "name": "Cena", "chats": ["anna", "equipo"]])
+        XCTAssertEqual(api.actions.get(), ["sticker 1 😂 -", "sticker 1 👍 123", "folder 1 3 true", "folder 2 2 false",
+                                           "newfolder Cena [1, 2]"])
+        XCTAssertEqual(broker.requests.get().filter { $0.action == TelegramAction.organize }.count, 3)
+        do { _ = try await call("telegram_folders", ["action": "chats", "folder": "Ocio"]); XCTFail() } catch is ToolInputError {}
+        do { _ = try await call("telegram_folders", ["action": "create", "name": "Un nombre demasiado largo", "chats": ["anna"]]); XCTFail() }
+        catch is ToolInputError {}
+        do { _ = try await call("telegram_send_sticker", ["chat": "anna", "emoji": "😂", "pack": "gatos"]); XCTFail() }
+        catch is ToolInputError {}
     }
 
     func testRicherSendsAreValidated() async throws {

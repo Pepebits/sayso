@@ -57,6 +57,31 @@ public struct TGStory: Sendable, Hashable {
     }
 }
 
+/// Un pack de stickers instalado.
+public struct TGStickerPack: Sendable, Hashable {
+    /// Identificador de TDLib (int64, en texto).
+    public var id: String
+    public var title: String
+    public var count: Int
+
+    public init(id: String, title: String, count: Int) {
+        self.id = id
+        self.title = title
+        self.count = count
+    }
+}
+
+/// Una carpeta de chats.
+public struct TGFolder: Sendable, Hashable {
+    public var id: Int
+    public var name: String
+
+    public init(id: Int, name: String) {
+        self.id = id
+        self.name = name
+    }
+}
+
 /// Por defecto, una sesión que no sabe hacerlo lo dice.
 public extension TelegramUserAPI {
     func send(chatID: Int64, text: String, at date: Date?) async throws {
@@ -81,6 +106,12 @@ public extension TelegramUserAPI {
     func vote(chatID: Int64, messageID: Int64, options: [Int]) async throws { throw unsupported("votar en encuestas") }
     func savedMessagesChat() async throws -> TGUserChat { throw unsupported("usar Mensajes guardados") }
     func stories(chatID: Int64) async throws -> [TGStory] { throw unsupported("ver historias") }
+    func stickerPacks() async throws -> [TGStickerPack] { throw unsupported("ver los stickers") }
+    func sendSticker(chatID: Int64, emoji: String, packID: String?) async throws -> String { throw unsupported("enviar stickers") }
+    func folders() async throws -> [TGFolder] { throw unsupported("ver las carpetas") }
+    func folderChats(folderID: Int, limit: Int) async throws -> [TGUserChat] { throw unsupported("ver las carpetas") }
+    func setInFolder(chatID: Int64, folderID: Int, included: Bool) async throws { throw unsupported("cambiar carpetas") }
+    func createFolder(name: String, chatIDs: [Int64]) async throws -> TGFolder { throw unsupported("crear carpetas") }
 
     private func unsupported(_ what: String) -> ToolInputError {
         ToolInputError("Esta sesión de Telegram no puede \(what).")
@@ -104,6 +135,9 @@ extension TelegramUserTools {
             VoteTool(api: api, broker: broker),
             SavedMessagesTool(api: api, broker: broker),
             StoriesTool(api: api, broker: broker),
+            StickerPacksTool(api: api, broker: broker),
+            SendStickerTool(api: api, broker: broker, limiter: limiter),
+            FoldersTool(api: api, broker: broker),
         ]
         if let computer { tools.insert(SendAlbumTool(api: api, broker: broker, limiter: limiter, computer: computer), at: 0) }
         return tools
@@ -701,5 +735,142 @@ public struct StoriesTool: AgentTool {
         return TelegramUserTools.untrusted + "\nHistorias de «\(chat.title)»:\n" + stories.sorted { $0.date < $1.date }.map {
             "[\(TelegramUserTools.stamp($0.date))] \($0.kind)\($0.caption.isEmpty ? "" : ": \($0.caption)")"
         }.joined(separator: "\n")
+    }
+}
+
+// MARK: - Stickers y carpetas
+
+public struct StickerPacksTool: AgentTool {
+    let api: TelegramUserAPI
+    let broker: PermissionBrokering
+    public var name: String { "telegram_sticker_packs" }
+    public var description: String { "Lista los packs de stickers que el usuario tiene instalados en Telegram, con su id." }
+    public var inputSchema: JSONValue { .objectSchema([:]) }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let api = self.api
+        let packs = try await broker.run(ActionRequest(action: TelegramAction.listChats, summary: "Ver tus packs de stickers",
+                                                       origin: context.origin)) { try await api.stickerPacks() }
+        guard !packs.isEmpty else { return "No tienes packs de stickers instalados." }
+        return packs.map { "\($0.id) · \($0.title) · \($0.count) stickers" }.joined(separator: "\n")
+    }
+}
+
+public struct SendStickerTool: AgentTool {
+    let api: TelegramUserAPI
+    let broker: PermissionBrokering
+    let limiter: SendRateLimiter
+    public var name: String { "telegram_send_sticker" }
+    public var description: String {
+        "Envía un sticker de los packs del usuario que corresponda a un emoji (😂, 👍, ❤️…). Con «pack» (el id de " +
+            "telegram_sticker_packs) lo busca solo en ese pack."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "chat": TelegramUserTools.chatProperty,
+            "emoji": .property("string", "Un emoji"),
+            "pack": ["type": "string", "description": "Opcional: id del pack"],
+        ], required: ["chat", "emoji"])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let emoji = try input.requiredString("emoji", maxLength: 16).trimmingCharacters(in: .whitespaces)
+        guard emoji.count == 1 else { throw ToolInputError("«emoji» tiene que ser un solo emoji.") }
+        let pack = input["pack"]?.stringValue.flatMap { $0.allSatisfy(\.isNumber) && !$0.isEmpty ? $0 : nil }
+        if input["pack"]?.stringValue != nil, pack == nil { throw ToolInputError("«pack» es el id numérico de telegram_sticker_packs.") }
+        let chat = try await TelegramUserTools.resolveChat(input, api: api)
+        let id = chat.id
+        let api = self.api
+        let limiter = self.limiter
+        let sent = try await broker.run(ActionRequest(
+            action: TelegramAction.sendMessages, summary: "Enviar a «\(chat.title)» un sticker \(emoji)",
+            parameters: ["Para": chat.title, "Sticker": emoji], origin: context.origin)) {
+            try await limiter.take()
+            return try await api.sendSticker(chatID: id, emoji: emoji, packID: pack)
+        }
+        return "Sticker \(sent) enviado a «\(chat.title)»."
+    }
+}
+
+public struct FoldersTool: AgentTool {
+    let api: TelegramUserAPI
+    let broker: PermissionBrokering
+    public var name: String { "telegram_folders" }
+    public var description: String {
+        """
+        Carpetas de chats del usuario: «list» las enseña con su id; «chats» lista los chats de la carpeta \
+        «folder»; «add» y «remove» meten o sacan «chat» de «folder»; «create» crea una con «name» y, si se \
+        quiere, los «chats» que lleva. «folder» puede ser el id o el nombre.
+        """
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "action": ["type": "string", "enum": ["list", "chats", "add", "remove", "create"]],
+            "folder": ["type": "string", "description": "Id o nombre de la carpeta"],
+            "chat": ["type": "string", "description": "Para «add» y «remove»"],
+            "name": ["type": "string", "description": "Para «create» (12 caracteres como mucho)"],
+            "chats": ["type": "array", "items": ["type": "string"], "description": "Para «create» (opcional, hasta 20)"],
+        ], required: ["action"])
+    }
+
+    func folder(_ input: JSONValue) async throws -> TGFolder {
+        guard let raw = input["folder"]?.stringValue?.trimmingCharacters(in: .whitespaces) ?? input["folder"]?.intValue.map(String.init),
+              !raw.isEmpty else { throw ToolInputError("Falta «folder»: el id o el nombre de la carpeta.") }
+        let all = try await api.folders()
+        if let id = Int(raw), let found = all.first(where: { $0.id == id }) { return found }
+        if let found = all.first(where: { $0.name.compare(raw, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }) {
+            return found
+        }
+        throw ToolInputError("No hay ninguna carpeta «\(raw)». Carpetas: \(all.map(\.name).joined(separator: ", ")).")
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let api = self.api
+        switch input["action"]?.stringValue {
+        case "list":
+            let all = try await broker.run(ActionRequest(action: TelegramAction.listChats, summary: "Ver tus carpetas de chats",
+                                                         origin: context.origin)) { try await api.folders() }
+            guard !all.isEmpty else { return "No tienes carpetas de chats." }
+            return all.map { "\($0.id) · \($0.name)" }.joined(separator: "\n")
+        case "chats":
+            let folder = try await folder(input)
+            let chats = try await broker.run(ActionRequest(action: TelegramAction.listChats, summary: "Ver los chats de la carpeta «\(folder.name)»",
+                                                           origin: context.origin)) {
+                try await api.folderChats(folderID: folder.id, limit: 50)
+            }
+            let visible = chats.filter { !TelegramUserFilter.isExcluded($0) }
+            guard !visible.isEmpty else { return "La carpeta «\(folder.name)» está vacía." }
+            return "Carpeta «\(folder.name)»:\n" + visible.map { "\($0.id) · \($0.kind.rawValue) · \($0.displayName)" }.joined(separator: "\n")
+        case "add", "remove":
+            let add = input["action"]?.stringValue == "add"
+            let folder = try await folder(input)
+            let chat = try await TelegramUserTools.resolveChat(input, api: api)
+            try await broker.run(ActionRequest(
+                action: TelegramAction.organize,
+                summary: add ? "Meter «\(chat.title)» en la carpeta «\(folder.name)»" : "Sacar «\(chat.title)» de la carpeta «\(folder.name)»",
+                parameters: ["Chat": chat.title, "Carpeta": folder.name], origin: context.origin)) {
+                try await api.setInFolder(chatID: chat.id, folderID: folder.id, included: add)
+            }
+            return add ? "«\(chat.title)» está en «\(folder.name)»." : "«\(chat.title)» ya no está en «\(folder.name)»."
+        case "create":
+            let name = try input.requiredString("name", maxLength: 64).trimmingCharacters(in: .whitespaces)
+            // Telegram corta los nombres de carpeta a 12 caracteres.
+            guard (1...12).contains(name.count) else { throw ToolInputError("El nombre de una carpeta tiene de 1 a 12 caracteres.") }
+            var chats: [TGUserChat] = []
+            for value in (input["chats"]?.arrayValue ?? []).prefix(20) {
+                let chat = try await TelegramUserTools.resolveChat(["chat": value], api: api)
+                if !chats.contains(where: { $0.id == chat.id }) { chats.append(chat) }
+            }
+            guard !chats.isEmpty else { throw ToolInputError("Una carpeta nueva necesita al menos un chat en «chats».") }
+            let ids = chats.map(\.id)
+            let created = try await broker.run(ActionRequest(
+                action: TelegramAction.organize, summary: "Crear la carpeta «\(name)» con \(chats.map(\.title).joined(separator: ", "))",
+                parameters: ["Carpeta": name, "Chats": chats.map(\.title).joined(separator: ", ")], origin: context.origin)) {
+                try await api.createFolder(name: name, chatIDs: ids)
+            }
+            return "Carpeta «\(created.name)» creada (id \(created.id)) con \(chats.count) chat(s)."
+        default:
+            throw ToolInputError("«action» tiene que ser list, chats, add, remove o create.")
+        }
     }
 }

@@ -13,6 +13,7 @@ All notable changes to SaySo are documented here. The format follows
 - Pin and unpin messages, mute and archive chats, read profiles, add contacts, block and unblock people
 - Groups: create them, add or remove members, join through an invite link and leave
 - Message links, voting in polls, notes in Saved Messages and active stories
+- Stickers from your installed packs, picked by emoji, and chat folders: list them, see their chats, add or remove a chat and create new ones
 - Polls, locations, contacts and dice now show their content when the agent reads a chat
 - Six new permission rules in the Telegram screen for these actions
 - Long conversations: what no longer fits in the request is summarized with the fast model instead of being dropped, and the history has a size budget as well as a turn limit

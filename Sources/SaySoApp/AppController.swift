@@ -1166,6 +1166,32 @@ final class AppController: AppActions {
                         lines.append("buscar «\(query)»: " + hits.map { "\($0.title) [\($0.kind.rawValue)]" }.joined(separator: ", "))
                     }
                 }
+                if env["SAYSO_TELEGRAM_TEST_ACTIONS"] == "4" {
+                    // Stickers y carpetas. La carpeta de prueba se borra al final.
+                    func step(_ name: String, _ work: () async throws -> String) async {
+                        do { lines.append("OK \(name): " + (try await work())) } catch { lines.append("FALLO \(name): \(error)") }
+                        flush()
+                    }
+                    await step("packs") { try await session.stickerPacks().prefix(5).map { "\($0.id) \($0.title) (\($0.count))" }.joined(separator: " | ") }
+                    await step("sticker 👍") { try await session.sendSticker(chatID: chat.id, emoji: "👍", packID: nil) }
+                    try? await Task.sleep(nanoseconds: 2_000_000_000)
+                    await step("carpetas") { try await session.folders().map { "\($0.id) \($0.name)" }.joined(separator: " | ") }
+                    var created: TGFolder?
+                    await step("crear carpeta") {
+                        let folder = try await session.createFolder(name: "SaySoPrueba", chatIDs: [chat.id])
+                        created = folder
+                        return "\(folder.id) \(folder.name)"
+                    }
+                    if let created {
+                        await step("chats de la carpeta") { try await session.folderChats(folderID: created.id, limit: 10).map(\.title).joined(separator: ", ") }
+                        await step("sacar de la carpeta") { try await session.setInFolder(chatID: chat.id, folderID: created.id, included: false); return "ok" }
+                        await step("volver a meter") { try await session.setInFolder(chatID: chat.id, folderID: created.id, included: true); return "ok" }
+                        await step("chats tras volver") { try await session.folderChats(folderID: created.id, limit: 10).map(\.title).joined(separator: ", ") }
+                        await step("borrar carpeta") { try await session.deleteFolder(id: created.id); return "ok" }
+                    }
+                    lines.append("fin")
+                    return flush()
+                }
                 if env["SAYSO_TELEGRAM_TEST_ACTIONS"] == "3" {
                     // Solo mensajes programados: programar, listar y anular.
                     let recentText = ((try? await session.messages(chatID: chat.id, limit: 8)) ?? [])

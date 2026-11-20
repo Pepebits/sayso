@@ -90,6 +90,13 @@ public protocol TelegramUserAPI: Sendable {
     func vote(chatID: Int64, messageID: Int64, options: [Int]) async throws
     func savedMessagesChat() async throws -> TGUserChat
     func stories(chatID: Int64) async throws -> [TGStory]
+    // Stickers y carpetas
+    func stickerPacks() async throws -> [TGStickerPack]
+    func sendSticker(chatID: Int64, emoji: String, packID: String?) async throws -> String
+    func folders() async throws -> [TGFolder]
+    func folderChats(folderID: Int, limit: Int) async throws -> [TGUserChat]
+    func setInFolder(chatID: Int64, folderID: Int, included: Bool) async throws
+    func createFolder(name: String, chatIDs: [Int64]) async throws -> TGFolder
 }
 
 /// Exclusiones fijas en código, no configurables.

@@ -323,5 +323,121 @@ extension TDLibSession {
         }
         return out
     }
-}
 
+    // MARK: Stickers y carpetas
+
+    public func stickerPacks() async throws -> [TGStickerPack] {
+        try requireReady()
+        let sets = try await request(["@type": "getInstalledStickerSets", "sticker_type": ["@type": "stickerTypeRegular"]])
+        return (sets["sets"]?.arrayValue ?? []).compactMap { set in
+            // Los int64 llegan como texto en el JSON de TDLib.
+            guard let id = set["id"]?.stringValue ?? set["id"]?.intValue.map(String.init) else { return nil }
+            return TGStickerPack(id: id, title: set["title"]?.stringValue ?? "", count: set["size"]?.intValue ?? 0)
+        }
+    }
+
+    /// Envía el primer sticker del usuario que encaje con el emoji. Devuelve el emoji del sticker enviado.
+    public func sendSticker(chatID: Int64, emoji: String, packID: String?) async throws -> String {
+        try requireReady()
+        var candidates: [JSONValue]
+        if let packID {
+            let set = try await request(["@type": "getStickerSet", "set_id": .string(packID)])
+            let all = set["stickers"]?.arrayValue ?? []
+            let matching = all.filter { ($0["emoji"]?.stringValue ?? "").contains(emoji) }
+            candidates = matching.isEmpty ? all : matching
+        } else {
+            let found = try await request(["@type": "getStickers", "sticker_type": ["@type": "stickerTypeRegular"],
+                                           "query": .string(emoji), "limit": 20, "chat_id": Self.number(chatID)])
+            candidates = found["stickers"]?.arrayValue ?? []
+        }
+        guard let sticker = candidates.first, let remote = sticker["sticker"]?["remote"]?["id"]?.stringValue, !remote.isEmpty else {
+            throw ToolInputError("No tienes ningún sticker para \(emoji) en tus packs.")
+        }
+        let message = try await request([
+            "@type": "sendMessage", "chat_id": Self.number(chatID),
+            "input_message_content": [
+                "@type": "inputMessageSticker",
+                "sticker": ["@type": "inputSticker", "sticker": ["@type": "inputFileRemote", "id": .string(remote)],
+                            "width": .number(sticker["width"]?.doubleValue ?? 512),
+                            "height": .number(sticker["height"]?.doubleValue ?? 512)],
+                "emoji": .string(sticker["emoji"]?.stringValue ?? emoji),
+            ],
+        ])
+        if let id = message["id"]?.intValue { try await waitForDelivery(messageID: Int64(id), timeout: 30) }
+        return sticker["emoji"]?.stringValue ?? emoji
+    }
+
+    public func folders() async throws -> [TGFolder] {
+        try requireReady()
+        return chatFolders
+    }
+
+    public func folderChats(folderID: Int, limit: Int) async throws -> [TGUserChat] {
+        try requireReady()
+        let list: JSONValue = ["@type": "chatListFolder", "chat_folder_id": .number(Double(folderID))]
+        // Hasta que no se cargan, getChats solo devuelve lo que TDLib ya tiene en memoria.
+        _ = try? await request(["@type": "loadChats", "chat_list": list, "limit": .number(Double(limit))])
+        let found = try await request(["@type": "getChats", "chat_list": list, "limit": .number(Double(limit))])
+        var chats: [TGUserChat] = []
+        for id in (found["chat_ids"]?.arrayValue ?? []).compactMap(\.intValue) {
+            if let chat = try? await chat(id: Int64(id)) { chats.append(chat) }
+        }
+        return chats
+    }
+
+    public func setInFolder(chatID: Int64, folderID: Int, included: Bool) async throws {
+        try requireReady()
+        if included {
+            _ = try await request(["@type": "addChatToList", "chat_id": Self.number(chatID),
+                                   "chat_list": ["@type": "chatListFolder", "chat_folder_id": .number(Double(folderID))]])
+            return
+        }
+        var folder = try await request(["@type": "getChatFolder", "chat_folder_id": .number(Double(folderID))]).objectValue ?? [:]
+        func without(_ key: String) -> JSONValue {
+            .array((folder[key]?.arrayValue ?? []).filter { $0.intValue.map(Int64.init) != chatID })
+        }
+        let listed = ["included_chat_ids", "pinned_chat_ids"].contains { key in
+            (folder[key]?.arrayValue ?? []).contains { $0.intValue.map(Int64.init) == chatID }
+        }
+        folder["included_chat_ids"] = without("included_chat_ids")
+        folder["pinned_chat_ids"] = without("pinned_chat_ids")
+        // Si no estaba puesto a mano, entra por una categoría (contactos, grupos…): se excluye.
+        if !listed {
+            var excluded = folder["excluded_chat_ids"]?.arrayValue ?? []
+            if !excluded.contains(where: { $0.intValue.map(Int64.init) == chatID }) { excluded.append(Self.number(chatID)) }
+            folder["excluded_chat_ids"] = .array(excluded)
+        }
+        folder["@type"] = "chatFolder"
+        folder.removeValue(forKey: "@extra")
+        folder.removeValue(forKey: "@client_id")
+        do {
+            _ = try await request(["@type": "editChatFolder", "chat_folder_id": .number(Double(folderID)), "folder": .object(folder)])
+        } catch let error as TDError where error.message.contains("at least 1 chat") {
+            throw ToolInputError("Telegram no deja una carpeta vacía: es el último chat que tiene. Para quitarla entera, hazlo desde Telegram.")
+        }
+    }
+
+    /// Solo para la prueba de desarrollo: borra una carpeta sin salir de sus chats.
+    public func deleteFolder(id: Int) async throws {
+        try requireReady()
+        _ = try await request(["@type": "deleteChatFolder", "chat_folder_id": .number(Double(id)), "leave_chat_ids": []])
+        chatFolders.removeAll { $0.id == id }
+    }
+
+    public func createFolder(name: String, chatIDs: [Int64]) async throws -> TGFolder {
+        try requireReady()
+        let created = try await request([
+            "@type": "createChatFolder",
+            "folder": [
+                "@type": "chatFolder",
+                "name": ["@type": "chatFolderName", "text": Self.formatted(name), "animate_custom_emoji": false],
+                "included_chat_ids": .array(chatIDs.map(Self.number)),
+                "pinned_chat_ids": [], "excluded_chat_ids": [],
+            ],
+        ])
+        guard let id = created["id"]?.intValue else { throw ToolInputError("Telegram no ha devuelto la carpeta creada.") }
+        let folder = TGFolder(id: id, name: created["name"]?["text"]?["text"]?.stringValue ?? name)
+        if !chatFolders.contains(where: { $0.id == id }) { chatFolders.append(folder) }
+        return folder
+    }
+}

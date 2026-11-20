@@ -51,6 +51,8 @@ public actor TDLibSession: TelegramUserAPI {
     private var chatCache: [Int64: TGUserChat] = [:]
     /// Alias por usuario o supergrupo; `""` si no tiene.
     private var aliases: [String: String] = [:]
+    /// Carpetas de chats: TDLib las manda en `updateChatFolders` y no tiene una petición para leerlas.
+    var chatFolders: [TGFolder] = []
     public private(set) var state: TelegramUserState = .off {
         didSet { if state != oldValue { onState(state) } }
     }
@@ -138,6 +140,11 @@ public actor TDLibSession: TelegramUserAPI {
             if let id = message["old_message_id"]?.intValue {
                 finishDelivery(Int64(id), error: TDError(code: message["error"]?["code"]?.intValue ?? 0,
                                                          message: message["error"]?["message"]?.stringValue ?? "error"))
+            }
+        case "updateChatFolders":
+            chatFolders = (message["chat_folders"]?.arrayValue ?? []).compactMap { info in
+                guard let id = info["id"]?.intValue else { return nil }
+                return TGFolder(id: id, name: info["name"]?["text"]?["text"]?.stringValue ?? "")
             }
         case "updateUser":
             if let user = message["user"], let id = user["id"]?.intValue { userNames[Int64(id)] = Self.name(of: user) }
