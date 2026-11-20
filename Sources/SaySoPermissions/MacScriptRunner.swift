@@ -410,14 +410,18 @@ public final class MacScriptRunner: MacScriptRunning {
     // MARK: - osascript
 
     /// Ejecuta un AppleScript fijo; `arguments` llegan a `on run argv` sin interpolarse en el código.
-    private static func osascript(_ lines: [String], arguments: [String]) async throws {
+    @discardableResult
+    private static func osascript(_ lines: [String], arguments: [String]) async throws -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
         // `--` separa opciones de argumentos: un texto que empiece por «-» no se toma como opción.
         process.arguments = lines.flatMap { ["-e", $0] } + ["--"] + arguments
         let errPipe = Pipe()
+        let outPipe = Pipe()
         process.standardError = errPipe
-        process.standardOutput = FileHandle.nullDevice
+        process.standardOutput = outPipe
+        // La salida se lee mientras corre: si llenara el búfer del pipe, el proceso no terminaría.
+        let output = Task.detached { outPipe.fileHandleForReading.readDataToEndOfFile() }
 
         let status: Int32 = try await withCheckedThrowingContinuation { cont in
             process.terminationHandler = { cont.resume(returning: $0.terminationStatus) }
@@ -431,5 +435,6 @@ public final class MacScriptRunner: MacScriptRunning {
             let message = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
             throw MacScriptError.scriptFailed(message.isEmpty ? "código \(status)" : message)
         }
+        return String(decoding: await output.value, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

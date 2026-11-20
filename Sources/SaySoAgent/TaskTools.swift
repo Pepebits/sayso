@@ -207,7 +207,9 @@ public actor TaskScheduler {
     static func prompt(for task: ScheduledTask) -> String {
         var memory = " Antes de hacerlo, mira la memoria del usuario: si alguna de sus instrucciones cambia cómo " +
             "hacer este encargo, aplícala aunque el encargo diga otra cosa o en ejecuciones anteriores lo hicieras distinto." +
-            " Cada ejecución empieza de cero: haz el encargo entero con tus herramientas, sin dar nada por hecho."
+            " Cada ejecución empieza de cero: haz el encargo entero con tus herramientas, sin dar nada por hecho." +
+            " Si para no repetirte necesitas llevar la cuenta de lo ya hecho, apúntalo en el archivo " +
+            "~/sayso/registro/tarea-\(task.id ?? 0).txt de tu ordenador Linux y léelo al empezar; no lo guardes en la memoria."
         // Solo lo último que salió, para no repetirlo; el historial completo no se manda.
         if let last = task.lastResult?.trimmingCharacters(in: .whitespacesAndNewlines), !last.isEmpty, last != "-",
            let when = task.lastRun {

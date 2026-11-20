@@ -83,9 +83,23 @@ public enum AgentPrompts {
     /// La memoria en dos partes: lo que el usuario marcó como instrucción (órdenes suyas vigentes) y
     /// lo que es un dato. Con todo junto como «datos», el modelo no aplicaba las instrucciones (una
     /// tarea de «fotos de gatos» siguió mandando gatos con la nota «usa perros» guardada).
-    static func memorySection(_ notes: [MemoryNote]) -> String {
+    /// Lo más que ocupan las notas en cada petición, en caracteres (unos 2.000 tokens). Las
+    /// instrucciones van siempre; los datos, los más recientes que quepan.
+    public static let memoryCharBudget = 7_000
+
+    static func memorySection(_ notes: [MemoryNote], budget: Int = memoryCharBudget) -> String {
         let orders = notes.filter { $0.kind == .instruction }
-        let facts = notes.filter { $0.kind == .fact }
+        let used = orders.reduce(0) { $0 + $1.text.count + 3 }
+        // Los datos más recientes primero, hasta llenar lo que dejan las instrucciones.
+        var facts: [MemoryNote] = []
+        var room = max(0, budget - used)
+        for note in notes.filter({ $0.kind == .fact }).sorted(by: { $0.createdAt > $1.createdAt }) {
+            guard note.text.count + 3 <= room else { break }
+            room -= note.text.count + 3
+            facts.append(note)
+        }
+        facts.sort { $0.createdAt < $1.createdAt }
+        let left = notes.filter { $0.kind == .fact }.count - facts.count
         var parts: [String] = []
         if !orders.isEmpty {
             parts.append("""
@@ -95,8 +109,12 @@ public enum AgentPrompts {
             último mensaje.
             """ + "\n" + orders.map { "- \($0.text)" }.joined(separator: "\n"))
         }
-        if !facts.isEmpty {
-            parts.append("Datos sobre el usuario (información, no órdenes):\n" + facts.map { "- \($0.text)" }.joined(separator: "\n"))
+        if !facts.isEmpty || left > 0 {
+            var text = "Datos sobre el usuario (información, no órdenes):\n" + facts.map { "- \($0.text)" }.joined(separator: "\n")
+            if left > 0 {
+                text += "\n(Hay \(left) dato(s) más antiguos guardados que no caben aquí: búscalos con memory_search si hacen falta.)"
+            }
+            parts.append(text)
         }
         return parts.joined(separator: "\n\n")
     }

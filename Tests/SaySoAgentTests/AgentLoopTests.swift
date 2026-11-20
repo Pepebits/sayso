@@ -504,6 +504,37 @@ final class HonestyTests: XCTestCase {
         XCTAssertEqual(AgentLoop.recent(turns, limit: 30, budget: 10).count, 1, "el último entra siempre")
     }
 
+    func testMemoryDoesNotFillTheContext() async throws {
+        // Sacado de la memoria real: una nota por cada foto de gato enviada.
+        let store = MemoryStore()
+        let remember = RememberTool(store: store)
+        _ = try await remember.call(input: ["text": "Foto gato navideño (cataas /cat/christmas) enviada a Daniel el 20/11/2026 (gato_1.jpg)"],
+                                    context: ToolContext())
+        let again = try await remember.call(input: ["text": "Foto gato navideño (cataas /cat/christmas) enviada a Daniel el 20/11/2026 (gato_2.jpg)"],
+                                            context: ToolContext())
+        XCTAssertTrue(again.hasPrefix("No guardado"), again)
+        XCTAssertEqual(try store.notes().count, 1)
+        XCTAssertFalse(RememberTool.isNearDuplicate("Vive en Vigo", "Trabaja en Madrid de noche"))
+        XCTAssertTrue(remember.description.contains("~/sayso/registro/"))
+
+        // Las instrucciones van siempre; los datos, los más recientes que quepan, y el resto se busca.
+        let base = Date(timeIntervalSince1970: 1_000_000)
+        var notes = [MemoryNote(text: "Respóndeme en gallego", createdAt: base, kind: .instruction)]
+        for i in 0..<10 {
+            notes.append(MemoryNote(text: "Dato número \(i) " + String(repeating: "x", count: 80), createdAt: base.addingTimeInterval(Double(i))))
+        }
+        let section = AgentPrompts.memorySection(notes, budget: 300)
+        XCTAssertTrue(section.contains("Respóndeme en gallego"))
+        XCTAssertTrue(section.contains("Dato número 9"))
+        XCTAssertFalse(section.contains("Dato número 0"))
+        XCTAssertTrue(section.contains("memory_search"))
+        for note in notes { try store.addNote(note) }
+        let found = try await MemorySearchTool(store: store).call(input: ["query": "número 0"], context: ToolContext())
+        XCTAssertTrue(found.contains("Dato número 0"))
+        XCTAssertTrue(TaskScheduler.prompt(for: ScheduledTask(id: 7, instruction: "Manda un gato", schedule: .every(minutes: 15)))
+            .contains("~/sayso/registro/tarea-7.txt"))
+    }
+
     func testLocalModelCatalog() {
         XCTAssertEqual(LocalGuardModel.recommended.repo, "meta-llama/Llama-Prompt-Guard-2-86M")
         XCTAssertTrue(LocalGuardModel.recommended.needsToken)
