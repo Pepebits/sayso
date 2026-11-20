@@ -185,6 +185,16 @@ public struct TelegramBotClient: Sendable {
         return sent
     }
 
+    public func editMessageText(chatID: Int64, messageID: Int64, text: String) async throws {
+        let _: TGMessage = try await call("editMessageText", ["chat_id": .number(Double(chatID)),
+                                                              "message_id": .number(Double(messageID)),
+                                                              "text": .string(String(text.prefix(4096)))])
+    }
+
+    public func deleteMessage(chatID: Int64, messageID: Int64) async throws {
+        let _: Bool = try await call("deleteMessage", ["chat_id": .number(Double(chatID)), "message_id": .number(Double(messageID))])
+    }
+
     public func sendChatAction(chatID: Int64, action: String = "typing") async throws {
         let _: Bool = try await call("sendChatAction", ["chat_id": .number(Double(chatID)), "action": .string(action)])
     }

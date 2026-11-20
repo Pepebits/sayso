@@ -544,6 +544,16 @@ final class HonestyTests: XCTestCase {
             .contains("~/sayso/registro/tarea-7.txt"))
     }
 
+    func testEachToolStepIsAnnounced() async throws {
+        let provider = FakeProvider([.tool("web_search", ["query": "tiempo en Vigo"]), .tool("echo", ["text": "x"]), .text("Hecho")])
+        let steps = Locked<[String]>([])
+        _ = try await AgentLoop(provider: provider, tools: [FakeTool(name: "web_search"), FakeTool(name: "echo")], store: MemoryStore())
+            .respond(to: "¿Qué tiempo hace?", chatID: "1", onStep: { step in steps.update { $0.append(step) } })
+        XCTAssertEqual(steps.get(), ["🔎 " + tr("Buscando en la web") + ": «tiempo en Vigo»", "🔧 echo"])
+        XCTAssertTrue(AgentLoop.stepLabel("telegram_send_message", ["chat": "Anna"]).contains("«Anna»"))
+        XCTAssertTrue(AgentLoop.stepLabel("browser__navigate", [:]).hasPrefix("🌐"))
+    }
+
     func testLocalModelCatalog() {
         XCTAssertEqual(LocalGuardModel.recommended.repo, "meta-llama/Llama-Prompt-Guard-2-86M")
         XCTAssertTrue(LocalGuardModel.recommended.needsToken)

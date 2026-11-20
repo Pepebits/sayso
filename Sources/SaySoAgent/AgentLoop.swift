@@ -288,6 +288,7 @@ public final class AgentLoop: Sendable {
                         recipientsPreapproved: Bool = false, useHistory: Bool = true,
                         untrusted: [(source: String, text: String)] = [],
                         images: [ModelImage] = [],
+                        onStep: (@Sendable (String) -> Void)? = nil,
                         onGuard: (@Sendable (GuardContext) -> Void)? = nil) async throws -> String {
         let maxTokens = maxTokens ?? self.maxTokens
         // Sin historial, cada vez empieza de cero (las tareas programadas: con quince ejecuciones
@@ -388,6 +389,7 @@ public final class AgentLoop: Sendable {
             var results: [ContentBlock] = []
             var seen: [ModelImage] = []
             for call in calls {
+                onStep?(Self.stepLabel(call.name, call.input))
                 let (block, succeeded, images) = await GuardContext.$current.withValue(guardContext) {
                     await run(call, context: context, guard: &guardContext)
                 }
@@ -534,6 +536,37 @@ public final class AgentLoop: Sendable {
     }
 
     /// Ejecuta una llamada. El segundo valor dice si terminó sin error.
+    /// Qué está haciendo el agente, en una línea para el usuario («🔎 Buscando: …»).
+    public static func stepLabel(_ tool: String, _ input: JSONValue) -> String {
+        func quoted(_ key: String) -> String {
+            guard let value = input[key]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return "" }
+            return ": «" + String(value.prefix(60)) + (value.count > 60 ? "…" : "") + "»"
+        }
+        switch tool {
+        case "web_search": return "🔎 " + tr("Buscando en la web") + quoted("query")
+        case "computer_run": return "🖥 " + tr("Ejecutando en Linux")
+        case "computer_start_job", "computer_jobs": return "🛠 " + tr("Trabajo largo en Linux")
+        case "computer_read_file", "computer_write_file": return "📄 " + tr("Archivos en Linux")
+        case "view_image", "telegram_view_image": return "👀 " + tr("Mirando una imagen")
+        case "render_html": return "🖼 " + tr("Preparando el documento")
+        case "send_file": return "📎 " + tr("Enviando un archivo")
+        case "telegram_transcribe": return "🎧 " + tr("Transcribiendo un audio")
+        case "remember", "memory_search": return "🧠 " + tr("Memoria")
+        case "schedule_task", "list_tasks", "cancel_task": return "⏰ " + tr("Tareas programadas")
+        default: break
+        }
+        if tool.hasPrefix("fetch__") || tool.hasPrefix("browser__") { return "🌐 " + tr("Leyendo una página") }
+        if tool.hasPrefix("mac_calendar") { return "📅 " + tr("Calendario") }
+        if tool.hasPrefix("mac_reminder") { return "✅ " + tr("Recordatorios") }
+        if tool.hasPrefix("mac_note") { return "🗒 " + tr("Notas") }
+        if tool.hasPrefix("mac_") { return "💻 " + tr("En el Mac") }
+        if tool.hasPrefix("telegram_send") || tool == "telegram_reply" || tool == "telegram_forward" {
+            return "📤 " + tr("Enviando por Telegram") + quoted("chat")
+        }
+        if tool.hasPrefix("telegram_") { return "💬 " + tr("Telegram") + quoted("chat") }
+        return "🔧 " + tool
+    }
+
     /// Imágenes que se adjuntan como mucho tras un paso, para no disparar el tamaño de la petición.
     static let maxImagesPerStep = 4
 

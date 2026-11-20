@@ -1445,3 +1445,16 @@
 "Notificaciones permitidas" = "Notifications allowed";
 "Notificaciones no permitidas" = "Notifications not allowed";
 "No se pudo pedir permiso para notificar: %@" = "Couldn’t ask for notification permission: %@";
+"Buscando en la web" = "Searching the web";
+"Ejecutando en Linux" = "Running on Linux";
+"Trabajo largo en Linux" = "Long job on Linux";
+"Archivos en Linux" = "Files on Linux";
+"Mirando una imagen" = "Looking at an image";
+"Preparando el documento" = "Preparing the document";
+"Enviando un archivo" = "Sending a file";
+"Transcribiendo un audio" = "Transcribing audio";
+"Tareas programadas" = "Scheduled tasks";
+"Leyendo una página" = "Reading a page";
+"En el Mac" = "On the Mac";
+"Enviando por Telegram" = "Sending on Telegram";
+"Trabajando…" = "Working…";

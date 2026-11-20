@@ -380,6 +380,7 @@ public actor TelegramBotService {
     private func reply(to text: String, chatID: Int64, images: [ModelImage] = []) async {
         let typing = startTyping(chatID)
         defer { typing.cancel() }
+        let progress = ProgressMessage(client: client, chatID: chatID)
         do {
             let loop = try await makeLoop()
             if !images.isEmpty, !loop.provider.supportsImages {
@@ -389,11 +390,13 @@ public actor TelegramBotService {
             }
             let answer = try await loop.respond(to: text, chatID: String(chatID),
                                                 useFastModel: images.isEmpty && AgentLoop.prefersFastModel(for: text, store: store),
-                                                images: images)
+                                                images: images, onStep: { step in Task { await progress.add(step) } })
             typing.cancel()
+            await progress.finish()
             await send(chatID, answer)
         } catch {
             typing.cancel()
+            await progress.finish()
             await send(chatID, tr("No he podido responder: %@", "\(error.localizedDescription)"))
         }
     }
@@ -729,4 +732,49 @@ private final class GuardBox: @unchecked Sendable {
     private var value: GuardContext?
     func set(_ context: GuardContext) { lock.lock(); value = context; lock.unlock() }
     func get() -> GuardContext? { lock.lock(); defer { lock.unlock() }; return value }
+}
+
+/// «⏳ Trabajando…» con los pasos del agente, en un mensaje que se va editando y se borra al terminar.
+/// Solo aparece si el agente usa herramientas: una charla corta no deja rastro.
+actor ProgressMessage {
+    private let client: TelegramBotClient
+    private let chatID: Int64
+    private var messageID: Int64?
+    private var steps: [String] = []
+    private var lastEdit = Date.distantPast
+    private var pendingEdit = false
+    private var done = false
+
+    init(client: TelegramBotClient, chatID: Int64) {
+        self.client = client
+        self.chatID = chatID
+    }
+
+    private var text: String { "⏳ " + tr("Trabajando…") + "\n" + steps.suffix(8).joined(separator: "\n") }
+
+    func add(_ step: String) async {
+        guard !done, steps.last != step else { return }
+        steps.append(step)
+        if messageID == nil {
+            messageID = (try? await client.sendMessage(chatID: chatID, text: text))?.first?.messageId
+            lastEdit = Date()
+            // Si la respuesta llegó mientras se enviaba, fuera.
+            if done, let id = messageID { try? await client.deleteMessage(chatID: chatID, messageID: id) }
+            return
+        }
+        // Como mucho una edición por segundo: Telegram limita las ediciones seguidas.
+        guard !pendingEdit else { return }
+        let wait = max(0, 1 - Date().timeIntervalSince(lastEdit))
+        pendingEdit = true
+        if wait > 0 { try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000)) }
+        pendingEdit = false
+        guard !done, let id = messageID else { return }
+        lastEdit = Date()
+        try? await client.editMessageText(chatID: chatID, messageID: id, text: text)
+    }
+
+    func finish() async {
+        done = true
+        if let id = messageID { try? await client.deleteMessage(chatID: chatID, messageID: id) }
+    }
 }

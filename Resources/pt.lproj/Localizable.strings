@@ -1444,3 +1444,16 @@
 "Notificaciones permitidas" = "Notificações permitidas";
 "Notificaciones no permitidas" = "Notificações não permitidas";
 "No se pudo pedir permiso para notificar: %@" = "Não foi possível pedir permissão para notificar: %@";
+"Buscando en la web" = "A pesquisar na web";
+"Ejecutando en Linux" = "A executar no Linux";
+"Trabajo largo en Linux" = "Trabalho longo no Linux";
+"Archivos en Linux" = "Ficheiros no Linux";
+"Mirando una imagen" = "A ver uma imagem";
+"Preparando el documento" = "A preparar o documento";
+"Enviando un archivo" = "A enviar um ficheiro";
+"Transcribiendo un audio" = "A transcrever um áudio";
+"Tareas programadas" = "Tarefas agendadas";
+"Leyendo una página" = "A ler uma página";
+"En el Mac" = "No Mac";
+"Enviando por Telegram" = "A enviar pelo Telegram";
+"Trabajando…" = "A trabalhar…";
