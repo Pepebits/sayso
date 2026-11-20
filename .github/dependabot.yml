@@ -1,0 +1,38 @@
+version: 2
+
+# Monthly, grouped so it stays a handful of pull requests. Each one runs CI
+# (swift build and swift test) before it can be merged.
+#
+# Commits follow Conventional Commits: "chore" plus the scope Dependabot adds
+# gives "chore(deps):".
+updates:
+  - package-ecosystem: swift
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      # TDLib goes alone: a new build can change the JSON API that
+      # Sources/SaySoTDLib reads, and the tests use a fake transport, so a
+      # green build does not prove it still talks to Telegram. Try a real
+      # session (send, read, download) before merging.
+      tdlib:
+        patterns: ['TDLibFramework']
+      minor-and-patch:
+        patterns: ['*']
+        exclude-patterns: ['TDLibFramework']
+        update-types: ['minor', 'patch']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      actions:
+        patterns: ['*']
