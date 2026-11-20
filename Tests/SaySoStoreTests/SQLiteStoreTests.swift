@@ -173,6 +173,17 @@ final class SQLiteStoreTests: XCTestCase {
         XCTAssertEqual(again.activity + again.turns, 0)
     }
 
+    func testTrimKeepsOnlyTheNewestRows() throws {
+        let base = Date(timeIntervalSince1970: 50_000)
+        for i in 0..<6 {
+            try store.appendTurn(ConversationTurn(chatID: "1", role: .user, text: "t\(i)", date: base.addingTimeInterval(Double(i))))
+        }
+        let removed = try store.trim(keepActivity: 100, keepTurns: 4)
+        XCTAssertEqual(removed.turns, 2)
+        XCTAssertEqual(try store.turns(chatID: "1", limit: 10).map(\.text), ["t2", "t3", "t4", "t5"])
+        XCTAssertEqual(try store.trim(keepActivity: 100, keepTurns: 4).turns, 0)
+    }
+
     func testTurnsLastNChronological() throws {
         let base = Date(timeIntervalSince1970: 10_000)
         for i in 0..<5 {

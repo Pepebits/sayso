@@ -219,6 +219,23 @@ public final class SQLiteStore: SaySoStoring, TaskStoring {
         }
     }
 
+    @discardableResult
+    public func trim(keepActivity: Int, keepTurns: Int) throws -> (activity: Int, turns: Int) {
+        let removed = try db.write { db -> (Int, Int) in
+            try db.execute(sql: """
+                DELETE FROM activity WHERE rowid NOT IN (SELECT rowid FROM activity ORDER BY date DESC LIMIT ?)
+                """, arguments: [max(0, keepActivity)])
+            let activity = db.changesCount
+            try db.execute(sql: """
+                DELETE FROM turns WHERE rowid NOT IN (SELECT rowid FROM turns ORDER BY date DESC LIMIT ?)
+                """, arguments: [max(0, keepTurns)])
+            return (activity, db.changesCount)
+        }
+        // Borrar no encoge el archivo: si se ha ido mucho, se compacta.
+        if removed.0 + removed.1 > 2_000 { try db.vacuum() }
+        return removed
+    }
+
     public func lastUse(of action: ActionID) throws -> Date? {
         try db.read { db in
             try Double.fetchOne(db, sql: "SELECT MAX(date) FROM activity WHERE action = ?",
