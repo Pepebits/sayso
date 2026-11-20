@@ -24,7 +24,7 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
     var subtitle: String {
         switch self {
         case .welcome: return "Dictado en cualquier app y un agente que trabaja por ti desde Telegram."
-        case .permissions: return "Para hablarle al agente, SaySo necesita oírte y detectar la tecla ⌥."
+        case .permissions: return "Para hablarle al agente, SaySo necesita oírte y detectar tu atajo de teclado."
         case .account: return "El agente piensa con el modelo que tú elijas. La clave se guarda en el Llavero."
         case .telegram: return "Un bot propio para hablar con el agente y, si quieres, tu cuenta para que pueda leer tus chats."
         case .computer: return "Una máquina Linux aislada de tu Mac donde el agente ejecuta código y navega."
@@ -190,7 +190,7 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: Theme.Space.l) {
             SettingsCard {
                 SettingRow(icon: "mic", title: "Háblale desde cualquier app",
-                           detail: "Mantén la tecla ⌥, pídele algo y suelta. Lo hace y te responde.")
+                           detail: tr("Mantén %@, pídele algo y suelta. Lo hace y te responde.", model.dictation.shortcut.symbol))
                 CardDivider()
                 SettingRow(icon: "paperplane", title: "Pídele cosas por Telegram",
                            detail: "Recordatorios, resúmenes, código, tareas a su hora. Te responde en tu bot.")
@@ -409,10 +409,10 @@ struct OnboardingView: View {
             }
             SettingsCard {
                 HStack(spacing: Theme.Space.m) {
-                    KeyCap(symbol: "⌥", size: 30)
+                    KeyCap(symbol: model.dictation.shortcut.symbol, size: 30)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(tr("Prueba el dictado")).font(Theme.bodyStrong).foregroundStyle(Theme.ink)
-                        Text(tr("Abre Notas, mantén ⌥ y di algo. Pulsa ⌥ dos veces para hablar sin mantenerla."))
+                        Text(tr("Prueba a hablarle")).font(Theme.bodyStrong).foregroundStyle(Theme.ink)
+                        Text(tr("Mantén %@, pídele algo al agente y suelta: te responde en pantalla. Puedes cambiar el atajo en Dictado.", model.dictation.shortcut.symbol))
                             .font(Theme.caption)
                             .foregroundStyle(Theme.secondary)
                             .fixedSize(horizontal: false, vertical: true)
