@@ -6,6 +6,34 @@ All notable changes to SaySo are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-11-21
+
+### Security
+
+- After the agent reads someone else's content (messages, web pages, files), commands and file writes on the Linux machine and plugin actions are reviewed too, not only messages and Mac actions. More sources count as someone else's content: calendar, notes, reminders, saved files and plugin services; the injection detector checks the start and the end of long texts
+- The action reviewer only sees what you asked for, never the text of the message being answered
+- Permission window: it no longer approves with Return, its buttons wake up after a moment, the reviewer's reason is shown as a banner and «Always allow» is not offered when the reviewer stepped in or for secrets. Unanswered requests are denied after 10 minutes instead of waiting forever
+- Approve from the bot shows every parameter of the action; when it doesn't fit or the reviewer warned, it asks you to decide on the Mac
+- Memory: an instruction saved right after reading someone else's content is kept as a fact
+- The agent never writes to your SaySo bot's chat from your Telegram account
+- Guest mode doesn't get your memory, and only reads the files it downloaded itself
+- HTML renders have no network access except a few library CDNs, and can't navigate away
+- Importing a backup no longer changes the bot's owner, full access, approve from the bot, the protection settings, plugin addresses outside the catalog or tasks that send without asking
+- Commands that use secrets are shown in full; the Claude Code plugin's API key goes through «Use secrets»
+- Bot pairing codes have 8 characters, expire after 10 minutes and lock after repeated failures; error reports hide bot tokens
+
+### Fixed
+
+- A task for someone else that fails or stops halfway only reports to you; nothing is sent to them
+- /new in the bot also clears the voice conversation and its summary
+- Requests to the model are retried when the provider is overloaded (429, 529, 5xx) or the network drops, waiting what the provider asks
+- The bot's reply is retried if Telegram fails to deliver it, instead of being lost
+- The local injection detector reconnects after the Linux machine shuts down; before, the first check after each restart was skipped
+- Tool calls cut off by the length limit are not run with half their arguments; OpenAI reasoning models get `max_completion_tokens`
+- An empty answer from the model no longer breaks the next request
+- A task deleted or disabled while another one runs is skipped, and «Run now» doesn't run a task twice at once
+- If recording can't start, the dictation shortcut no longer stays in hands-free mode and swallows the next press
+
 ## [0.4.0] — 2026-11-21
 
 ### Added
