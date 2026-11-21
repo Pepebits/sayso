@@ -584,6 +584,7 @@ public actor TelegramBotService {
         let chatID: Int64
         var messageID: Int64?
         let text: String
+        var allowFromBot = true
     }
 
     /// Cuánto espera una pregunta de permiso en el bot antes de caducar.
@@ -591,17 +592,24 @@ public actor TelegramBotService {
 
     /// Pregunta un permiso al usuario por el bot, con «Permitir una vez» y «Denegar».
     /// Devuelve `nil` si no hay nadie emparejado, si caduca o si se contesta en el Mac antes.
-    public func askApproval(id: String, title: String, detail: String,
+    /// `allowFromBot` falso: la pregunta solo se puede denegar desde el bot (el revisor ha avisado o la
+    /// acción no cabe entera en el mensaje); para permitirla hay que verla en el Mac.
+    public func askApproval(id: String, title: String, detail: String, allowFromBot: Bool = true,
                             timeout: TimeInterval = approvalTimeout) async -> ConfirmationResult? {
         guard let owner = ownerID else { return nil }
         let minutes = Int((timeout / 60).rounded())
-        let text = "🔐 " + tr("SaySo necesita tu permiso") + "\n\n" + title + "\n" + detail + "\n\n"
-            + tr("Caduca en %@ min. También puedes contestar en el Mac.", "\(minutes)")
+        let footer = allowFromBot
+            ? tr("Caduca en %@ min. También puedes contestar en el Mac.", "\(minutes)")
+            : tr("Para permitirlo, revísalo en el Mac. Desde aquí solo se puede denegar.")
+        let text = "🔐 " + tr("SaySo necesita tu permiso") + "\n\n" + title + "\n" + detail + "\n\n" + footer
         return await withCheckedContinuation { continuation in
-            approvals[id] = PendingApproval(continuation: continuation, chatID: owner, messageID: nil, text: text)
+            approvals[id] = PendingApproval(continuation: continuation, chatID: owner, messageID: nil, text: text,
+                                            allowFromBot: allowFromBot)
             Task {
-                let buttons = [[TGInlineButton(text: "✅ " + tr("Permitir una vez"), callbackData: "perm:\(id):allow"),
-                                TGInlineButton(text: "⛔️ " + tr("Denegar"), callbackData: "perm:\(id):deny")]]
+                let deny = TGInlineButton(text: "⛔️ " + tr("Denegar"), callbackData: "perm:\(id):deny")
+                let buttons = allowFromBot
+                    ? [[TGInlineButton(text: "✅ " + tr("Permitir una vez"), callbackData: "perm:\(id):allow"), deny]]
+                    : [[deny]]
                 let sent = try? await self.client.sendMessage(chatID: owner, text: text, buttons: buttons)
                 await self.attach(messageID: sent?.last?.messageId, to: id)
                 try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
@@ -645,6 +653,11 @@ public actor TelegramBotService {
             return
         }
         let allow = parts[2] == "allow"
+        // Un botón «permitir» fabricado para una pregunta que solo se puede denegar desde aquí.
+        if allow, approvals[parts[1]]?.allowFromBot == false {
+            try? await client.answerCallbackQuery(id: query.id, text: tr("Esto solo se puede permitir en el Mac."))
+            return
+        }
         try? await client.answerCallbackQuery(id: query.id, text: allow ? tr("Permitido") : tr("Denegado"))
         await finishApproval(id: parts[1], result: allow ? .allowOnce : .deny,
                              note: allow ? "✅ " + tr("Permitido desde el bot.") : "⛔️ " + tr("Denegado desde el bot."))

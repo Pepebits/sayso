@@ -1585,3 +1585,6 @@
 "sin instalar" = "not installed";
 "Tareas y avisos en pausa" = "Tasks and alerts paused";
 "No se ejecutan las tareas programadas ni los avisos por mensajes. Se pausan y se reanudan también desde el bot con /pause y /resume." = "Scheduled tasks and message alerts do not run. You can also pause and resume them from the bot with /pause and /resume.";
+"Esto solo se puede permitir en el Mac." = "This can only be allowed on the Mac.";
+"Para permitirlo, revísalo en el Mac. Desde aquí solo se puede denegar." = "To allow it, review it on the Mac. From here it can only be denied.";
+"Revisa esto con calma" = "Review this carefully";

@@ -2922,9 +2922,24 @@ struct BotConfirmer: RemoteConfirming {
     func ask(id: String, request: ActionRequest, descriptor: ActionDescriptor?) async -> ConfirmationResult? {
         guard enabled(), let bot = await bot() else { return nil }
         let title = descriptor.map { tr($0.title) } ?? request.action.rawValue
-        var detail = redact(request.summary)
-        if let origin = request.origin { detail += "\n" + tr("Origen: %@", origin) }
-        return await bot.askApproval(id: id, title: title, detail: String(detail.prefix(1500)))
+        let (detail, complete) = Self.detail(request, redact: redact)
+        // Con un aviso del revisor, o si la acción no cabe entera, solo se puede permitir en el Mac.
+        let allow = complete && request.parameters[GuardPolicy.reasonKey] == nil
+        return await bot.askApproval(id: id, title: title, detail: detail, allowFromBot: allow)
+    }
+
+    /// Texto de la pregunta: el aviso del revisor primero, el resumen y cada parámetro entero.
+    /// `complete` es falso si algo se ha tenido que recortar.
+    static func detail(_ request: ActionRequest, redact: (String) -> String, limit: Int = 3000) -> (String, Bool) {
+        var lines: [String] = []
+        if let reason = request.parameters[GuardPolicy.reasonKey] { lines.append("⚠️ " + reason) }
+        lines.append(request.summary)
+        for (key, value) in request.parameters.sorted(by: { $0.key < $1.key }) where key != GuardPolicy.reasonKey {
+            lines.append("• " + tr(key) + ": " + value)
+        }
+        if let origin = request.origin { lines.append(tr("Origen: %@", origin)) }
+        let text = redact(lines.joined(separator: "\n"))
+        return text.count <= limit ? (text, true) : (String(text.prefix(limit)) + "…", false)
     }
 
     func withdraw(id: String, allowed: Bool) async {

@@ -79,4 +79,17 @@ final class BotApprovalTests: XCTestCase {
         XCTAssertNil(result)
         XCTAssertTrue(helper.calls(t, "sendMessage").isEmpty)
     }
+
+    func testRiskyQuestionsCanOnlyBeDeniedFromTheBot() async throws {
+        let t = helper.botTransport()
+        let service = service(t)
+        async let answer = service.askApproval(id: "r1", title: "T", detail: "⚠️ El revisor cree que no lo has pedido", allowFromBot: false)
+        let first = try await waitForQuestion(t)
+        XCTAssertEqual(first, "perm:r1:deny", "solo el botón de denegar")
+        // Un «permitir» fabricado no vale.
+        try await press(service, from: TelegramTests.owner, data: "perm:r1:allow", chat: TelegramTests.owner)
+        try await press(service, from: TelegramTests.owner, data: "perm:r1:deny", chat: TelegramTests.owner)
+        let result = await answer
+        XCTAssertEqual(result, .deny)
+    }
 }

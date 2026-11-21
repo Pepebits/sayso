@@ -1584,3 +1584,6 @@
 "sin instalar" = "sen instalar";
 "Tareas y avisos en pausa" = "Tarefas e avisos en pausa";
 "No se ejecutan las tareas programadas ni los avisos por mensajes. Se pausan y se reanudan también desde el bot con /pause y /resume." = "Non se executan as tarefas programadas nin os avisos por mensaxes. Tamén se pausan e se reanudan desde o bot con /pause e /resume.";
+"Esto solo se puede permitir en el Mac." = "Isto só se pode permitir no Mac.";
+"Para permitirlo, revísalo en el Mac. Desde aquí solo se puede denegar." = "Para permitilo, revísao no Mac. Desde aquí só se pode denegar.";
+"Revisa esto con calma" = "Revisa isto con calma";
