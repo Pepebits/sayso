@@ -26,9 +26,10 @@ public struct OpenAICompatibleProvider: ModelProvider {
         var headers: [String: String] = [:]
         if let apiKey, !apiKey.isEmpty { headers["Authorization"] = "Bearer \(apiKey)" }
         // Los modelos locales pueden tardar mucho en cargar.
-        let urlRequest = try URLRequest.postJSON(url, body: Self.body(for: request, disableThinking: disablesThinking),
+        let urlRequest = try URLRequest.postJSON(url, body: Self.body(for: request, disableThinking: disablesThinking,
+                                                                         completionTokens: usesCompletionTokens),
                                                  headers: headers, timeout: 300)
-        return try Self.parse(await transport.sendJSON(urlRequest))
+        return try Self.parse(await transport.sendModelJSON(urlRequest))
     }
 
     // MARK: Conversión
@@ -37,13 +38,17 @@ public struct OpenAICompatibleProvider: ModelProvider {
     /// con herramientas, exige devolverle su razonamiento en cada petición. Se desactiva.
     var disablesThinking: Bool { baseURL.host?.hasSuffix("deepseek.com") == true }
 
-    static func body(for request: ModelRequest, disableThinking: Bool = false) -> JSONValue {
+    /// OpenAI ya no acepta `max_tokens` en sus modelos de razonamiento (o1, o3, GPT-5…): usa
+    /// `max_completion_tokens`, que valen todos. El resto de compatibles sigue con `max_tokens`.
+    var usesCompletionTokens: Bool { baseURL.host == "api.openai.com" }
+
+    static func body(for request: ModelRequest, disableThinking: Bool = false, completionTokens: Bool = false) -> JSONValue {
         var messages: [JSONValue] = []
         if !request.system.isEmpty { messages.append(["role": "system", "content": .string(request.system)]) }
         for message in request.messages { messages.append(contentsOf: encode(message)) }
         var body: [String: JSONValue] = [
             "model": .string(request.model),
-            "max_tokens": .number(Double(request.maxTokens)),
+            (completionTokens ? "max_completion_tokens" : "max_tokens"): .number(Double(request.maxTokens)),
             "messages": .array(messages),
         ]
         if disableThinking { body["thinking"] = ["type": "disabled"] }

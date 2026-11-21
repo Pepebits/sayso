@@ -152,7 +152,64 @@ public enum ProviderError: Error, LocalizedError, Sendable, Equatable {
     }
 }
 
+/// Reintentos de una petición al modelo ante fallos pasajeros: saturación (429, 529), errores del
+/// servidor y cortes de red. Solo se repite la petición al modelo, nunca una herramienta: no se hace
+/// nada dos veces.
+public enum ModelRetry {
+    /// Esperas antes de cada reintento, en segundos (con un poco de azar para no ir a la vez).
+    static let delays: [Double] = [1, 3, 8]
+    /// Si el proveedor pide esperar más que esto, no compensa: se falla y se avisa.
+    static let maxRetryAfter: Double = 30
+    /// Escala de las esperas; los tests la ponen a 0.
+    nonisolated(unsafe) static var scale: Double = 1
+
+    static func isRetryable(status: Int) -> Bool {
+        [408, 409, 425, 429, 500, 502, 503, 504, 529].contains(status)
+    }
+
+    static func isRetryable(_ error: Error) -> Bool {
+        guard let error = error as? URLError else { return false }
+        return [.networkConnectionLost, .notConnectedToInternet, .cannotConnectToHost,
+                .cannotFindHost, .dnsLookupFailed, .secureConnectionFailed].contains(error.code)
+    }
+
+    /// Segundos que pide la cabecera `retry-after` (solo la forma en segundos).
+    static func retryAfter(_ response: HTTPURLResponse) -> Double? {
+        (response.value(forHTTPHeaderField: "retry-after")).flatMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+    }
+
+    static func wait(_ seconds: Double) async throws {
+        guard seconds * scale > 0 else { return }
+        try await Task.sleep(nanoseconds: UInt64(seconds * scale * 1_000_000_000))
+    }
+}
+
 extension HTTPTransport {
+    /// `sendJSON` con reintentos ante fallos pasajeros (para las peticiones al modelo).
+    func sendModelJSON(_ request: URLRequest) async throws -> JSONValue {
+        var attempt = 0
+        while true {
+            let delay = attempt < ModelRetry.delays.count ? ModelRetry.delays[attempt] : nil
+            do {
+                let (data, response) = try await send(request)
+                if (200..<300).contains(response.statusCode) {
+                    do { return try JSONValue.parse(data) } catch {
+                        throw ProviderError.invalidResponse("JSON no válido")
+                    }
+                }
+                let error = ProviderError.from(status: response.statusCode, body: data)
+                guard let delay, ModelRetry.isRetryable(status: response.statusCode) else { throw error }
+                let asked = ModelRetry.retryAfter(response)
+                if let asked, asked > ModelRetry.maxRetryAfter { throw error }
+                try await ModelRetry.wait(max(asked ?? 0, delay * Double.random(in: 0.8...1.2)))
+            } catch let error as URLError where ModelRetry.isRetryable(error) {
+                guard let delay else { throw error }
+                try await ModelRetry.wait(delay * Double.random(in: 0.8...1.2))
+            }
+            attempt += 1
+        }
+    }
+
     /// Envía y devuelve el JSON, o lanza `ProviderError` si el código no es 2xx.
     func sendJSON(_ request: URLRequest) async throws -> JSONValue {
         let (data, response) = try await send(request)

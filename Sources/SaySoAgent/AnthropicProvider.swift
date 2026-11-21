@@ -25,7 +25,7 @@ public struct AnthropicProvider: ModelProvider {
             "x-api-key": apiKey,
             "anthropic-version": "2023-06-01",
         ])
-        return try Self.parse(await transport.sendJSON(urlRequest))
+        return try Self.parse(await transport.sendModelJSON(urlRequest))
     }
 
     // MARK: Conversión

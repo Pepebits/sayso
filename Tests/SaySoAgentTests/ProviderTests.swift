@@ -276,3 +276,73 @@ final class TokenMeterTests: XCTestCase {
     }
 }
 
+
+final class OpenAITokenFieldTests: XCTestCase {
+    func testOpenAIUsesMaxCompletionTokens() async throws {
+        let request = ModelRequest(model: "m", system: "", messages: [ModelMessage(role: .user, content: [.text("hola")])], maxTokens: 100)
+        let ok = #"{"choices":[{"message":{"content":"Hola"},"finish_reason":"stop"}]}"#
+        for (base, field, other) in [("https://api.openai.com/v1", "max_completion_tokens", "max_tokens"),
+                                     ("https://openrouter.ai/api/v1", "max_tokens", "max_completion_tokens")] {
+            let t = FakeTransport(json: ok)
+            let p = OpenAICompatibleProvider(baseURL: URL(string: base)!, apiKey: "k", fullModel: "m", fastModel: "f", transport: t)
+            _ = try await p.complete(request)
+            XCTAssertEqual(t.bodies().first?[field]?.intValue, 100)
+            XCTAssertNil(t.bodies().first?[other])
+        }
+    }
+}
+
+final class ModelRetryTests: XCTestCase {
+    override func setUp() { ModelRetry.scale = 0 }
+    override func tearDown() { ModelRetry.scale = 1 }
+
+    private let ok = #"{"content":[{"type":"text","text":"Hola"}],"stop_reason":"end_turn"}"#
+    private func request() -> ModelRequest {
+        ModelRequest(model: "m", system: "", messages: [ModelMessage(role: .user, content: [.text("hola")])], tools: [], maxTokens: 100)
+    }
+
+    func testOverloadedIsRetriedUntilItWorks() async throws {
+        let calls = Locked(0)
+        let ok = self.ok
+        let transport = FakeTransport { _ in
+            let n = calls.update { $0 += 1; return $0 }
+            return n < 3 ? (529, Data(#"{"error":{"message":"Overloaded"}}"#.utf8)) : (200, Data(ok.utf8))
+        }
+        let p = AnthropicProvider(apiKey: "k", fullModel: "m", fastModel: "f", transport: transport)
+        let response = try await p.complete(request())
+        XCTAssertEqual(response.text, "Hola")
+        XCTAssertEqual(transport.requests.get().count, 3)
+    }
+
+    func testNetworkDropIsRetried() async throws {
+        let calls = Locked(0)
+        let ok = self.ok
+        let transport = FakeTransport { _ in
+            if calls.update({ $0 += 1; return $0 }) == 1 { throw URLError(.networkConnectionLost) }
+            return (200, Data(ok.utf8))
+        }
+        let p = AnthropicProvider(apiKey: "k", fullModel: "m", fastModel: "f", transport: transport)
+        _ = try await p.complete(request())
+        XCTAssertEqual(transport.requests.get().count, 2)
+    }
+
+    func testGivesUpAfterThreeRetriesAndKeepsTheError() async {
+        let transport = FakeTransport(status: 503, json: #"{"error":{"message":"down"}}"#)
+        let p = OpenAICompatibleProvider(baseURL: URL(string: "https://api.example.com/v1")!, apiKey: "k",
+                                         fullModel: "m", fastModel: "f", transport: transport)
+        do {
+            _ = try await p.complete(request())
+            XCTFail("debería fallar")
+        } catch {
+            XCTAssertEqual(error as? ProviderError, .http(status: 503, message: "down"))
+        }
+        XCTAssertEqual(transport.requests.get().count, 4)
+    }
+
+    func testClientErrorsAreNotRetried() async {
+        let transport = FakeTransport(status: 400, json: #"{"error":{"message":"bad"}}"#)
+        let p = AnthropicProvider(apiKey: "k", fullModel: "m", fastModel: "f", transport: transport)
+        _ = try? await p.complete(request())
+        XCTAssertEqual(transport.requests.get().count, 1)
+    }
+}
