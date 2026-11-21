@@ -185,7 +185,9 @@ final class TaskTests: XCTestCase {
         let sent = try XCTUnwrap(delivered.get().first)
         XCTAssertEqual(sent.0, 0, "va solo al usuario")
         XCTAssertTrue(sent.1.contains("Anna") && sent.1.contains("límite diario"))
-        XCTAssertTrue(AgentLoop.isIncomplete("He alcanzado el límite de pasos sin terminar la tarea."))
+        XCTAssertTrue(AgentLoop.isIncomplete(AgentLoop.stepLimitText))
+        XCTAssertTrue(AgentLoop.isIncomplete("Mitad del trabajo.\n\n(" + AgentLoop.stepLimitNote + ")"))
+        XCTAssertFalse(AgentLoop.isIncomplete("Te explico el límite de pasos del agente."))
         XCTAssertTrue(AgentLoop.isIncomplete("(Sin respuesta del modelo.)"))
         XCTAssertFalse(AgentLoop.isIncomplete("Buenos días, Anna"))
     }

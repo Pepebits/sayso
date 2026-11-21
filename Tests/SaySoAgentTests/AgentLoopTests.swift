@@ -208,6 +208,17 @@ final class HonestyTests: XCTestCase {
         XCTAssertFalse(AgentLoop.claimsAction("¿Quieres que se lo envíe ahora?"))
         XCTAssertFalse(AgentLoop.claimsAction("Tienes razón: no lo he enviado."))
         XCTAssertFalse(AgentLoop.claimsAction("Son las cinco y cuarto."))
+        XCTAssertFalse(AgentLoop.claimsAction("De hecho, mañana llueve."), "«de hecho» es una muletilla")
+    }
+
+    func testOnlyActionRequestsAreCheckedForFakeClaims() {
+        XCTAssertTrue(AgentLoop.requestsAction("Mándale a Anna que llego tarde"))
+        XCTAssertTrue(AgentLoop.requestsAction("busca una foto de un gatito"))
+        XCTAssertTrue(AgentLoop.requestsAction("Recuérdame mañana llamar al médico"))
+        XCTAssertTrue(AgentLoop.requestsAction("send it to Anna"))
+        XCTAssertFalse(AgentLoop.requestsAction("¡Qué lista eres!"))
+        XCTAssertFalse(AgentLoop.requestsAction("Gracias"))
+        XCTAssertFalse(AgentLoop.requestsAction("¿Cómo estás?"))
     }
 
     func testPromisesWithoutActingAreCaught() async throws {

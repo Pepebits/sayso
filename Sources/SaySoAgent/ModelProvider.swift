@@ -116,7 +116,7 @@ public enum ProviderError: Error, LocalizedError, Sendable, Equatable {
     public var errorDescription: String? {
         switch self {
         case let .missingKey(name):
-            return tr("Falta la clave de API (%@). Añádela en Ajustes → Cuentas.", "\(name)")
+            return tr("Falta la clave de API (%@). Añádela en SaySo → Modelo.", "\(name)")
         case let .http(status, message):
             let base: String
             switch status {

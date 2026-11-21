@@ -320,6 +320,9 @@ public final class AgentLoop: Sendable {
         // Un «sí, hazlo» a una oferta pendiente acaba en una acción: va al modelo completo, que es
         // el que llama a las herramientas en vez de volver a preguntar.
         let confirming = !tools.isEmpty && Self.confirmsOffer(userText, history: history)
+        // En una charla («¿qué tal?», «¡qué lista!») decir «listo» o «guardado» no es mentir: los
+        // reintentos y el aviso solo van cuando se pidió hacer algo.
+        let wantsAction = confirming || Self.requestsAction(userText)
         var model = useFastModel && !confirming ? provider.fastModel : provider.fullModel
         let context = ToolContext(chatID: chatID, origin: origin ?? "telegram:\(chatID)", recipients: recipients,
                                   recipientsPreapproved: recipientsPreapproved)
@@ -372,8 +375,8 @@ public final class AgentLoop: Sendable {
                     messages.append(.user(AgentPrompts.tryFirstNudge))
                     continue
                 }
-                if executed.isEmpty, failed.isEmpty, claimNudges < 2, !tools.isEmpty,
-                   Self.claimsAction(response.text) || Self.promisesAction(response.text) || Self.isPlaceholder(response.text) {
+                if executed.isEmpty, failed.isEmpty, claimNudges < 2, !tools.isEmpty, Self.isPlaceholder(response.text)
+                    || (wantsAction && (Self.claimsAction(response.text) || Self.promisesAction(response.text))) {
                     nudged = true
                     claimNudges += 1
                     diagnostics?("Aviso interno \(claimNudges): afirmó o anunció sin llamar a nada; reintento con \(provider.fullModel)")
@@ -421,9 +424,7 @@ public final class AgentLoop: Sendable {
         var text = Self.stripWarning(Self.stripActionMarker((answer ?? lastText)))
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if answer == nil {
-            text = text.isEmpty
-                ? Self.stepLimitText + " sin terminar la tarea. Dime si quieres que continúe."
-                : text + "\n\n(" + Self.stepLimitText + "; dime si quieres que continúe.)"
+            text = text.isEmpty ? Self.stepLimitText : text + "\n\n(" + Self.stepLimitNote + ")"
         } else if text.isEmpty {
             text = Self.noAnswerText
         }
@@ -431,7 +432,8 @@ public final class AgentLoop: Sendable {
         // escribe el modelo.
         // El historial guarda la respuesta sin el aviso: si lo viera, el modelo acabaría copiándolo.
         let stored = text
-        if executed.isEmpty, failed.isEmpty, answer != nil, !tools.isEmpty, Self.claimsAction(text) || Self.promisesAction(text) {
+        if executed.isEmpty, failed.isEmpty, answer != nil, !tools.isEmpty, wantsAction,
+           Self.claimsAction(text) || Self.promisesAction(text) {
             diagnostics?("La respuesta afirma o anuncia una acción que no se ha ejecutado; se avisa al usuario")
             text += "\n\n" + tr("Aviso de SaySo: en este turno no se ha ejecutado ninguna acción. Si esperabas que se hiciera algo, vuelve a pedirlo.")
         }
@@ -468,12 +470,15 @@ public final class AgentLoop: Sendable {
         return "\n\(markerPrefix) \(done)\(tail)]"
     }
 
-    static let stepLimitText = "He alcanzado el límite de pasos"
-    static let noAnswerText = "(Sin respuesta del modelo.)"
+    static var stepLimitText: String { tr("He alcanzado el límite de pasos sin terminar la tarea. Dime si quieres que continúe.") }
+    static var stepLimitNote: String { tr("He alcanzado el límite de pasos; dime si quieres que continúe.") }
+    static var noAnswerText: String { tr("(Sin respuesta del modelo.)") }
 
-    /// La respuesta no es un resultado: se quedó sin pasos o el modelo no dijo nada.
+    /// La respuesta no es un resultado: se quedó sin pasos o el modelo no dijo nada. Se reconoce
+    /// por los textos que pone SaySo, en el idioma de la app.
     public static func isIncomplete(_ text: String) -> Bool {
-        text.contains(stepLimitText) || text.trimmingCharacters(in: .whitespacesAndNewlines) == noAnswerText
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed == stepLimitText || trimmed == noAnswerText || trimmed.hasSuffix("(" + stepLimitNote + ")")
     }
 
     /// Quita el aviso de SaySo: de los turnos antiguos que lo guardaron y de lo que el modelo copie.
@@ -526,9 +531,19 @@ public final class AgentLoop: Sendable {
         return lower.range(of: pattern, options: .regularExpression) != nil
     }
 
+    /// El mensaje del usuario pide hacer algo (enviar, buscar, crear, recordar…), en español,
+    /// gallego o inglés. Una pregunta o un comentario sin verbos de acción es charla.
+    static func requestsAction(_ text: String) -> Bool {
+        // Sin tildes: «mándale», «recuérdame», «envíalo».
+        let lower = text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil).lowercased()
+        let pattern = #"\b(env[ií]\w*|mand\w*|reenv\w*|pas[aeá]\w*|busc\w*|busq\w*|investig\w*|mir[aeá]\w*|revis\w*|compr[ou]eb\w*|cre[ae]\w*|cri[ae]\w*|borr\w*|elimin\w*|quit\w*|program\w*|guard\w*|apunt\w*|anot\w*|recuerd\w*|record\w*|lembr\w*|pon\w*|p[oó]n\w*|escrib\w*|escribe|dil[eo]s?|dig[ae]\w*|haz\w*|hac\w*|fai|abr\w*|abre|compart\w*|sub[ei]\w*|descarg\w*|añad\w*|engad\w*|cambi\w*|actualiz\w*|respond\w*|contest\w*|llam\w*|chama\w*|avis\w*|traduc\w*|gener\w*|dibuj\w*|calcul\w*|reserv\w*|organiz\w*|ejecut\w*|lanz\w*|instal\w*|prepar\w*|resum\w*|olvid\w*|send\w*|search\w*|find|look|check\w*|create\w*|delete\w*|remove\w*|schedule\w*|save\w*|remind\w*|remember|write|tell|make|open|forward\w*|share\w*|reply|run|install\w*)\b"#
+        return lower.range(of: pattern, options: .regularExpression) != nil
+    }
+
     /// La respuesta afirma que algo ya se ha hecho (enviado, creado, borrado…).
     static func claimsAction(_ text: String) -> Bool {
-        let lower = text.lowercased()
+        // «De hecho» es una muletilla, no un «hecho».
+        let lower = text.lowercased().replacingOccurrences(of: "de hecho", with: "")
         // Preguntar o proponer no es afirmar: «¿se lo envío?», «no lo he enviado».
         let negations = ["no lo he", "no se ha", "no he ", "no se lo he", "no pude", "no he podido", "no puedo",
                          "haven't", "have not", "couldn't", "not sent", "wasn't"]
