@@ -6,6 +6,7 @@ struct ModelScreen: View {
     let model: AppModel
     /// Plantilla con la que se abre la hoja; `nil` si está cerrada.
     @State private var adding: ProviderPreset?
+    @State private var removing: UUID?
 
     private var accountsTag: String {
         switch model.accounts.count {
@@ -192,8 +193,12 @@ struct ModelScreen: View {
                         .accessibilityLabel(tr("Usar %@", account.name))
                 }
                 Spacer(minLength: 0)
-                BlockButton("Quitar", kind: .destructive, compact: true) { model.actions?.removeAccount(id: account.id) }
+                BlockButton("Quitar", kind: .destructive, compact: true) { removing = account.id }
                     .accessibilityLabel(tr("Quitar %@", account.name))
+                    .confirmRemoval(isPresented: Binding(get: { removing == account.id }, set: { if !$0 { removing = nil } }),
+                                    title: tr("¿Quitar la cuenta «%@»?", account.name),
+                                    message: tr("Su clave se borra del Llavero. Para volver a usarla tendrás que pegarla otra vez."),
+                                    button: tr("Quitar")) { model.actions?.removeAccount(id: account.id) }
             }
             .padding(.horizontal, Theme.Space.m)
             .padding(.vertical, Theme.Space.s)

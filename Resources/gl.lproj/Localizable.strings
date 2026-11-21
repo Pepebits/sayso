@@ -154,7 +154,7 @@
 "Detenido" = "Detido";
 "Dicta en cualquier app" = "Dita en calquera app";
 "Dictado" = "Ditado";
-"Dictado en cualquier app y un agente que trabaja por ti desde Telegram." = "Ditado en calquera app e un axente que traballa por ti desde Telegram.";
+"Un agente que trabaja por ti: háblale con un atajo desde cualquier app o escríbele por Telegram." = "Un axente que traballa por ti: fálalle cun atallo desde calquera app ou escríbelle por Telegram.";
 "Dictado en espera" = "Ditado en espera";
 "Dictado manos libres" = "Ditado mans libres";
 "Dictado por voz" = "Ditado por voz";
@@ -184,7 +184,7 @@
 "El código ha caducado. Vuelve a empezar." = "O código caducou. Volve comezar.";
 "El código no es correcto." = "O código non é correcto.";
 "El dictado necesita oírte, detectar la tecla ⌥ y escribir donde está el cursor." = "O ditado necesita oírte, detectar a tecla ⌥ e escribir onde está o cursor.";
-"El dictado no funcionará hasta concederlos. Están en Dictado." = "O ditado non funcionará ata concedelos. Están en Ditado.";
+"El atajo no funcionará hasta concederlos. Están en Dictado." = "O atallo non funcionará ata concedelos. Están en Ditado.";
 "El escritorio no arrancó: " = "O escritorio non arrancou: ";
 "El modelo no ha devuelto nada para «%@»." = "O modelo non devolveu nada para «%@».";
 "El modelo tardó demasiado en responder." = "O modelo tardou demasiado en responder.";
@@ -251,7 +251,7 @@
 "Falta el secreto %@. Guárdalo en Secretos y vuelve a conectar." = "Falta o segredo %@. Gárdao en Segredos e volve conectar.";
 "Falta emparejar" = "Falta emparellar";
 "Falta emparejarlo contigo." = "Falta emparellalo contigo.";
-"Falta la clave de API (%@). Añádela en Ajustes → Cuentas." = "Falta a clave de API (%@). Engádea en Axustes → Contas.";
+"Falta la clave de API (%@). Añádela en SaySo → Modelo." = "Falta a clave de API (%@). Engádea en SaySo → Modelo.";
 "GitHub" = "GitHub";
 "Guardadas" = "Gardadas";
 "Guardadas en el Llavero de este Mac. Se eliminan de las solicitudes al modelo." = "Gardadas no Chaveiro deste Mac. Elimínanse das solicitudes ao modelo.";
@@ -487,11 +487,11 @@
 "Si concedes un permiso en Ajustes del Sistema, puede que tengas que reabrir SaySo." = "Se concedes un permiso en Axustes do Sistema, pode que teñas que reabrir SaySo.";
 "Si lo apagas, el agente no hará nada en Telegram salvo responderte." = "Se o apagas, o axente non fará nada en Telegram salvo responderche.";
 "Sin actividad" = "Sen actividade";
-"Sin bot no hay forma de hablar con el agente. Está en Telegram." = "Sen bot non hai forma de falar co axente. Está en Telegram.";
+"Sin bot solo puedes hablarle con el atajo, desde este Mac. Está en Telegram." = "Sen bot só podes falarlle co atallo, desde este Mac. Está en Telegram.";
 "Sin carpetas compartidas con tu Mac. Se apaga sola tras 10 minutos sin uso y vuelve a arrancar cuando hace falta." = "Sen cartafoles compartidos co teu Mac. Apágase soa tras 10 minutos sen uso e volve arrancar cando fai falta.";
 "Sin conectar" = "Sen conectar";
 "Sin configurar" = "Sen configurar";
-"Sin cuenta, el dictado funciona igual; solo faltan el agente y «Corregir con IA»." = "Sen conta, o ditado funciona igual; só faltan o axente e «Corrixir con IA».";
+"Sin cuenta no hay agente y el atajo no hace nada. «Dictar texto», en Dictado, sí funciona: deja el texto en el portapapeles." = "Sen conta non hai axente e o atallo non fai nada. «Ditar texto», en Ditado, si funciona: deixa o texto no portapapeis.";
 "Sin cuentas de IA" = "Sen contas de IA";
 "Sin definir" = "Sen definir";
 "Sin instalar" = "Sen instalar";
@@ -629,7 +629,7 @@
 "La conexión con Telegram se cerró. Empieza de nuevo." = "A conexión con Telegram pechouse. Comeza de novo.";
 "Un bot propio para hablar con el agente y, si quieres, tu cuenta para que pueda leer tus chats." = "Un bot propio para falar co axente e, se queres, a túa conta para que poida ler os teus chats.";
 "Tu bot" = "O teu bot";
-"Es por donde hablas con el agente, también desde el móvil. Sin bot no puede recibir tus mensajes." = "É por onde falas co axente, tamén desde o móbil. Sen bot non pode recibir as túas mensaxes.";
+"Es por donde le escribes al agente, también desde el móvil. Sin bot, solo le hablas con el atajo en este Mac." = "É por onde lle escribes ao axente, tamén desde o móbil. Sen bot, só lle falas co atallo neste Mac.";
 "Tu cuenta ya está conectada. Falta el bot, que es por donde hablas con el agente. Está en Telegram." = "A túa conta xa está conectada. Falta o bot, que é por onde falas co axente. Está en Telegram.";
 "%@ y tu cuenta" = "%@ e a túa conta";
 "Cuenta conectada · error del bot" = "Conta conectada · erro do bot";
@@ -1591,3 +1591,17 @@
 "No se ha enviado nada a %@: %@" = "Non se enviou nada a %@: %@";
 "Sigo con lo anterior (quizá esperando tu permiso). Contesto a esto en cuanto termine; /status te dice cómo va." = "Sigo co anterior (quizais agardando o teu permiso). Contesto a isto en canto remate; /status dite como vai.";
 "No se ha podido enviar la respuesta al bot: %@" = "Non se puido enviar a resposta ao bot: %@";
+"El agente está detenido. Reanúdalo en Inicio." = "O axente está detido. Reanúdao en Inicio.";
+"El agente está en pausa mientras el Mac está bloqueado." = "O axente está en pausa mentres o Mac está bloqueado.";
+"El agente ha tardado demasiado en responder. Vuelve a intentarlo." = "O axente tardou demasiado en responder. Volve intentalo.";
+"He alcanzado el límite de pasos sin terminar la tarea. Dime si quieres que continúe." = "Cheguei ao límite de pasos sen rematar a tarefa. Dime se queres que continúe.";
+"He alcanzado el límite de pasos; dime si quieres que continúe." = "Cheguei ao límite de pasos; dime se queres que continúe.";
+"(Sin respuesta del modelo.)" = "(Sen resposta do modelo.)";
+"¿Quitar la cuenta «%@»?" = "Quitar a conta «%@»?";
+"Su clave se borra del Llavero. Para volver a usarla tendrás que pegarla otra vez." = "A súa clave bórrase do Chaveiro. Para volver usala terás que pegala outra vez.";
+"¿Olvidar esta nota?" = "Esquecer esta nota?";
+"¿Olvidar %@?" = "Esquecer %@?";
+"El valor se borra del Llavero y no se puede recuperar. Lo que lo use dejará de funcionar hasta que lo guardes otra vez." = "O valor bórrase do Chaveiro e non se pode recuperar. O que o use deixará de funcionar ata que o gardes outra vez.";
+"¿Eliminar esta tarea?" = "Eliminar esta tarefa?";
+"¿Desconectar el bot?" = "Desconectar o bot?";
+"Se borran su token y el emparejamiento. Para volver a usarlo tendrás que pegar el token y emparejarlo otra vez." = "Bórranse o seu token e o emparellamento. Para volver usalo terás que pegar o token e emparellalo outra vez.";

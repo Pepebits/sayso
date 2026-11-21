@@ -803,3 +803,17 @@ public struct RuleSegmented: View {
                        options: PermissionRule.allCases.map { ($0, $0.title) }, compact: true)
     }
 }
+
+extension View {
+    /// Pide confirmación antes de borrar algo que no se recupera con un clic (una clave del
+    /// Llavero, una nota, una tarea…). Se enseña mientras `isPresented` es verdadero.
+    func confirmRemoval(isPresented: Binding<Bool>, title: String, message: String,
+                        button: String, action: @escaping () -> Void) -> some View {
+        confirmationDialog(title, isPresented: isPresented, titleVisibility: .visible) {
+            Button(button, role: .destructive, action: action)
+            Button(tr("Cancelar"), role: .cancel) {}
+        } message: {
+            Text(message)
+        }
+    }
+}

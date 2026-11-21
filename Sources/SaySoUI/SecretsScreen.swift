@@ -18,6 +18,7 @@ struct SecretsScreen: View {
     }
 
     @State private var sheet: SheetTarget?
+    @State private var forgetting: String?
 
     private var requested: [SecretMeta] { model.secrets.filter { $0.status == .requested } }
     private var stored: [SecretMeta] { model.secrets.filter { $0.status == .stored } }
@@ -203,10 +204,12 @@ struct SecretsScreen: View {
                 BlockButton("Cambiar", compact: true) { sheet = .requested(meta) }
                     .accessibilityLabel(tr("Cambiar el valor de %@", meta.name))
                 Spacer(minLength: 0)
-                BlockButton("Olvidar", kind: .destructive, compact: true) {
-                    model.actions?.forgetSecret(name: meta.name)
-                }
+                BlockButton("Olvidar", kind: .destructive, compact: true) { forgetting = meta.name }
                 .accessibilityLabel(tr("Olvidar %@", meta.name))
+                .confirmRemoval(isPresented: Binding(get: { forgetting == meta.name }, set: { if !$0 { forgetting = nil } }),
+                                title: tr("¿Olvidar %@?", meta.name),
+                                message: tr("El valor se borra del Llavero y no se puede recuperar. Lo que lo use dejará de funcionar hasta que lo guardes otra vez."),
+                                button: tr("Olvidar")) { model.actions?.forgetSecret(name: meta.name) }
             }
             .padding(.horizontal, Theme.Space.m)
             .padding(.vertical, Theme.Space.s)

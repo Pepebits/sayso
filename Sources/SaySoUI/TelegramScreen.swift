@@ -76,6 +76,7 @@ struct TelegramScreen: View {
     let model: AppModel
     @State private var tab: Tab = .permissions
     @State private var token = ""
+    @State private var confirmingDisconnect = false
 
     /// Bot emparejado y cuenta con sesión: los dos caben como paneles gemelos.
     private var compactConnection: Bool {
@@ -123,6 +124,9 @@ struct TelegramScreen: View {
             case .activity: activity
             }
         }
+        .confirmRemoval(isPresented: $confirmingDisconnect, title: tr("¿Desconectar el bot?"),
+                        message: tr("Se borran su token y el emparejamiento. Para volver a usarlo tendrás que pegar el token y emparejarlo otra vez."),
+                        button: tr("Desconectar")) { model.actions?.disconnectTelegram() }
     }
 
     private var botPanel: some View {
@@ -154,7 +158,7 @@ struct TelegramScreen: View {
             HStack {
                 MonoTag(text: tr("canal de conversación"))
                 Spacer(minLength: 0)
-                BlockButton("Desconectar", kind: .destructive, compact: true) { model.actions?.disconnectTelegram() }
+                BlockButton("Desconectar", kind: .destructive, compact: true) { confirmingDisconnect = true }
                     .accessibilityLabel(tr("Desconectar el bot"))
             }
         }
@@ -237,9 +241,7 @@ struct TelegramScreen: View {
                     } else {
                         StatusTag("Conectado", kind: .active)
                     }
-                    BlockButton("Desconectar", kind: .destructive, compact: true) {
-                        model.actions?.disconnectTelegram()
-                    }
+                    BlockButton("Desconectar", kind: .destructive, compact: true) { confirmingDisconnect = true }
                 }
                 .padding(.horizontal, Theme.Space.l)
                 .padding(.vertical, Theme.Space.m)

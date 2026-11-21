@@ -153,7 +153,7 @@
 "Detenido" = "Stopped";
 "Dicta en cualquier app" = "Dictate in any app";
 "Dictado" = "Dictation";
-"Dictado en cualquier app y un agente que trabaja por ti desde Telegram." = "Dictation in any app, and an agent that works for you from Telegram.";
+"Un agente que trabaja por ti: háblale con un atajo desde cualquier app o escríbele por Telegram." = "An agent that works for you: talk to it with a shortcut from any app, or message it on Telegram.";
 "Dictado en espera" = "Dictation on standby";
 "Dictado manos libres" = "Hands-free dictation";
 "Dictado por voz" = "Voice dictation";
@@ -183,7 +183,7 @@
 "El código ha caducado. Vuelve a empezar." = "The code has expired. Start again.";
 "El código no es correcto." = "The code is incorrect.";
 "El dictado necesita oírte, detectar la tecla ⌥ y escribir donde está el cursor." = "Dictation needs to hear you, detect the ⌥ key and type where the cursor is.";
-"El dictado no funcionará hasta concederlos. Están en Dictado." = "Dictation won’t work until you grant them. They’re in Dictation.";
+"El atajo no funcionará hasta concederlos. Están en Dictado." = "The shortcut won’t work until you grant them. They’re in Dictation.";
 "El escritorio no arrancó: " = "The desktop didn’t start:";
 "El modelo no ha devuelto nada para «%@»." = "The model returned nothing for “%@”.";
 "El modelo tardó demasiado en responder." = "The model took too long to respond.";
@@ -250,7 +250,7 @@
 "Falta el secreto %@. Guárdalo en Secretos y vuelve a conectar." = "The %@ secret is missing. Save it in Secrets and connect again.";
 "Falta emparejar" = "Not paired yet";
 "Falta emparejarlo contigo." = "It still needs to be paired with you.";
-"Falta la clave de API (%@). Añádela en Ajustes → Cuentas." = "The API key (%@) is missing. Add it in Settings → Accounts.";
+"Falta la clave de API (%@). Añádela en SaySo → Modelo." = "The API key is missing (%@). Add it in SaySo → Model.";
 "GitHub" = "GitHub";
 "Guardadas" = "Saved";
 "Guardadas en el Llavero de este Mac. Se eliminan de las solicitudes al modelo." = "Stored in this Mac’s Keychain. They’re removed from requests to the model.";
@@ -486,11 +486,11 @@
 "Si concedes un permiso en Ajustes del Sistema, puede que tengas que reabrir SaySo." = "If you grant a permission in System Settings, you may need to reopen SaySo.";
 "Si lo apagas, el agente no hará nada en Telegram salvo responderte." = "If you turn this off, the agent won’t do anything in Telegram except reply to you.";
 "Sin actividad" = "No activity";
-"Sin bot no hay forma de hablar con el agente. Está en Telegram." = "Without a bot there’s no way to talk to the agent. It’s in Telegram.";
+"Sin bot solo puedes hablarle con el atajo, desde este Mac. Está en Telegram." = "Without a bot you can only talk to it with the shortcut, on this Mac. It’s in Telegram.";
 "Sin carpetas compartidas con tu Mac. Se apaga sola tras 10 minutos sin uso y vuelve a arrancar cuando hace falta." = "No folders shared with your Mac. It turns off after 10 minutes without use and starts again when needed.";
 "Sin conectar" = "Not connected";
 "Sin configurar" = "Not set up";
-"Sin cuenta, el dictado funciona igual; solo faltan el agente y «Corregir con IA»." = "Without an account, dictation works the same; you just won’t have the agent and “Fix with AI”.";
+"Sin cuenta no hay agente y el atajo no hace nada. «Dictar texto», en Dictado, sí funciona: deja el texto en el portapapeles." = "Without an account there’s no agent and the shortcut does nothing. “Dictate text”, in Dictation, still works: it puts the text on the clipboard.";
 "Sin cuentas de IA" = "No AI accounts";
 "Sin definir" = "Not set";
 "Sin instalar" = "Not installed";
@@ -628,7 +628,7 @@
 "La conexión con Telegram se cerró. Empieza de nuevo." = "The connection to Telegram was closed. Start again.";
 "Un bot propio para hablar con el agente y, si quieres, tu cuenta para que pueda leer tus chats." = "Your own bot to talk to the agent and, if you like, your account so it can read your chats.";
 "Tu bot" = "Your bot";
-"Es por donde hablas con el agente, también desde el móvil. Sin bot no puede recibir tus mensajes." = "This is how you talk to the agent, from your phone too. Without a bot it can’t receive your messages.";
+"Es por donde le escribes al agente, también desde el móvil. Sin bot, solo le hablas con el atajo en este Mac." = "It’s how you message the agent, from your phone too. Without a bot, you can only talk to it with the shortcut on this Mac.";
 "Tu cuenta ya está conectada. Falta el bot, que es por donde hablas con el agente. Está en Telegram." = "Your account is already connected. The bot is still missing, and it’s how you talk to the agent. It’s in Telegram.";
 "%@ y tu cuenta" = "%@ and your account";
 "Cuenta conectada · error del bot" = "Account connected · bot error";
@@ -1592,3 +1592,17 @@
 "No se ha enviado nada a %@: %@" = "Nothing was sent to %@: %@";
 "Sigo con lo anterior (quizá esperando tu permiso). Contesto a esto en cuanto termine; /status te dice cómo va." = "Still working on the previous request (maybe waiting for your permission). I'll answer this as soon as it's done; /status tells you how it's going.";
 "No se ha podido enviar la respuesta al bot: %@" = "Couldn't send the reply to the bot: %@";
+"El agente está detenido. Reanúdalo en Inicio." = "The agent is stopped. Resume it in Home.";
+"El agente está en pausa mientras el Mac está bloqueado." = "The agent is paused while the Mac is locked.";
+"El agente ha tardado demasiado en responder. Vuelve a intentarlo." = "The agent took too long to answer. Try again.";
+"He alcanzado el límite de pasos sin terminar la tarea. Dime si quieres que continúe." = "I reached the step limit without finishing the task. Tell me if you want me to continue.";
+"He alcanzado el límite de pasos; dime si quieres que continúe." = "I reached the step limit; tell me if you want me to continue.";
+"(Sin respuesta del modelo.)" = "(No answer from the model.)";
+"¿Quitar la cuenta «%@»?" = "Remove the “%@” account?";
+"Su clave se borra del Llavero. Para volver a usarla tendrás que pegarla otra vez." = "Its key is deleted from the Keychain. To use it again you’ll have to paste it again.";
+"¿Olvidar esta nota?" = "Forget this note?";
+"¿Olvidar %@?" = "Forget %@?";
+"El valor se borra del Llavero y no se puede recuperar. Lo que lo use dejará de funcionar hasta que lo guardes otra vez." = "The value is deleted from the Keychain and can’t be recovered. Whatever uses it will stop working until you save it again.";
+"¿Eliminar esta tarea?" = "Delete this task?";
+"¿Desconectar el bot?" = "Disconnect the bot?";
+"Se borran su token y el emparejamiento. Para volver a usarlo tendrás que pegar el token y emparejarlo otra vez." = "Its token and pairing are deleted. To use it again you’ll have to paste the token and pair it again.";

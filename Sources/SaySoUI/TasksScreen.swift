@@ -6,6 +6,7 @@ struct TasksScreen: View {
     let model: AppModel
     @State private var draft = TaskDraft()
     @State private var editing: ScheduledTask?
+    @State private var deleting: Int64?
 
     /// «Próxima: en 2 horas», con la tarea activa que antes toca.
     private var nextTag: String? {
@@ -274,10 +275,11 @@ struct TasksScreen: View {
                         BlockButton("Editar", systemImage: "pencil", compact: true) { editing = task }
                             .accessibilityLabel(tr("Editar tarea: %@", task.instruction))
                         Spacer(minLength: 0)
-                        BlockButton("Eliminar", kind: .destructive, compact: true) {
-                            model.actions?.deleteTask(id: id)
-                        }
+                        BlockButton("Eliminar", kind: .destructive, compact: true) { deleting = id }
                         .accessibilityLabel(tr("Eliminar tarea: %@", task.instruction))
+                        .confirmRemoval(isPresented: Binding(get: { deleting == id }, set: { if !$0 { deleting = nil } }),
+                                        title: tr("¿Eliminar esta tarea?"), message: String(task.instruction.prefix(200)),
+                                        button: tr("Eliminar")) { model.actions?.deleteTask(id: id) }
                     }
                 }
             }

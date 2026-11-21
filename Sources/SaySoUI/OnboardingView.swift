@@ -23,7 +23,7 @@ enum OnboardingStep: Int, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .welcome: return "Dictado en cualquier app y un agente que trabaja por ti desde Telegram."
+        case .welcome: return "Un agente que trabaja por ti: háblale con un atajo desde cualquier app o escríbele por Telegram."
         case .permissions: return "Para hablarle al agente, SaySo necesita oírte y detectar tu atajo de teclado."
         case .account: return "El agente piensa con el modelo que tú elijas. La clave se guarda en el Llavero."
         case .telegram: return "Un bot propio para hablar con el agente y, si quieres, tu cuenta para que pueda leer tus chats."
@@ -241,7 +241,7 @@ struct OnboardingView: View {
                     }
                 }
             }
-            InlineNote("Sin cuenta, el dictado funciona igual; solo faltan el agente y «Corregir con IA».",
+            InlineNote("Sin cuenta no hay agente y el atajo no hace nada. «Dictar texto», en Dictado, sí funciona: deja el texto en el portapapeles.",
                        systemImage: "info.circle")
                 .padding(.horizontal, 2)
         }
@@ -250,7 +250,7 @@ struct OnboardingView: View {
     private var telegram: some View {
         VStack(alignment: .leading, spacing: Theme.Space.xl) {
             SettingsSection("Tu bot",
-                            footer: "Es por donde hablas con el agente, también desde el móvil. Sin bot no puede recibir tus mensajes.") {
+                            footer: "Es por donde le escribes al agente, también desde el móvil. Sin bot, solo le hablas con el atajo en este Mac.") {
                 telegramBot
             }
             // La misma sección que la pantalla Telegram: iniciar sesión aquí o allí es lo mismo.
@@ -425,12 +425,12 @@ struct OnboardingView: View {
 
     private func pendingHint(_ item: OnboardingStep) -> String {
         switch item {
-        case .permissions: return "El dictado no funcionará hasta concederlos. Están en Dictado."
+        case .permissions: return "El atajo no funcionará hasta concederlos. Están en Dictado."
         case .account: return "El agente no puede responder sin una. Está en Modelo."
         case .telegram:
             return model.telegramUser.isReady
                 ? "Tu cuenta ya está conectada. Falta el bot, que es por donde hablas con el agente. Está en Telegram."
-                : "Sin bot no hay forma de hablar con el agente. Está en Telegram."
+                : "Sin bot solo puedes hablarle con el atajo, desde este Mac. Está en Telegram."
         case .computer: return "Opcional. Está en Ordenador."
         default: return ""
         }

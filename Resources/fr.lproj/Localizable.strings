@@ -154,7 +154,7 @@
 "Detenido" = "Arrêté";
 "Dicta en cualquier app" = "Dictez dans n’importe quelle app";
 "Dictado" = "Dictée";
-"Dictado en cualquier app y un agente que trabaja por ti desde Telegram." = "La dictée dans n’importe quelle app et un agent qui travaille pour vous depuis Telegram.";
+"Un agente que trabaja por ti: háblale con un atajo desde cualquier app o escríbele por Telegram." = "Un agent qui travaille pour vous : parlez-lui avec un raccourci depuis n’importe quelle app ou écrivez-lui sur Telegram.";
 "Dictado en espera" = "Dictée en attente";
 "Dictado manos libres" = "Dictée mains libres";
 "Dictado por voz" = "Dictée vocale";
@@ -184,7 +184,7 @@
 "El código ha caducado. Vuelve a empezar." = "Le code a expiré. Recommencez.";
 "El código no es correcto." = "Le code est incorrect.";
 "El dictado necesita oírte, detectar la tecla ⌥ y escribir donde está el cursor." = "La dictée doit vous entendre, détecter la touche ⌥ et écrire à l’emplacement du curseur.";
-"El dictado no funcionará hasta concederlos. Están en Dictado." = "La dictée ne fonctionnera pas tant qu’elles ne seront pas accordées. C’est dans Dictée.";
+"El atajo no funcionará hasta concederlos. Están en Dictado." = "Le raccourci ne fonctionnera pas tant que vous ne les aurez pas accordées. C’est dans Dictée.";
 "El escritorio no arrancó: " = "Le bureau n’a pas démarré :";
 "El modelo no ha devuelto nada para «%@»." = "Le modèle n’a rien renvoyé pour « %@ ».";
 "El modelo tardó demasiado en responder." = "Le modèle a mis trop de temps à répondre.";
@@ -251,7 +251,7 @@
 "Falta el secreto %@. Guárdalo en Secretos y vuelve a conectar." = "Le secret %@ est manquant. Enregistrez-le dans Secrets et reconnectez-vous.";
 "Falta emparejar" = "Jumelage requis";
 "Falta emparejarlo contigo." = "Il reste à le jumeler avec vous.";
-"Falta la clave de API (%@). Añádela en Ajustes → Cuentas." = "La clé d’API (%@) est manquante. Ajoutez-la dans Réglages → Comptes.";
+"Falta la clave de API (%@). Añádela en SaySo → Modelo." = "La clé d’API manque (%@). Ajoutez-la dans SaySo → Modèle.";
 "GitHub" = "GitHub";
 "Guardadas" = "Enregistrées";
 "Guardadas en el Llavero de este Mac. Se eliminan de las solicitudes al modelo." = "Conservées dans le Trousseau de ce Mac. Elles sont retirées des requêtes envoyées au modèle.";
@@ -487,11 +487,11 @@
 "Si concedes un permiso en Ajustes del Sistema, puede que tengas que reabrir SaySo." = "Si vous accordez une autorisation dans Réglages Système, vous devrez peut-être rouvrir SaySo.";
 "Si lo apagas, el agente no hará nada en Telegram salvo responderte." = "Si vous le désactivez, l’agent ne fera rien dans Telegram, à part vous répondre.";
 "Sin actividad" = "Aucune activité";
-"Sin bot no hay forma de hablar con el agente. Está en Telegram." = "Sans bot, impossible de parler à l’agent. C’est dans Telegram.";
+"Sin bot solo puedes hablarle con el atajo, desde este Mac. Está en Telegram." = "Sans bot, vous ne pouvez lui parler qu’avec le raccourci, sur ce Mac. C’est dans Telegram.";
 "Sin carpetas compartidas con tu Mac. Se apaga sola tras 10 minutos sin uso y vuelve a arrancar cuando hace falta." = "Aucun dossier partagé avec votre Mac. Elle s’éteint seule après 10 minutes d’inactivité et redémarre au besoin.";
 "Sin conectar" = "Non connecté";
 "Sin configurar" = "Non configuré";
-"Sin cuenta, el dictado funciona igual; solo faltan el agente y «Corregir con IA»." = "Sans compte, la dictée fonctionne de la même façon ; seuls l’agent et « Corriger avec l’IA » manquent.";
+"Sin cuenta no hay agente y el atajo no hace nada. «Dictar texto», en Dictado, sí funciona: deja el texto en el portapapeles." = "Sans compte, il n’y a pas d’agent et le raccourci ne fait rien. « Dicter du texte », dans Dictée, fonctionne : le texte va dans le presse-papiers.";
 "Sin cuentas de IA" = "Aucun compte d’IA";
 "Sin definir" = "Non défini";
 "Sin instalar" = "Non installée";
@@ -629,7 +629,7 @@
 "La conexión con Telegram se cerró. Empieza de nuevo." = "La connexion à Telegram a été fermée. Recommencez.";
 "Un bot propio para hablar con el agente y, si quieres, tu cuenta para que pueda leer tus chats." = "Un bot à vous pour parler à l’agent et, si vous le souhaitez, votre compte pour qu’il puisse lire vos chats.";
 "Tu bot" = "Votre bot";
-"Es por donde hablas con el agente, también desde el móvil. Sin bot no puede recibir tus mensajes." = "C’est par là que vous parlez à l’agent, y compris sur mobile. Sans bot, il ne peut pas recevoir vos messages.";
+"Es por donde le escribes al agente, también desde el móvil. Sin bot, solo le hablas con el atajo en este Mac." = "C’est là que vous écrivez à l’agent, depuis votre téléphone aussi. Sans bot, vous ne lui parlez qu’avec le raccourci sur ce Mac.";
 "Tu cuenta ya está conectada. Falta el bot, que es por donde hablas con el agente. Está en Telegram." = "Votre compte est déjà connecté. Il manque le bot, par lequel vous parlez à l’agent. C’est dans Telegram.";
 "%@ y tu cuenta" = "%@ et votre compte";
 "Cuenta conectada · error del bot" = "Compte connecté · erreur du bot";
@@ -1582,3 +1582,17 @@
 "No se ha enviado nada a %@: %@" = "Rien n’a été envoyé à %@ : %@";
 "Sigo con lo anterior (quizá esperando tu permiso). Contesto a esto en cuanto termine; /status te dice cómo va." = "Je termine la demande précédente (peut-être en attente de votre autorisation). Je réponds à ceci dès que c’est fini ; /status vous dit où j’en suis.";
 "No se ha podido enviar la respuesta al bot: %@" = "Impossible d’envoyer la réponse au bot : %@";
+"El agente está detenido. Reanúdalo en Inicio." = "L’agent est arrêté. Relancez-le dans Accueil.";
+"El agente está en pausa mientras el Mac está bloqueado." = "L’agent est en pause tant que le Mac est verrouillé.";
+"El agente ha tardado demasiado en responder. Vuelve a intentarlo." = "L’agent a mis trop de temps à répondre. Réessayez.";
+"He alcanzado el límite de pasos sin terminar la tarea. Dime si quieres que continúe." = "J’ai atteint la limite d’étapes sans terminer la tâche. Dites-moi si vous voulez que je continue.";
+"He alcanzado el límite de pasos; dime si quieres que continúe." = "J’ai atteint la limite d’étapes ; dites-moi si vous voulez que je continue.";
+"(Sin respuesta del modelo.)" = "(Pas de réponse du modèle.)";
+"¿Quitar la cuenta «%@»?" = "Retirer le compte « %@ » ?";
+"Su clave se borra del Llavero. Para volver a usarla tendrás que pegarla otra vez." = "Sa clé est supprimée du trousseau. Pour la réutiliser, vous devrez la coller à nouveau.";
+"¿Olvidar esta nota?" = "Oublier cette note ?";
+"¿Olvidar %@?" = "Oublier %@ ?";
+"El valor se borra del Llavero y no se puede recuperar. Lo que lo use dejará de funcionar hasta que lo guardes otra vez." = "La valeur est supprimée du trousseau et ne peut pas être récupérée. Ce qui l’utilise cessera de fonctionner jusqu’à ce que vous l’enregistriez à nouveau.";
+"¿Eliminar esta tarea?" = "Supprimer cette tâche ?";
+"¿Desconectar el bot?" = "Déconnecter le bot ?";
+"Se borran su token y el emparejamiento. Para volver a usarlo tendrás que pegar el token y emparejarlo otra vez." = "Son jeton et l’association sont supprimés. Pour le réutiliser, vous devrez coller le jeton et l’associer à nouveau.";

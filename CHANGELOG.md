@@ -6,10 +6,30 @@ All notable changes to SaySo are documented here. The format follows
 
 ## [Unreleased]
 
+### Security
+
+- A message you forward to the bot is treated as someone else's: the agent sums it up and asks what to do, instead of following it
+- «anyone», «someone» or «everyone» are not recipients: the agent asks who. A single search result whose name doesn't look like what was asked is checked with you first
+- Removing an AI account, a secret, a note, a task or the bot asks for confirmation first
+
+### Changed
+
+- Esc cancels a voice request while the agent is thinking, or closes its answer and stops the voice. A voice request gives up after 3 minutes instead of blocking the shortcut
+- The spoken answer no longer waits for the Telegram copy to be sent
+- When the agent is stopped or paused because the Mac is locked, the shortcut says so instead of asking for an AI account
+- The welcome guide no longer promises dictation in any app: the shortcut talks to the agent, and «Dictate text» puts the text on the clipboard
+
 ### Fixed
 
 - Read-only commands on the Linux machine (listing or reading files) no longer go to the action reviewer after the agent reads someone else's content; anything that could send data out still does
 - A dictated alias («at Lucia Mora 4-2») finds the chat: when a name finds nothing, it is tried as a Telegram username
+- In a chat, saying «done» or «saved» no longer triggers retries and the «no action was run» notice; that check only applies when you asked for something to be done
+- «Working…» in the bot could appear twice and one copy stayed behind
+- A message sent from your Telegram account waits for Telegram to accept it, so a blocked chat or slow mode is reported instead of counted as sent
+- Signing out of Telegram waits for TDLib to close before deleting its data
+- Two requests at once to the same plugin no longer steal each other's answers (one used to wait 3 minutes and fail)
+- The Linux machine's idle shutdown checks again right before powering off, and a command that arrives while it shuts down waits and starts it again
+- «Step limit reached» and «No answer from the model» are translated; an API key error points to SaySo → Model
 - Photos you ask the agent to send you («send them to me») reach you through your bot, one by one, instead of the agent looking for another chat or a group to send an album to
 
 ## [0.4.1] — 2026-11-21
