@@ -6,6 +6,10 @@ All notable changes to SaySo are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Photos you ask the agent to send you («send them to me») reach you through your bot, one by one, instead of the agent looking for another chat or a group to send an album to
+
 ## [0.4.1] — 2026-11-21
 
 ### Security

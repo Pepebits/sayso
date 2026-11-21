@@ -192,7 +192,9 @@ public struct SendAlbumTool: AgentTool {
     public var name: String { "telegram_send_album" }
     public var description: String {
         "Envía de 2 a 10 fotos o vídeos de tu ordenador Linux en un solo mensaje (un álbum), desde la cuenta del " +
-            "usuario. También vale para varios documentos o varios audios, pero sin mezclarlos con fotos."
+            "usuario. También vale para varios documentos o varios audios, pero sin mezclarlos con fotos. Solo " +
+            "para otras personas o grupos que el usuario haya nombrado: si las fotos son para él («envíamelas», " +
+            "«mándamelas»), usa send_file sin «chat», una llamada por foto."
     }
     public var inputSchema: JSONValue {
         .objectSchema([

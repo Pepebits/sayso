@@ -236,7 +236,7 @@ public struct SendFileTool: AgentTool {
             "llega al usuario; con «chat» (nombre, @alias o identificador) se envía a esa persona o grupo " +
             "desde la cuenta del usuario, igual que telegram_send_message. El tipo sale de la extensión: " +
             "jpg/png/webp foto, mp4/mov vídeo, gif animación, mp3/m4a/wav audio, ogg nota de voz y el resto " +
-            "documento; con «as» puedes forzarlo. Tamaño máximo 8 MB. Para mandar algo de internet, " +
+            "documento; con «as» puedes forzarlo. Varias fotos para el usuario: una llamada por foto. Tamaño máximo 8 MB. Para mandar algo de internet, " +
             "descárgalo antes al ordenador y comprueba con «file» que es lo que dice ser. Un archivo por " +
             "llamada. Si el usuario pidió enviarlo a otra persona y no puedes, dilo: nunca se lo mandes a " +
             "él en su lugar."

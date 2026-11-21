@@ -392,6 +392,8 @@ final class TDLibSessionTests: XCTestCase {
                 XCTFail("no debería escribir al propio bot")
             } catch {
                 XCTAssertTrue(error.localizedDescription.contains("bot de SaySo"), "\(error)")
+                // Le dice al agente cómo hacérselo llegar al usuario, para que no busque otro chat.
+                XCTAssertTrue(error.localizedDescription.contains("send_file sin «chat»"), "\(error)")
             }
         }
     }

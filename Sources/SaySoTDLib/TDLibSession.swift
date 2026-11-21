@@ -63,7 +63,9 @@ public actor TDLibSession: TelegramUserAPI {
 
     func checkTarget(_ chatID: Int64) throws {
         if blockedTargets().contains(chatID) {
-            throw ToolInputError("Ese chat es tu propia conversación con el bot de SaySo: desde la cuenta no se escribe ahí. Pon el contenido en tu respuesta.")
+            throw ToolInputError("Ese chat es la conversación del usuario con su bot de SaySo: desde su cuenta no se escribe ahí. " +
+                "Para que algo le llegue al usuario: un texto, ponlo en tu respuesta; una foto o un archivo, envíalo con " +
+                "send_file sin «chat» (uno por llamada, llega por el bot). No lo mandes a otro chat en su lugar.")
         }
     }
 
