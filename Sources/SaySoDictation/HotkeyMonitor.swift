@@ -21,6 +21,9 @@ public protocol HotkeySource: AnyObject {
     var activeSide: OptionKeyPhysicalSide? { get }
     func start() throws
     func stop()
+    /// Olvida el gesto en curso (p. ej. «manos libres») cuando la grabación no ha podido empezar:
+    /// si no, la siguiente pulsación se toma por «parar» y se pierde.
+    func resetGesture()
 }
 
 /// Event tap de solo escucha sobre `flagsChanged` y `keyDown`. Usar desde el hilo principal.
@@ -100,6 +103,12 @@ public final class HotkeyMonitor: HotkeySource {
         tap = nil
         source = nil
         machine.reset()
+    }
+
+    public func resetGesture() {
+        machine.reset()
+        timer?.cancel()
+        timer = nil
     }
 
     /// Devuelve `true` si el evento es del atajo y no debe llegar a la app activa.

@@ -234,19 +234,23 @@ public final class DictationController {
     }
 
     private func beginRecording(handsFree: Bool, manualForAgent: Bool? = nil) {
-        guard !recording, !busy else { return }
+        guard !recording else { return }
+        guard !busy else { return hotkey.resetGesture() }
         guard microphoneAuthorized() else {
+            hotkey.resetGesture()
             fail(message: "Falta el permiso de Micrófono.")
             return
         }
         // Con el atajo se le habla al agente: sin agente no hay a quién.
         guard manualForAgent != nil || isAgentGesture else {
+            hotkey.resetGesture()
             fail(message: tr("No hay agente con el que hablar: añade una cuenta de IA en Modelo."))
             return
         }
         do {
             try recorder.start()
         } catch {
+            hotkey.resetGesture()
             fail(error)
             return
         }

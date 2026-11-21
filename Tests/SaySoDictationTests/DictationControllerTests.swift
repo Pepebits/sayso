@@ -19,6 +19,8 @@ final class FakeHotkey: HotkeySource {
     }
 
     func stop() { stopped += 1 }
+    var resets = 0
+    func resetGesture() { resets += 1 }
     func send(_ action: HotkeyStateMachine.Action) { onAction?(action) }
 }
 
@@ -525,13 +527,15 @@ final class DictationControllerTests: XCTestCase {
         hotkey.send(.startListening)
         XCTAssertEqual(controller.phase, .failed("Falta el permiso de Micrófono."))
         XCTAssertEqual(recorder.startCount, 0)
+        XCTAssertEqual(hotkey.resets, 1, "el atajo no se queda en manos libres")
     }
 
     func testRecorderErrorFails() {
         recorder.startError = AudioRecorderError.noInput
         let controller = makeController()
-        hotkey.send(.startListening)
+        hotkey.send(.enterHandsFree)
         XCTAssertEqual(controller.phase, .failed("No hay ningún micrófono disponible."))
+        XCTAssertEqual(hotkey.resets, 1, "la siguiente pulsación vuelve a empezar")
     }
 
     func testIgnoresNewRecordingWhileTranscribing() async {
