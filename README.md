@@ -32,6 +32,16 @@ local model.
 3. 🔑 **Pick a model** under **Model**: paste an API key, which goes to the Keychain, or point it at Ollama or LM Studio.
 4. 🤖 **Optional, Telegram**: create a bot with [@BotFather](https://t.me/BotFather) and paste its token under **Telegram**. To let the agent work on your own chats, sign in with your account too, using an `api_id` and `api_hash` of your own from [my.telegram.org](https://my.telegram.org).
 
+With Homebrew, steps 1 and 2 are one command:
+
+```bash
+brew install --cask pepebits/sayso/sayso
+```
+
+The first time, add the tap and trust it (Homebrew 7 asks for this with taps outside Homebrew):
+`brew tap pepebits/sayso https://github.com/Pepebits/sayso && brew trust pepebits/sayso`.
+SaySo then updates itself: it checks for new versions once a day and asks before installing one.
+
 ## 🧭 How it works
 
 ```

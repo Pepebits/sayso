@@ -25,7 +25,8 @@
 #   SAYSO_SPARKLE_KEY_FILE=<archivo>             firma el appcast con esa clave en vez de la del Llavero
 #
 # Junto al .dmg queda build/appcast.xml: súbelo a la misma release de GitHub. La app busca
-# actualizaciones en releases/latest/download/appcast.xml.
+# actualizaciones en releases/latest/download/appcast.xml. También se actualiza Casks/sayso.rb
+# (Homebrew) con la versión y la suma del .dmg, para el commit de la release.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -45,6 +46,15 @@ appcast() {
     echo "→ Firmando la actualización para Sparkle…"
     python3 scripts/make-appcast.py "$version" "$build" "$("$SPARKLE_BIN/sign_update" ${key[@]+"${key[@]}"} "$1")" build/appcast.xml
     "$SPARKLE_BIN/sign_update" ${key[@]+"${key[@]}"} build/appcast.xml
+}
+
+# Cask de Homebrew (Casks/sayso.rb): versión y suma del .dmg publicado. Entra en el commit de la release.
+update_cask() {
+    local version sum
+    version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' scripts/Info.plist)"
+    sum="$(shasum -a 256 "$1" | cut -d' ' -f1)"
+    sed -i '' -E "s/^  version \"[^\"]*\"/  version \"$version\"/; s/^  sha256 \"[^\"]*\"/  sha256 \"$sum\"/" Casks/sayso.rb
+    echo "→ Casks/sayso.rb: $version, $sum"
 }
 
 # notarytool guarda el perfil en el Llavero con protección de datos, que solo se puede leer con la
@@ -73,7 +83,8 @@ if [ "${1:-}" = "--staple" ]; then
     xcrun stapler staple "$DMG"
     spctl --assess --type open --context context:primary-signature -v "$DMG"
     appcast "$DMG"
-    echo "Listo: $DMG (firmado y notarizado) y build/appcast.xml. Sube los dos a la release."
+    update_cask "$DMG"
+    echo "Listo: $DMG (firmado y notarizado) y build/appcast.xml. Sube los dos a la release y haz commit de Casks/sayso.rb."
     exit 0
 fi
 
@@ -170,7 +181,8 @@ elif [ "$NOTARIZE" = 1 ]; then
     xcrun stapler staple "$DMG"
     spctl --assess --type open --context context:primary-signature -v "$DMG"
     appcast "$DMG"
-    echo "Listo: $DMG (firmado y notarizado) y build/appcast.xml. Sube los dos a la release."
+    update_cask "$DMG"
+    echo "Listo: $DMG (firmado y notarizado) y build/appcast.xml. Sube los dos a la release y haz commit de Casks/sayso.rb."
 else
     echo "Listo: $DMG (firmado, SIN notarizar). En otros Mac macOS lo bloqueará."
 fi
