@@ -56,6 +56,43 @@ public enum GuardPolicy {
             || action.rawValue.hasPrefix("plugin.")
     }
 
+    /// Si la acción pasa por el revisor en un turno con contenido ajeno: las hacia fuera, salvo los
+    /// comandos de la máquina Linux que solo miran (un `ls` no saca nada a ningún sitio).
+    public static func needsReview(_ request: ActionRequest) -> Bool {
+        guard isOutward(request.action) else { return false }
+        if request.action == ComputerAction.run, let command = request.parameters["Comando"], isReadOnlyCommand(command) {
+            return false
+        }
+        return true
+    }
+
+    /// Programas que solo leen o listan, sin red ni cambios.
+    static let readOnlyPrograms: Set<String> = [
+        "ls", "find", "file", "stat", "du", "df", "wc", "head", "tail", "cat", "grep", "pwd", "echo",
+        "md5sum", "sha256sum", "cd", "tree", "basename", "dirname", "date", "uname", "whoami", "identify", "true",
+    ]
+
+    /// Un comando hecho solo de programas que leen. Conservador: sustituciones (`$(…)`, comillas
+    /// invertidas), `-exec`, `xargs` o redirecciones que no sean a /dev/null lo descartan, y cualquier
+    /// programa fuera de la lista también.
+    public static func isReadOnlyCommand(_ command: String) -> Bool {
+        var text = command
+        for harmless in ["2>/dev/null", "2> /dev/null", ">/dev/null", "> /dev/null", "2>&1"] {
+            text = text.replacingOccurrences(of: harmless, with: " ")
+        }
+        for risky in ["`", "$(", "<(", ">(", ">", "<", "-exec", "-ok", "-delete", "-fprint", "-fls", "xargs"] where text.contains(risky) {
+            return false
+        }
+        let segments = text.components(separatedBy: CharacterSet(charactersIn: ";|&\n"))
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        guard !segments.isEmpty else { return false }
+        return segments.allSatisfy { segment in
+            let program = String(segment.split(separator: " ", maxSplits: 1).first ?? "")
+            return readOnlyPrograms.contains(program)
+        }
+    }
+
     /// Si una herramienta trae contenido que no escribió el usuario, su nombre para el aviso.
     public static func thirdPartySource(tool: String, input: String) -> String? {
         switch tool {
