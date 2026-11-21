@@ -41,10 +41,22 @@ the sandbox entitlement and the absence of Sparkle, and writes
 `build/appstore/SaySo-<version>-<build>.pkg`. Upload it with the Transporter app.
 `SAYSO_STORE_BUNDLE_ID` overrides the bundle ID (default `com.pepebits.sayso`).
 
+## Moving from the direct download
+
+The store app uses the same bundle ID as the direct download, `com.pepebits.sayso`: it is the same
+app. On its first launch macOS moves `~/Library/Application Support/SaySo` (database, Telegram
+session, Linux machine, Whisper models) into the sandbox container, following
+`Resources/appstore/container-migration.plist`. Only the real bundle ID gets that file; the local
+test build never does, or it would take the regular app's data.
+
+- After the move, the direct-download app starts empty if opened again: use one or the other.
+- Keys stay in the keychain under the same service, but they were saved by the Developer ID build.
+  The first time the store build reads each one, macOS may ask to allow it («Always Allow»).
+- macOS permissions (microphone, input monitoring, calendars) are asked again, since the
+  signature changes.
+
 ## Open questions before submitting
 
-- **Bundle ID**: sharing `com.pepebits.sayso` with the direct download keeps one identity, but a Mac
-  with both would mix keychain items; a separate ID keeps them apart but needs a data import.
 - **Export compliance**: HTTPS is exempt, but the Telegram account feature bundles TDLib, which
   implements its own encrypted protocol (MTProto). Decide the answer to the encryption question
   (and whether to add `ITSAppUsesNonExemptEncryption` to the Info.plist) before the first upload.
