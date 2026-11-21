@@ -1591,3 +1591,4 @@
 "Por seguridad no se han aplicado %@ cosas de la copia (dueño del bot, protección, reglas que permitirían enviar sin preguntar, plugins fuera del catálogo o tareas «sin preguntar»). Revísalas a mano." = "For safety, %@ things from the backup were not applied (bot owner, protection, rules that would send without asking, plugins outside the catalog or «without asking» tasks). Review them by hand.";
 "No se ha enviado nada a %@: %@" = "Nothing was sent to %@: %@";
 "Sigo con lo anterior (quizá esperando tu permiso). Contesto a esto en cuanto termine; /status te dice cómo va." = "Still working on the previous request (maybe waiting for your permission). I'll answer this as soon as it's done; /status tells you how it's going.";
+"No se ha podido enviar la respuesta al bot: %@" = "Couldn't send the reply to the bot: %@";

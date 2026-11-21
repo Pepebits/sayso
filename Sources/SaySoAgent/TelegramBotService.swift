@@ -474,11 +474,11 @@ public actor TelegramBotService {
                                                 images: images, onStep: { step in Task { await progress.add(step) } })
             typing.cancel()
             await progress.finish()
-            await send(chatID, answer)
+            await send(chatID, answer, retries: 3)
         } catch {
             typing.cancel()
             await progress.finish()
-            await send(chatID, tr("No he podido responder: %@", "\(error.localizedDescription)"))
+            await send(chatID, tr("No he podido responder: %@", "\(error.localizedDescription)"), retries: 3)
         }
     }
 
@@ -517,8 +517,12 @@ public actor TelegramBotService {
         }
     }
 
-    private func send(_ chatID: Int64, _ text: String, buttons: [[TGInlineButton]]? = nil) async {
-        _ = try? await client.sendMessage(chatID: chatID, text: text, buttons: buttons)
+    private func send(_ chatID: Int64, _ text: String, buttons: [[TGInlineButton]]? = nil, retries: Int = 0) async {
+        do {
+            _ = try await client.sendMessage(chatID: chatID, text: text, buttons: buttons, retries: retries)
+        } catch where retries > 0 {
+            onDiagnostic?(tr("No se ha podido enviar la respuesta al bot: %@", Self.technical(error)))
+        } catch {}
     }
 
     // MARK: - Grupos

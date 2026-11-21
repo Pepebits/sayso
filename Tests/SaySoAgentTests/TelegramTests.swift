@@ -170,6 +170,28 @@ final class TelegramTests: XCTestCase {
         XCTAssertNotNil(sent.last?["reply_markup"])
     }
 
+    func testReplyIsRetriedOnTransientErrorsOnly() async throws {
+        let calls = Locked(0)
+        let t = FakeTransport { _ in
+            let n = calls.update { $0 += 1; return $0 }
+            if n == 1 { return (502, Data("Bad Gateway".utf8)) }
+            if n == 2 { return (429, Data(#"{"ok":false,"error_code":429,"description":"Too Many","parameters":{"retry_after":1}}"#.utf8)) }
+            return (200, Data(#"{"ok":true,"result":{"message_id":7,"chat":{"id":1,"type":"private"},"date":0,"text":"hola"}}"#.utf8))
+        }
+        var client = TelegramBotClient(token: "T", transport: t)
+        client.retryScale = 0
+        let sent = try await client.sendMessage(chatID: 1, text: "hola", retries: 3)
+        XCTAssertEqual(sent.first?.messageId, 7)
+        XCTAssertEqual(t.requests.get().count, 3)
+
+        // Un error que no es pasajero no se repite, y sin `retries` tampoco.
+        let bad = FakeTransport(status: 400, json: #"{"ok":false,"error_code":400,"description":"chat not found"}"#)
+        var once = TelegramBotClient(token: "T", transport: bad)
+        once.retryScale = 0
+        _ = try? await once.sendMessage(chatID: 1, text: "hola", retries: 3)
+        XCTAssertEqual(bad.requests.get().count, 1)
+    }
+
     // MARK: Inline
 
     func testInlineHasNoMemoryToolsOrHistory() async throws {

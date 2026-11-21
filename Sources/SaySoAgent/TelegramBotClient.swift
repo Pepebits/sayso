@@ -174,15 +174,44 @@ public struct TelegramBotClient: Sendable {
 
     /// Envía texto troceado a 4096 caracteres; el teclado va en el último trozo.
     @discardableResult
-    public func sendMessage(chatID: Int64, text: String, buttons: [[TGInlineButton]]? = nil) async throws -> [TGMessage] {
+    /// `retries`: cuántas veces repetir cada trozo ante un fallo pasajero (429, 5xx, red). Para las
+    /// respuestas del agente, que si no se perderían sin aviso; se reintenta trozo a trozo para no
+    /// repetir lo que ya llegó.
+    public func sendMessage(chatID: Int64, text: String, buttons: [[TGInlineButton]]? = nil,
+                            retries: Int = 0) async throws -> [TGMessage] {
         let chunks = Self.chunk(text)
         var sent: [TGMessage] = []
         for (i, chunk) in chunks.enumerated() {
             var body: [String: JSONValue] = ["chat_id": .number(Double(chatID)), "text": .string(chunk)]
             if let buttons, i == chunks.count - 1 { body["reply_markup"] = Self.keyboard(buttons) }
-            sent.append(try await call("sendMessage", body))
+            sent.append(try await retrying(retries) { try await call("sendMessage", body) })
         }
         return sent
+    }
+
+    /// Escala de las esperas entre reintentos; los tests la ponen a 0.
+    public var retryScale: Double = 1
+
+    private func retrying<T>(_ retries: Int, _ body: () async throws -> T) async throws -> T {
+        let delays: [Double] = [1, 3, 8]
+        var attempt = 0
+        while true {
+            do { return try await body() } catch {
+                guard attempt < min(retries, delays.count), let wait = Self.retryWait(error, default: delays[attempt]) else { throw error }
+                if wait * retryScale > 0 { try await Task.sleep(nanoseconds: UInt64(wait * retryScale * 1_000_000_000)) }
+                attempt += 1
+            }
+        }
+    }
+
+    /// Cuánto esperar antes de repetir, o `nil` si el fallo no es pasajero.
+    static func retryWait(_ error: Error, default delay: Double) -> Double? {
+        switch error {
+        case let TelegramError.rateLimited(after) where after <= 60: return Double(after)
+        case let TelegramError.api(code, _) where code >= 500: return delay
+        case is URLError: return delay
+        default: return nil
+        }
     }
 
     /// Menú de comandos del bot (el botón «/» de Telegram), solo en chats privados.

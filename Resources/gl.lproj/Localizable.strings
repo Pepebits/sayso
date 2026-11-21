@@ -1590,3 +1590,4 @@
 "Por seguridad no se han aplicado %@ cosas de la copia (dueño del bot, protección, reglas que permitirían enviar sin preguntar, plugins fuera del catálogo o tareas «sin preguntar»). Revísalas a mano." = "Por seguridade non se aplicaron %@ cousas da copia (dono do bot, protección, regras que permitirían enviar sen preguntar, plugins fóra do catálogo ou tarefas «sen preguntar»). Revísaas a man.";
 "No se ha enviado nada a %@: %@" = "Non se enviou nada a %@: %@";
 "Sigo con lo anterior (quizá esperando tu permiso). Contesto a esto en cuanto termine; /status te dice cómo va." = "Sigo co anterior (quizais agardando o teu permiso). Contesto a isto en canto remate; /status dite como vai.";
+"No se ha podido enviar la respuesta al bot: %@" = "Non se puido enviar a resposta ao bot: %@";
