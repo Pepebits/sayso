@@ -1490,3 +1490,16 @@
 "Versión %@. Esta compilación no se actualiza sola." = "Version %@. This build does not update itself.";
 "Versión %@. Última comprobación: %@." = "Version %@. Last checked: %@.";
 "Versión %@. Las versiones nuevas se descargan de GitHub, firmadas por Pepebits." = "Version %@. New versions are downloaded from GitHub, signed by Pepebits.";
+"Ideas para empezar" = "Ideas to get started";
+"Usar la idea: %@" = "Use the idea: %@";
+"«Usar» rellena el formulario de arriba; la revisas y la programas tú." = "«Use» fills in the form above; you review it and schedule it yourself.";
+"Resumen de la mañana" = "Morning summary";
+"Chats sin leer" = "Unread chats";
+"Plan de la semana" = "Plan for the week";
+"Recordatorios vencidos" = "Overdue reminders";
+"Limpiar la máquina Linux" = "Clean up the Linux machine";
+"Envíame un resumen de mi día: los eventos de hoy en el calendario, los recordatorios pendientes y los mensajes importantes de Telegram que no he leído." = "Send me a summary of my day: today's calendar events, pending reminders and the important Telegram messages I haven't read.";
+"Resume los chats de Telegram con mensajes sin leer y dime cuáles esperan una respuesta mía." = "Summarize the Telegram chats with unread messages and tell me which ones are waiting for a reply from me.";
+"Envíame los eventos del calendario de esta semana y los recordatorios que vencen en los próximos siete días." = "Send me this week's calendar events and the reminders due in the next seven days.";
+"Mira mis recordatorios vencidos y pregúntame cuáles marco como hechos y cuáles muevo a otro día." = "Look at my overdue reminders and ask me which ones to mark as done and which ones to move to another day.";
+"En la máquina Linux, borra las cachés y los archivos temporales que ya no hagan falta y dime cuánto espacio se ha liberado." = "On the Linux machine, delete caches and temporary files that are no longer needed and tell me how much space was freed.";

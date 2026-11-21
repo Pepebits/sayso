@@ -1489,3 +1489,16 @@
 "Versión %@. Esta compilación no se actualiza sola." = "Versão %@. Esta compilação não se atualiza sozinha.";
 "Versión %@. Última comprobación: %@." = "Versão %@. Última verificação: %@.";
 "Versión %@. Las versiones nuevas se descargan de GitHub, firmadas por Pepebits." = "Versão %@. As versões novas são descarregadas do GitHub, assinadas pela Pepebits.";
+"Ideas para empezar" = "Ideias para começar";
+"Usar la idea: %@" = "Usar a ideia: %@";
+"«Usar» rellena el formulario de arriba; la revisas y la programas tú." = "«Usar» preenche o formulário acima; revê-la e agenda-a você.";
+"Resumen de la mañana" = "Resumo da manhã";
+"Chats sin leer" = "Conversas por ler";
+"Plan de la semana" = "Plano da semana";
+"Recordatorios vencidos" = "Lembretes em atraso";
+"Limpiar la máquina Linux" = "Limpar a máquina Linux";
+"Envíame un resumen de mi día: los eventos de hoy en el calendario, los recordatorios pendientes y los mensajes importantes de Telegram que no he leído." = "Envia-me um resumo do meu dia: os eventos de hoje no calendário, os lembretes pendentes e as mensagens importantes do Telegram que não li.";
+"Resume los chats de Telegram con mensajes sin leer y dime cuáles esperan una respuesta mía." = "Resume as conversas do Telegram com mensagens por ler e diz-me quais esperam uma resposta minha.";
+"Envíame los eventos del calendario de esta semana y los recordatorios que vencen en los próximos siete días." = "Envia-me os eventos do calendário desta semana e os lembretes que vencem nos próximos sete dias.";
+"Mira mis recordatorios vencidos y pregúntame cuáles marco como hechos y cuáles muevo a otro día." = "Vê os meus lembretes em atraso e pergunta-me quais marco como feitos e quais mudo para outro dia.";
+"En la máquina Linux, borra las cachés y los archivos temporales que ya no hagan falta y dime cuánto espacio se ha liberado." = "Na máquina Linux, apaga as caches e os ficheiros temporários que já não façam falta e diz-me quanto espaço foi libertado.";

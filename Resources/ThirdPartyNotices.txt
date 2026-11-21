@@ -287,7 +287,7 @@ SOFTWARE.
 ==============================================================================
 Sparkle 2.10.1
 https://github.com/sparkle-project/Sparkle
-MIT License (with the licenses of its bundled components)
+MIT License
 ==============================================================================
 
 Copyright (c) 2006-2013 Andy Matuschak.

@@ -57,6 +57,24 @@ struct TasksScreen: View {
                     .padding(.horizontal, 2)
             }
 
+            let ideas = TaskTemplate.unused(given: model.tasks)
+            if !ideas.isEmpty {
+                VStack(alignment: .leading, spacing: Theme.Space.s) {
+                    SectionBar("Ideas para empezar")
+                    SettingsCard {
+                        ForEach(Array(ideas.enumerated()), id: \.element.id) { index, idea in
+                            if index > 0 { CardDivider() }
+                            SettingRow(icon: idea.icon, title: idea.title,
+                                       detail: idea.schedule.summary() + " · " + tr(idea.instruction)) {
+                                BlockButton("Usar", compact: true) { draft = TaskDraft(idea.task) }
+                                    .accessibilityLabel(tr("Usar la idea: %@", tr(idea.title)))
+                            }
+                        }
+                    }
+                    InlineNote("«Usar» rellena el formulario de arriba; la revisas y la programas tú.", systemImage: "info.circle")
+                }
+            }
+
             VStack(alignment: .leading, spacing: Theme.Space.s) {
                 SectionBar("Programadas", note: countsNote)
                 if model.tasks.isEmpty {
