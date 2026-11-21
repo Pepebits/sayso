@@ -18,6 +18,8 @@ final class PreviewActions: AppActions {
     func setAlertStyle(_ style: AlertStyle) { model.alertStyle = style }
     func exportBackup() {}
     func checkForUpdates() {}
+    func createDiagnostics() {}
+    func openIssues() {}
     func setAutomaticUpdates(_ enabled: Bool) { model.updates = .ready(automatic: enabled, lastCheck: nil) }
     func importBackup() {}
     func updateDictation(_ settings: DictationSettings) { model.dictation = settings }

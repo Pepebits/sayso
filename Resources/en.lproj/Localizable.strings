@@ -1503,3 +1503,12 @@
 "Envíame los eventos del calendario de esta semana y los recordatorios que vencen en los próximos siete días." = "Send me this week's calendar events and the reminders due in the next seven days.";
 "Mira mis recordatorios vencidos y pregúntame cuáles marco como hechos y cuáles muevo a otro día." = "Look at my overdue reminders and ask me which ones to mark as done and which ones to move to another day.";
 "En la máquina Linux, borra las cachés y los archivos temporales que ya no hagan falta y dime cuánto espacio se ha liberado." = "On the Linux machine, delete caches and temporary files that are no longer needed and tell me how much space was freed.";
+"Informe de errores" = "Error report";
+"Versión, estado, avisos y errores de la última semana y cierres inesperados, con nombres y números ocultos. Se guarda en un archivo que revisas antes de adjuntarlo a un issue." = "Version, status, last week's warnings and errors and unexpected quits, with names and numbers hidden. It is saved to a file you review before attaching it to an issue.";
+"Crear informe" = "Create report";
+"Abrir issues" = "Open issues";
+"Abrir los issues de SaySo en GitHub" = "Open SaySo's issues on GitHub";
+"Revisa el informe antes de compartirlo. Lleva la versión, el estado, los avisos y errores recientes y los cierres inesperados, con nombres y números ocultos." = "Review the report before sharing it. It has the version, status, recent warnings and errors and unexpected quits, with names and numbers hidden.";
+"Informe de errores guardado" = "Error report saved";
+"No se pudo guardar el informe: %@" = "Could not save the report: %@";
+"SaySo se cerró de forma inesperada %@. En Ajustes → Informe de errores puedes preparar un informe para avisarnos." = "SaySo quit unexpectedly %@. In Settings → Error report you can prepare a report to let us know.";

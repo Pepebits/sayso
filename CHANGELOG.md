@@ -10,6 +10,7 @@ All notable changes to SaySo are documented here. The format follows
 
 - Automatic updates with Sparkle: SaySo checks the latest GitHub release once a day and asks before installing a new version, signed by Pepebits. Settings → «Updates» shows the installed version, a «Check now» button and the automatic-checks switch, and the menu bar has «Check for Updates…». Updates start with the version after this one; 0.3.0 has to be updated by hand once
 - Tasks → «Ideas to get started»: ready-made tasks (morning summary, unread chats, plan for the week, overdue reminders, Linux machine clean-up). «Use» fills in the new-task form so you can review it before scheduling
+- Settings → «Error report»: saves a file with the version, status, the last week's warnings and errors and SaySo's unexpected quits (with the crashing thread), hiding names, numbers, addresses and secrets, so you can review it and attach it to an issue. After an unexpected quit, Logs says how to report it
 
 ### Fixed
 

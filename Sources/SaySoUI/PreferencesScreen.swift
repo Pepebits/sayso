@@ -68,6 +68,15 @@ struct PreferencesScreen: View {
                     CardDivider()
                     updatesRow
                     CardDivider()
+                    SettingRow(icon: "ladybug", title: "Informe de errores",
+                               detail: "Versión, estado, avisos y errores de la última semana y cierres inesperados, con nombres y números ocultos. Se guarda en un archivo que revisas antes de adjuntarlo a un issue.") {
+                        HStack(spacing: Theme.Space.s) {
+                            BlockButton("Crear informe", compact: true) { model.actions?.createDiagnostics() }
+                            BlockButton("Abrir issues", compact: true) { model.actions?.openIssues() }
+                                .accessibilityLabel("Abrir los issues de SaySo en GitHub")
+                        }
+                    }
+                    CardDivider()
                     SettingRow(icon: "externaldrive", title: "Copia de seguridad",
                                detail: "Memoria, tareas, avisos, reglas, cuentas y ajustes en un archivo, para otro Mac o para guardarla. Sin claves ni conversaciones.") {
                         HStack(spacing: Theme.Space.s) {

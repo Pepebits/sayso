@@ -170,6 +170,10 @@ public protocol AppActions: AnyObject {
     /// Busca una versión nueva ahora, con la ventana de Sparkle.
     func checkForUpdates()
     func setAutomaticUpdates(_ enabled: Bool)
+    /// Guarda un informe de errores sin datos personales y lo abre para revisarlo.
+    func createDiagnostics()
+    /// Abre la página para crear un issue en GitHub.
+    func openIssues()
     /// Guarda la configuración en un archivo (sin secretos ni conversaciones).
     func exportBackup()
     /// Recupera la configuración de un archivo de copia.

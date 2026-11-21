@@ -60,6 +60,7 @@ final class AppController: AppActions {
         do {
             let store = try SQLiteStore(url: AppPaths.supportDirectory().appendingPathComponent("sayso.sqlite"))
             self.store = store
+            noteUnexpectedQuit()
             let redactor = SecretRedactor(values: { [secretCache] in secretCache.values })
             let broker = PermissionBroker(
                 store: store, presenter: ConfirmationWindowPresenter(),
@@ -1886,6 +1887,84 @@ final class AppController: AppActions {
         } catch {
             model.lastError = tr("No se pudo leer la copia: %@", error.localizedDescription)
         }
+    }
+
+    // MARK: - Informe de errores
+
+    /// Informes de cierre de SaySo de los últimos 30 días, del más reciente al más antiguo.
+    private func crashReports(limit: Int = 3) -> [(url: URL, date: Date)] {
+        let folder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/DiagnosticReports")
+        let since = Date().addingTimeInterval(-30 * 86_400)
+        let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        return files.filter { $0.lastPathComponent.hasPrefix("SaySo-") && $0.pathExtension == "ips" }
+            .compactMap { url in
+                let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+                return date.map { (url, $0) }
+            }
+            .filter { $0.date >= since }
+            .sorted { $0.date > $1.date }
+            .prefix(limit).map { $0 }
+    }
+
+    /// Si SaySo se cerró solo desde la última vez, lo apunta en Registros con cómo informar.
+    private func noteUnexpectedQuit() {
+        guard let latest = crashReports(limit: 1).first else { return }
+        let key = "diagnostics.lastCrashSeen"
+        let seen = (try? store?.setting(key)).flatMap { $0 }.flatMap(Double.init) ?? 0
+        guard latest.date.timeIntervalSince1970 > seen + 1 else { return }
+        attempt { try store?.setSetting(String(latest.date.timeIntervalSince1970), for: key) }
+        let when = RelativeDateTimeFormatter()
+        when.locale = L10n.locale
+        when.unitsStyle = .full
+        model.log(.error, LogCategory.app, tr("SaySo se cerró de forma inesperada %@. En Ajustes → Informe de errores puedes preparar un informe para avisarnos.",
+                                              when.localizedString(for: latest.date, relativeTo: Date())))
+    }
+
+    /// Nombre del caso sin sus datos: «ready», no «ready(name: …)».
+    private static func caseName(_ value: Any) -> String {
+        String(String(describing: value).prefix { $0 != "(" })
+    }
+
+    func createDiagnostics() {
+        var size = 0
+        sysctlbyname("hw.model", nil, &size, nil, 0)
+        var machine = [CChar](repeating: 0, count: max(size, 1))
+        sysctlbyname("hw.model", &machine, &size, nil, 0)
+        let state: [(String, String)] = [
+            ("Language", L10n.languageCode),
+            ("Agent", model.agentRunning ? "running" : "stopped"),
+            ("Model provider", model.activeAccount.map { Self.caseName($0.kind) } ?? "none"),
+            ("Telegram bot", Self.caseName(model.telegramStatus)),
+            ("Telegram account", Self.caseName(model.telegramUser)),
+            ("Linux machine", Self.caseName(model.computerState)),
+            ("Linux machine size", "\(model.computerResources.cpuCount) cores, \(model.computerResources.memoryGB) GB RAM, \(model.computerResources.diskGB) GB disk"),
+            ("Prompt-injection detector", model.guardReview ? Self.caseName(model.guardDetector) : "off"),
+            ("Plugins", "\(model.plugins.count)"),
+            ("Scheduled tasks", "\(model.tasks.count)"),
+        ]
+        let crashes = crashReports().compactMap { (try? String(contentsOf: $0.url, encoding: .utf8)).flatMap(CrashSummary.parse) }
+        let os = ProcessInfo.processInfo.operatingSystemVersionString
+        let report = DiagnosticsReport.make(appVersion: Updater.version, osVersion: "macOS \(os)",
+                                            machine: String(cString: machine), state: state,
+                                            logs: logFile?.entries(limit: 2000) ?? model.logEntries, crashes: crashes,
+                                            redact: { [services] in services?.redactor.redact($0) ?? $0 })
+        let panel = NSSavePanel()
+        let day = ISO8601DateFormatter.string(from: Date(), timeZone: .current, formatOptions: [.withFullDate])
+        panel.nameFieldStringValue = "SaySo-informe-\(day).md"
+        panel.allowedContentTypes = [.plainText]
+        panel.message = tr("Revisa el informe antes de compartirlo. Lleva la versión, el estado, los avisos y errores recientes y los cierres inesperados, con nombres y números ocultos.")
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try report.write(to: url, atomically: true, encoding: .utf8)
+            NSWorkspace.shared.open(url)
+            model.log(.info, LogCategory.app, tr("Informe de errores guardado"))
+        } catch {
+            model.lastError = tr("No se pudo guardar el informe: %@", error.localizedDescription)
+        }
+    }
+
+    func openIssues() {
+        if let url = URL(string: "https://github.com/Pepebits/sayso/issues/new") { NSWorkspace.shared.open(url) }
     }
 
     func revealDataFolder() {

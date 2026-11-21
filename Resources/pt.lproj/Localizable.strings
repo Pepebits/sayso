@@ -1502,3 +1502,12 @@
 "Envíame los eventos del calendario de esta semana y los recordatorios que vencen en los próximos siete días." = "Envia-me os eventos do calendário desta semana e os lembretes que vencem nos próximos sete dias.";
 "Mira mis recordatorios vencidos y pregúntame cuáles marco como hechos y cuáles muevo a otro día." = "Vê os meus lembretes em atraso e pergunta-me quais marco como feitos e quais mudo para outro dia.";
 "En la máquina Linux, borra las cachés y los archivos temporales que ya no hagan falta y dime cuánto espacio se ha liberado." = "Na máquina Linux, apaga as caches e os ficheiros temporários que já não façam falta e diz-me quanto espaço foi libertado.";
+"Informe de errores" = "Relatório de erros";
+"Versión, estado, avisos y errores de la última semana y cierres inesperados, con nombres y números ocultos. Se guarda en un archivo que revisas antes de adjuntarlo a un issue." = "Versão, estado, avisos e erros da última semana e fechos inesperados, com nomes e números ocultos. É guardado num ficheiro que revê antes de o anexar a uma issue.";
+"Crear informe" = "Criar relatório";
+"Abrir issues" = "Abrir issues";
+"Abrir los issues de SaySo en GitHub" = "Abrir as issues do SaySo no GitHub";
+"Revisa el informe antes de compartirlo. Lleva la versión, el estado, los avisos y errores recientes y los cierres inesperados, con nombres y números ocultos." = "Reveja o relatório antes de o partilhar. Inclui a versão, o estado, os avisos e erros recentes e os fechos inesperados, com nomes e números ocultos.";
+"Informe de errores guardado" = "Relatório de erros guardado";
+"No se pudo guardar el informe: %@" = "Não foi possível guardar o relatório: %@";
+"SaySo se cerró de forma inesperada %@. En Ajustes → Informe de errores puedes preparar un informe para avisarnos." = "O SaySo fechou-se inesperadamente %@. Em Definições → Relatório de erros pode preparar um relatório para nos avisar.";
