@@ -14,6 +14,9 @@ BUNDLE_ID="${SAYSO_STORE_BUNDLE_ID:-com.pepebits.sayso.store}"
 # Sin Sparkle y con la marca APPSTORE. Carpeta de compilación aparte: no invalida la normal.
 export SAYSO_APPSTORE=1
 SCRATCH=.build-appstore
+# Sin Sparkle, SwiftPM lo quita de Package.resolved, que es el de la versión normal: se deja como estaba.
+cp Package.resolved "$SCRATCH.resolved.bak" 2>/dev/null || true
+trap 'mv -f "$SCRATCH.resolved.bak" Package.resolved 2>/dev/null || true' EXIT
 swift build -c "$CONFIG" --product SaySo --scratch-path "$SCRATCH"
 BIN="$(swift build -c "$CONFIG" --scratch-path "$SCRATCH" --show-bin-path)/SaySo"
 
