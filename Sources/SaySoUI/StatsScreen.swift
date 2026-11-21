@@ -161,7 +161,7 @@ struct StatsScreen: View {
         VStack(alignment: .leading, spacing: Theme.Space.s) {
             HStack(alignment: .firstTextBaseline, spacing: Theme.Space.m) {
                 Text(tr(title)).font(Theme.bodyStrong).foregroundStyle(Theme.ink)
-                Text(limit.map { tr("%@ de %@", Self.compact(used), TokenLimits.short($0)) } ?? tr("%@ gastados", Self.compact(used)))
+                Text(limit.map { tr("%@ de %@", TokenLimits.short(used), TokenLimits.short($0)) } ?? tr("%@ gastados", TokenLimits.short(used)))
                     .font(Theme.mono(12)).foregroundStyle(Theme.secondary)
                 Spacer(minLength: Theme.Space.s)
                 BlockSegmented(tr("Límite %@", tr(title).lowercased()),

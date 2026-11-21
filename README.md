@@ -7,14 +7,15 @@ speak: an AI agent answers on screen, writes in your Telegram chats, schedules t
 commands in a Linux machine of its own, away from your files. Anything that leaves your Mac
 goes through rules you set, and asks you first when you want it to.
 
-- 🎙️ **Dictation on your Mac**: hold ⌥, or a shortcut of your choice, and Whisper transcribes locally; or keep a spoken conversation going with the agent
-- 💬 **Telegram, two ways**: talk to the agent through your own bot, and if you want, let it read, search, reply, forward and send from your account, voice notes and media included
+- 🎙️ **Dictation on your Mac**: hold ⌥, or a shortcut of your choice, and Whisper transcribes locally; or keep a spoken conversation going with the agent. A personal dictionary keeps names and brands spelled your way
+- 💬 **Telegram, two ways**: talk to the agent through your own bot, and if you want, let it read, search, reply, forward and send from your account, voice notes and media included. Approve its actions from the bot when you are away from the Mac
 - 🐧 **Its own Linux machine**, isolated with Virtualization.framework, to run commands, install tools, browse the web and transcribe audio
-- ⏰ **Scheduled tasks** for you or for other people, with several recipients and an option to send without asking
+- ⏰ **Scheduled tasks** for you or for other people, with several recipients and an option to send without asking, plus alerts when someone writes
 - 🧠 **Memory you can edit**: notes marked as instructions or facts, applied in every conversation
 - 🧩 **Plugins** over MCP, plus add-ons that run inside the Linux machine
 - 🛡️ **Permissions and guardrails**: Allow, Ask or Never for each action, secrets kept in the Keychain and redacted before they reach the model, and a second check on outward actions after the agent has read someone else's content
-- 🔌 **Bring your own model**: Claude, OpenAI, OpenRouter, Grok, or a local one with Ollama or LM Studio
+- 🔌 **Bring your own model**: Claude, OpenAI, OpenRouter, Grok, or a local one with Ollama or LM Studio, with a daily and monthly token limit for paid ones
+- 🔄 **Updates itself**: new versions are checked once a day and installed when you say so
 - 🌍 In Spanish, English, Galician, French and Portuguese
 
 <p align="center">

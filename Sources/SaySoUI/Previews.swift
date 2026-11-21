@@ -239,6 +239,11 @@ enum PreviewData {
         m.transcriberStatus = "Listo"
         m.requestsWeek = [40, 62, 31, 88, 70, 95, 122]
         m.stats = sampleStats()
+        m.dictation.vocabulary = ["Pepebits", "SaySo", "TestFlight", "Anna"]
+        m.dictation.replacements = [TextReplacement(from: "arroba", to: "@"),
+                                    TextReplacement(from: "mi firma", to: "Un saludo, Ana")]
+        m.tokenLimits = TokenLimits(daily: 1_000_000, monthly: 20_000_000)
+        m.tokenSpend = TokenSpend(today: 412_000, month: 8_700_000)
         m.resources = ResourceUsage(disk: [
             .init(id: "vm", title: "Máquina Linux", bytes: 6_400_000_000, detail: "disco de 17,2 GB como mucho"),
             .init(id: "models", title: "Modelos de dictado", bytes: 490_000_000),
