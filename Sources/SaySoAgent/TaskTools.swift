@@ -253,15 +253,18 @@ public actor TaskScheduler {
         task.lastRun = started
         try? tasks.updateTask(task)
 
-        let text: String
+        var text: String
+        var failed = false
         do {
             let loop = try await makeLoop()
             let id = task.id ?? 0
             text = try await loop.respond(to: TaskScheduler.prompt(for: previous), chatID: "tarea-\(id)", origin: "tarea:\(id)",
                                           recipients: task.recipients, recipientsPreapproved: task.sendWithoutAsking,
                                           useHistory: false)
+            failed = AgentLoop.isIncomplete(text)
         } catch {
             text = "No se pudo ejecutar la tarea: \(error.localizedDescription)"
+            failed = true
         }
         // Otra parte de la app puede haberla cambiado o borrado mientras se ejecutaba.
         if var current = try? tasks.tasks().first(where: { $0.id == task.id }) {
@@ -269,6 +272,14 @@ public actor TaskScheduler {
             current.lastRun = started
             try? tasks.updateTask(current)
         }
-        await deliver(task, text)
+        guard !task.recipients.isEmpty else { return await deliver(task, text) }
+        // Para otras personas sale desde la cuenta del usuario: un error, una respuesta a medias o
+        // un aviso interno no se les manda nunca; le llega solo al usuario por su bot.
+        if failed {
+            var ownerOnly = task
+            ownerOnly.recipients = []
+            return await deliver(ownerOnly, tr("No se ha enviado nada a %@: %@", task.recipients.names, text))
+        }
+        await deliver(task, AgentLoop.stripWarning(text).trimmingCharacters(in: .whitespacesAndNewlines))
     }
 }

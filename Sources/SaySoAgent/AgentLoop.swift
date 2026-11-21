@@ -412,10 +412,10 @@ public final class AgentLoop: Sendable {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if answer == nil {
             text = text.isEmpty
-                ? "He alcanzado el límite de pasos sin terminar la tarea. Dime si quieres que continúe."
-                : text + "\n\n(He alcanzado el límite de pasos; dime si quieres que continúe.)"
+                ? Self.stepLimitText + " sin terminar la tarea. Dime si quieres que continúe."
+                : text + "\n\n(" + Self.stepLimitText + "; dime si quieres que continúe.)"
         } else if text.isEmpty {
-            text = "(Sin respuesta del modelo.)"
+            text = Self.noAnswerText
         }
         // Si aun así afirma una acción que no ha ocurrido, el usuario lo sabe: el aviso no lo
         // escribe el modelo.
@@ -458,8 +458,16 @@ public final class AgentLoop: Sendable {
         return "\n\(markerPrefix) \(done)\(tail)]"
     }
 
+    static let stepLimitText = "He alcanzado el límite de pasos"
+    static let noAnswerText = "(Sin respuesta del modelo.)"
+
+    /// La respuesta no es un resultado: se quedó sin pasos o el modelo no dijo nada.
+    public static func isIncomplete(_ text: String) -> Bool {
+        text.contains(stepLimitText) || text.trimmingCharacters(in: .whitespacesAndNewlines) == noAnswerText
+    }
+
     /// Quita el aviso de SaySo: de los turnos antiguos que lo guardaron y de lo que el modelo copie.
-    static func stripWarning(_ text: String) -> String {
+    public static func stripWarning(_ text: String) -> String {
         text.replacingOccurrences(of: #"\n*(?:Aviso de SaySo|SaySo notice|Aviso do SaySo|Avis de SaySo):[^\n]*"#,
                                   with: "", options: .regularExpression)
     }

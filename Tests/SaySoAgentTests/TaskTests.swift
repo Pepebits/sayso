@@ -155,6 +155,23 @@ final class TaskTests: XCTestCase {
         XCTAssertNotNil(tasks.items.get()[0].nextRun)
     }
 
+    func testFailuresNeverReachTheRecipients() async throws {
+        let tasks = MemoryTasks()
+        try tasks.addTask(ScheduledTask(instruction: "x", schedule: .every(minutes: 10), nextRun: Date(timeIntervalSince1970: 0),
+                                        recipients: [TaskRecipient(id: 1, title: "Anna")], sendWithoutAsking: true))
+        struct Boom: LocalizedError { var errorDescription: String? { "límite diario" } }
+        let delivered = Locked<[(Int, String)]>([])
+        let scheduler = TaskScheduler(tasks: tasks, makeLoop: { throw Boom() },
+                                      deliver: { task, text in delivered.update { $0.append((task.recipients.count, text)) } })
+        await scheduler.tick()
+        let sent = try XCTUnwrap(delivered.get().first)
+        XCTAssertEqual(sent.0, 0, "va solo al usuario")
+        XCTAssertTrue(sent.1.contains("Anna") && sent.1.contains("límite diario"))
+        XCTAssertTrue(AgentLoop.isIncomplete("He alcanzado el límite de pasos sin terminar la tarea."))
+        XCTAssertTrue(AgentLoop.isIncomplete("(Sin respuesta del modelo.)"))
+        XCTAssertFalse(AgentLoop.isIncomplete("Buenos días, Anna"))
+    }
+
     func testATaskCanBeForSomeoneElse() async throws {
         let tasks = MemoryTasks()
         let broker = FakeBroker(allow: true)

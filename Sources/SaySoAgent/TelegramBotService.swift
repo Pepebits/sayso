@@ -312,11 +312,34 @@ public actor TelegramBotService {
             Task { await self.process(update) }
             return
         }
+        // Los comandos de estado contestan al momento, aunque el agente siga con lo anterior (o
+        // esperando un permiso): son justo para saber qué pasa.
+        if let text = update.message?.text, let cmd = parseCommand(text), Self.immediateCommands.contains(cmd.name) {
+            Task { await self.process(update) }
+            return
+        }
+        // Solo si lo anterior ya lleva un rato: dos mensajes seguidos no necesitan aviso.
+        if let since = busyChats[chatID], Date().timeIntervalSince(since) > 20, !noticedChats.contains(chatID),
+           update.message?.chat.isPrivate == true,
+           update.message?.from?.id == ownerID, ownerID != nil {
+            noticedChats.insert(chatID)
+            Task { await self.send(chatID, tr("Sigo con lo anterior (quizá esperando tu permiso). Contesto a esto en cuanto termine; /status te dice cómo va.")) }
+        }
         let previous = chatQueues[chatID]
         chatQueues[chatID] = Task {
             await previous?.value
+            await self.markBusy(chatID, true)
             await self.process(update)
+            await self.markBusy(chatID, false)
         }
+    }
+
+    static let immediateCommands: Set<String> = ["status", "tasks", "pause", "resume", "help"]
+    private var busyChats: [Int64: Date] = [:]
+    private var noticedChats: Set<Int64> = []
+
+    private func markBusy(_ chatID: Int64, _ busy: Bool) {
+        if busy { busyChats[chatID] = Date() } else { busyChats[chatID] = nil; noticedChats.remove(chatID) }
     }
 
     // MARK: - Proceso de actualizaciones
@@ -353,7 +376,8 @@ public actor TelegramBotService {
                     await send(chatID, tr("Hola, soy SaySo. Escríbeme o mándame una nota de voz. /help muestra lo que puedo hacer."))
                     return
                 case "new":
-                    try? store.clearTurns(chatID: String(chatID))
+                    // Igual que «nueva conversación» con el agente: también la voz y el resumen.
+                    try? NewConversationTool.reset(chatID: String(chatID), store: store)
                     await send(chatID, tr("Conversación nueva. He olvidado el historial de este chat (la memoria se mantiene)."))
                     return
                 case "help":

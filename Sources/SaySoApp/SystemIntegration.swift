@@ -118,6 +118,8 @@ protocol RemoteConfirming: Sendable {
 }
 
 final class ConfirmationWindowPresenter: ConfirmationPresenter, @unchecked Sendable {
+    /// Tras este tiempo sin respuesta, la pregunta se da por denegada.
+    static let timeout: TimeInterval = 600
     private let lock = NSLock()
     private var _remote: RemoteConfirming?
     /// Si está puesto, la pregunta sale también por el bot y vale la primera respuesta.
@@ -160,6 +162,12 @@ final class ConfirmationWindowPresenter: ConfirmationPresenter, @unchecked Senda
                             await MainActor.run { finish(result, false) }
                         }
                     }
+                }
+                // Sin respuesta en un rato, se deniega: si no, el chat del bot o las tareas se quedan
+                // esperando para siempre detrás de esta pregunta.
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: UInt64(Self.timeout * 1_000_000_000))
+                    finish(.deny, false)
                 }
             }
         }
