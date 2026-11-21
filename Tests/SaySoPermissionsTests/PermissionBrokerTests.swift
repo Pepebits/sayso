@@ -213,6 +213,24 @@ final class PermissionBrokerTests: XCTestCase {
         await assertDenied { try await GuardContext.$current.withValue(tainted) { try await denied.run(send) { 1 } } }
     }
 
+    func testSaySoOwnActionsAreNotReviewedButTheAgentsAre() async throws {
+        let store = FakeStore()
+        try store.setRule(.allow, for: ComputerAction.writeFile)
+        let tainted = GuardContext(userRequest: "busca una foto de un gatito", thirdPartySources: ["una página web"])
+        // El detector arranca su servidor dentro del turno del agente: no es parte del encargo.
+        let (broker, _, presenter) = make(.deny, store: store)
+        broker.reviewer = FixedReviewer(reason: "lanzar un servidor de clasificación no forma parte del encargo")
+        let own = ActionRequest(action: ComputerAction.writeFile, summary: "Escribir ~/.sayso-guard/server.py", origin: "proteccion")
+        let value = try await GuardContext.$current.withValue(tainted) { try await broker.run(own) { 1 } }
+        XCTAssertEqual(value, 1)
+        XCTAssertTrue(presenter.asked.isEmpty)
+
+        // La misma acción pedida por el agente sí pasa por el revisor.
+        let agent = ActionRequest(action: ComputerAction.writeFile, summary: "Escribir algo", origin: "tarea:2")
+        await assertDenied { try await GuardContext.$current.withValue(tainted) { try await broker.run(agent) { 1 } } }
+        XCTAssertEqual(presenter.asked.count, 1)
+    }
+
     func testPreapprovedTaskSendsSkipAskingButNotNever() async throws {
         let store = FakeStore()
         try store.setRule(.ask, for: TelegramAction.sendMessages)

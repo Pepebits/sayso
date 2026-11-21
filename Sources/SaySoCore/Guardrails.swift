@@ -39,6 +39,16 @@ public enum GuardPolicy {
         TaskAction.schedule, TaskAction.cancel, ComputerAction.useSecrets,
     ]
 
+    /// Orígenes de SaySo misma, no del agente: arrancar el detector o un plugin, el escritorio, la
+    /// consola que escribe el usuario. Los pone el código, nunca el modelo, y no tienen que ver con
+    /// el encargo: si el revisor los mirara, frenaría al propio detector («lanzar un servidor de
+    /// clasificación no forma parte del encargo»).
+    public static let systemOrigins: Set<String> = ["proteccion", "plugins", "escritorio", "consola", "selftest"]
+
+    public static func isSystemOrigin(_ origin: String?) -> Bool {
+        origin.map(systemOrigins.contains) ?? false
+    }
+
     /// Además de la lista: los comandos y archivos de la máquina Linux (tiene internet: un `curl` puede
     /// sacar datos) y cualquier plugin. Solo cuestan una revisión cuando el turno ha leído contenido ajeno.
     public static func isOutward(_ action: ActionID) -> Bool {

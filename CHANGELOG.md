@@ -29,6 +29,7 @@ All notable changes to SaySo are documented here. The format follows
 - Requests to the model are retried when the provider is overloaded (429, 529, 5xx) or the network drops, waiting what the provider asks
 - The bot's reply is retried if Telegram fails to deliver it, instead of being lost
 - The local injection detector reconnects after the Linux machine shuts down; before, the first check after each restart was skipped
+- The action reviewer no longer stops SaySo's own work on the Linux machine (starting the local detector or a plugin) as if the agent had asked for it
 - Tool calls cut off by the length limit are not run with half their arguments; OpenAI reasoning models get `max_completion_tokens`
 - An empty answer from the model no longer breaks the next request
 - A task deleted or disabled while another one runs is skipped, and «Run now» doesn't run a task twice at once
