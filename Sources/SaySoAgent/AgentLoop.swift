@@ -359,7 +359,7 @@ public final class AgentLoop: Sendable {
             usage = ContextUsage(date: now(), inputTokens: response.inputTokens ?? Self.estimateTokens(request),
                                  outputTokens: response.outputTokens ?? 0, measured: response.inputTokens != nil,
                                  turns: history.count, notes: notes.count, tools: specs.count, model: model)
-            messages.append(ModelMessage(role: .assistant, content: response.content))
+            messages.append(Self.assistantMessage(response.content))
             if !response.text.isEmpty { lastText = response.text }
             let calls = response.toolCalls
             if calls.isEmpty {
@@ -394,6 +394,16 @@ public final class AgentLoop: Sendable {
             }
             var results: [ContentBlock] = []
             var seen: [ModelImage] = []
+            // Si la respuesta se cortó por longitud, las llamadas pueden llevar los argumentos a
+            // medias (un archivo sin terminar, un mensaje cortado): no se ejecuta ninguna.
+            if response.stopReason == .maxTokens {
+                diagnostics?("Respuesta cortada por longitud: no se ejecutan \(calls.map(\.name).joined(separator: ", "))")
+                for call in calls { failed.append(call.name) }
+                messages.append(ModelMessage(role: .user, content: calls.map {
+                    .toolResult(toolUseID: $0.id, content: Self.truncatedCallText, isError: true)
+                }))
+                continue
+            }
             for call in calls {
                 onStep?(Self.stepLabel(call.name, call.input))
                 let (block, succeeded, images) = await GuardContext.$current.withValue(guardContext) {
@@ -616,6 +626,20 @@ public final class AgentLoop: Sendable {
             }
         }
         return (.toolResult(toolUseID: call.id, content: output, isError: isError), !isError, isError ? [] : images)
+    }
+
+    /// Lo que recibe el modelo cuando su llamada se cortó por longitud.
+    static let truncatedCallText = "No ejecutado: tu respuesta se cortó por longitud y los argumentos pueden estar " +
+        "incompletos. Hazlo de nuevo en partes más pequeñas (p. ej. un archivo largo en varios trozos)."
+
+    /// La respuesta tal cual vuelve en la siguiente petición, salvo los textos vacíos: la API rechaza
+    /// un mensaje del asistente vacío (400), y pasa cuando el modelo no contesta nada y se le avisa.
+    static func assistantMessage(_ content: [ContentBlock]) -> ModelMessage {
+        let kept = content.filter {
+            if case let .text(text) = $0 { return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            return true
+        }
+        return ModelMessage(role: .assistant, content: kept.isEmpty ? [.text("…")] : kept)
     }
 
     /// Lo que se le antepone al agente cuando el detector ve una inyección.

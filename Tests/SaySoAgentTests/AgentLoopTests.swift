@@ -626,4 +626,25 @@ final class HonestyTests: XCTestCase {
         XCTAssertEqual(second, "Hola")
         XCTAssertTrue(provider.requests.get()[0].system.contains("Hechos, no promesas"))
     }
+
+    func testEmptyAssistantTextIsNeverSentBack() {
+        XCTAssertEqual(AgentLoop.assistantMessage([]).content, [.text("…")])
+        XCTAssertEqual(AgentLoop.assistantMessage([.text("  "), .toolUse(id: "1", name: "echo", input: [:])]).content,
+                       [.toolUse(id: "1", name: "echo", input: [:])])
+        XCTAssertEqual(AgentLoop.assistantMessage([.text("hola")]).content, [.text("hola")])
+    }
+
+
+    func testCallsCutByLengthAreNotRun() async throws {
+        let store = MemoryStore()
+        let cut = ModelResponse(content: [.toolUse(id: "t1", name: "echo", input: ["text": "a medias"])], stopReason: .maxTokens)
+        let provider = FakeProvider([cut, .text("Lo hago por partes")])
+        let tool = FakeTool()
+        let loop = AgentLoop(provider: provider, tools: [tool], store: store)
+        _ = try await loop.respond(to: "Escribe algo largo", chatID: "1")
+        XCTAssertTrue(tool.calls.get().isEmpty)
+        let second = provider.requests.get()[1].messages.last?.content.first
+        XCTAssertEqual(second, .toolResult(toolUseID: "t1", content: AgentLoop.truncatedCallText, isError: true))
+    }
+
 }
