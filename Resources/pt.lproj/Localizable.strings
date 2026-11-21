@@ -1606,3 +1606,6 @@
 "¿Desconectar el bot?" = "Desligar o bot?";
 "Se borran su token y el emparejamiento. Para volver a usarlo tendrás que pegar el token y emparejarlo otra vez." = "O token e o emparelhamento são apagados. Para voltar a usá-lo terá de colar o token e emparelhá-lo outra vez.";
 "Versión %@. Las actualizaciones llegan por la App Store." = "Versão %@. As atualizações chegam pela App Store.";
+"Qué se envía a %@" = "O que é enviado para %@";
+"Para responder, SaySo envía a este servicio lo que le pides y lo que el agente lee para hacerlo: tus mensajes, notas de memoria y, si se lo pides, mensajes de Telegram, el calendario, recordatorios o páginas web. Lo trata según sus condiciones. Pepebits no tiene servidores y no lo ve." = "Para responder, o SaySo envia a este serviço o que pede e o que o agente lê para o fazer: as suas mensagens, notas de memória e, se o pedir, mensagens do Telegram, o calendário, lembretes ou páginas web. O serviço trata-os segundo as suas condições. A Pepebits não tem servidores e não os vê.";
+"Acepto que SaySo envíe estos datos a %@" = "Aceito que o SaySo envie estes dados para %@";

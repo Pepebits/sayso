@@ -223,6 +223,9 @@ struct AddAccountSheet: View {
     @State private var fullModel: String
     @State private var fastModel: String
     @State private var apiKey = ""
+    /// Permiso explícito para enviar datos a un proveedor de fuera del Mac (lo exige la App Store y
+    /// el usuario debe saberlo en cualquier caso).
+    @State private var consented = false
 
     init(initial: ProviderPreset = ProviderPreset.all[0], onAdd: @escaping (ProviderAccount, String?) -> Void) {
         self.onAdd = onAdd
@@ -239,8 +242,17 @@ struct AddAccountSheet: View {
         return url
     }
 
+    /// El modelo corre en este Mac o en la red local: los datos no salen a un tercero.
+    static func isLocal(_ url: URL) -> Bool {
+        let host = url.host?.lowercased() ?? ""
+        return ["localhost", "127.0.0.1", "::1", "[::1]"].contains(host) || host.hasSuffix(".local")
+    }
+
+    private var needsConsent: Bool { parsedURL.map { !Self.isLocal($0) } ?? false }
+
     private var canAdd: Bool {
-        parsedURL != nil
+        (!needsConsent || consented)
+            && parsedURL != nil
             && !name.trimmingCharacters(in: .whitespaces).isEmpty
             && !fullModel.trimmingCharacters(in: .whitespaces).isEmpty
             && (!preset.needsKey || !apiKey.isEmpty)
@@ -279,6 +291,23 @@ struct AddAccountSheet: View {
                          text: $apiKey, secure: true, mono: true,
                          hint: "Se guarda en el Llavero de este Mac.")
 
+            if needsConsent, let host = parsedURL?.host {
+                VStack(alignment: .leading, spacing: Theme.Space.s) {
+                    Text(tr("Qué se envía a %@", host))
+                        .font(Theme.text(12, weight: .semibold))
+                        .foregroundStyle(Theme.ink)
+                    Text(tr("Para responder, SaySo envía a este servicio lo que le pides y lo que el agente lee para hacerlo: tus mensajes, notas de memoria y, si se lo pides, mensajes de Telegram, el calendario, recordatorios o páginas web. Lo trata según sus condiciones. Pepebits no tiene servidores y no lo ve."))
+                        .font(Theme.text(12))
+                        .foregroundStyle(Theme.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Toggle(tr("Acepto que SaySo envíe estos datos a %@", host), isOn: $consented)
+                        .toggleStyle(.checkbox)
+                        .font(Theme.text(12))
+                }
+                .padding(Theme.Space.m)
+                .overlay(RoundedRectangle(cornerRadius: Theme.radius).strokeBorder(Theme.controlBorder, lineWidth: 1))
+            }
+
             HStack {
                 Spacer()
                 Button("Cancelar") { dismiss() }
@@ -293,6 +322,8 @@ struct AddAccountSheet: View {
         .padding(Theme.Space.xl)
         .frame(width: 480)
         .background(Theme.paper)
+        // Aceptar un servicio no vale para otro.
+        .onChange(of: parsedURL?.host) { consented = false }
     }
 
     private func apply(_ p: ProviderPreset) {

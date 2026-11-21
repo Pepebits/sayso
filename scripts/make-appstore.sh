@@ -36,6 +36,8 @@ swift scripts/make-icon.swift "$APP/Contents/Resources" >/dev/null
 cp -R Resources/*.lproj "$APP/Contents/Resources/"
 cp Resources/brand/*.svg "$APP/Contents/Resources/"
 cp Resources/ThirdPartyNotices.txt "$APP/Contents/Resources/"
+# Manifiesto de privacidad que exige la tienda.
+cp Resources/appstore/PrivacyInfo.xcprivacy "$APP/Contents/Resources/"
 find "$(dirname "$BIN")" -maxdepth 1 -name '*.bundle' -exec cp -R {} "$APP/Contents/Resources/" \;
 if [ -d "$(dirname "$BIN")/Sparkle.framework" ] && grep -q Sparkle <(otool -L "$APP/Contents/MacOS/SaySo"); then
     echo "Error: el binario aún enlaza Sparkle" >&2; exit 1

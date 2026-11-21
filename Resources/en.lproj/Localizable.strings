@@ -1607,3 +1607,6 @@
 "¿Desconectar el bot?" = "Disconnect the bot?";
 "Se borran su token y el emparejamiento. Para volver a usarlo tendrás que pegar el token y emparejarlo otra vez." = "Its token and pairing are deleted. To use it again you’ll have to paste the token and pair it again.";
 "Versión %@. Las actualizaciones llegan por la App Store." = "Version %@. Updates come through the App Store.";
+"Qué se envía a %@" = "What is sent to %@";
+"Para responder, SaySo envía a este servicio lo que le pides y lo que el agente lee para hacerlo: tus mensajes, notas de memoria y, si se lo pides, mensajes de Telegram, el calendario, recordatorios o páginas web. Lo trata según sus condiciones. Pepebits no tiene servidores y no lo ve." = "To answer, SaySo sends this service what you ask and what the agent reads to do it: your messages, memory notes and, if you ask, Telegram messages, your calendar, reminders or web pages. The service handles it under its own terms. Pepebits has no servers and doesn’t see it.";
+"Acepto que SaySo envíe estos datos a %@" = "I agree that SaySo sends this data to %@";

@@ -11,6 +11,7 @@ All notable changes to SaySo are documented here. The format follows
 - A message you forward to the bot is treated as someone else's: the agent sums it up and asks what to do, instead of following it
 - «anyone», «someone» or «everyone» are not recipients: the agent asks who. A single search result whose name doesn't look like what was asked is checked with you first
 - Removing an AI account, a secret, a note, a task or the bot asks for confirmation first
+- Adding an AI account outside your Mac explains what is sent to it and asks you to agree first
 
 ### Changed
 
