@@ -65,7 +65,7 @@ final class TelegramTests: XCTestCase {
         let service = makeService(store: store, transport: t, provider: FakeProvider([]))
         let maybeCode = await service.pairingCode
         let code = try XCTUnwrap(maybeCode)
-        XCTAssertEqual(code.count, 6)
+        XCTAssertEqual(code.count, 8)
 
         await service.process(try privateText(from: Self.owner, "/start \(code)"))
         XCTAssertEqual(store.settings[SettingsKey.telegramOwnerID], String(Self.owner))
@@ -91,6 +91,23 @@ final class TelegramTests: XCTestCase {
         XCTAssertTrue(t.requests.get().isEmpty)
         let still = await service.pairingCode
         XCTAssertEqual(still, code)
+    }
+
+    func testPairingLocksAfterTooManyWrongCodes() async throws {
+        let store = MemoryStore()
+        let service = makeService(store: store, transport: botTransport(), provider: FakeProvider([]))
+        let first = await service.pairingCode
+        let code = try XCTUnwrap(first)
+        XCTAssertTrue(code.allSatisfy { TelegramBotService.pairingAlphabet.contains($0) })
+        for i in 0..<TelegramBotService.maxPairingFailures {
+            await service.process(try privateText(from: Self.stranger, "/start AAAA\(i)"))
+        }
+        // Bloqueado: ni el código nuevo sirve hasta que pase el rato.
+        let renewed = await service.pairingCode
+        let newCode = try XCTUnwrap(renewed)
+        XCTAssertNotEqual(newCode, code)
+        await service.process(try privateText(from: Self.owner, "/start \(newCode.lowercased())"))
+        XCTAssertNil(store.settings[SettingsKey.telegramOwnerID])
     }
 
     func testStrangerIsIgnoredAndOwnerGetsAnswer() async throws {

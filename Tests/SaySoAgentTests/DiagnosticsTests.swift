@@ -12,6 +12,11 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertEqual(out, "~/Library/x.log <email> <phone> @<user> chat <number> «…» v0.3.0 (7) port 8080")
     }
 
+    func testScrubHidesTokens() {
+        let out = DiagnosticsReport.scrub("bot 123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw0 key sk-ant-api03-abcdefghijklmnop", home: "/x")
+        XCTAssertEqual(out, "bot <bot-token> key <api-key>")
+    }
+
     func testParsesACrashReport() throws {
         let header = #"{"app_name":"SaySo","timestamp":"2026-11-19 02:26:10.00 +0100","app_version":"0.3.0","os_version":"macOS 27.2 (27C50)"}"#
         let body = #"""

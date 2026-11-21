@@ -22,7 +22,14 @@ public struct SaySoBackup: Codable, Sendable {
     /// o se rehacen solos.
     public static let localOnlySettings: Set<String> = [
         SettingsKey.contextUsage, SettingsKey.contextSummaries, SettingsKey.backgroundJobs,
-        SettingsKey.agentRunning, GuardSettings.localInstalled,
+        SettingsKey.agentRunning, GuardSettings.localInstalled, SettingsKey.budgetNotified,
+    ]
+
+    /// Ajustes de seguridad que una copia nunca cambia: quién es el dueño del bot, el acceso total,
+    /// aprobar desde el bot y la protección. Un archivo manipulado no debe poder abrir la puerta.
+    public static let protectedSettings: Set<String> = [
+        SettingsKey.telegramOwnerID, SettingsKey.telegramBotID, SettingsKey.telegramBotName,
+        SettingsKey.telegramFullAccess, SettingsKey.approveFromBot, GuardSettings.review, GuardSettings.detector,
     ]
 
     public init(format: Int = currentFormat, createdAt: Date = Date(), appVersion: String, notes: [MemoryNote],
@@ -39,7 +46,7 @@ public struct SaySoBackup: Codable, Sendable {
 
     /// Lo que hay ahora en el almacén.
     public static func make(store: SaySoStoring, tasks: TaskStoring?, appVersion: String) throws -> SaySoBackup {
-        let settings = try store.allSettings().filter { !localOnlySettings.contains($0.key) }
+        let settings = try store.allSettings().filter { !localOnlySettings.contains($0.key) && !protectedSettings.contains($0.key) }
         return SaySoBackup(appVersion: appVersion, notes: try store.notes(), tasks: (try tasks?.tasks()) ?? [],
                            rules: Dictionary(uniqueKeysWithValues: try store.allRules().map { ($0.key.rawValue, $0.value.rawValue) }),
                            settings: settings,
@@ -48,6 +55,8 @@ public struct SaySoBackup: Codable, Sendable {
 
     public struct Summary: Hashable, Sendable {
         public var notes = 0, tasks = 0, rules = 0, settings = 0, secrets = 0
+        /// Lo que la copia traía y no se ha aplicado por seguridad.
+        public var skipped = 0
     }
 
     /// Lo vuelca en el almacén sin borrar nada: las notas y tareas que ya existen no se repiten,
@@ -65,16 +74,38 @@ public struct SaySoBackup: Codable, Sendable {
             for task in tasks where !existing.contains("\(task.instruction)|\(task.schedule)") {
                 var copy = task
                 copy.id = nil
+                // «Enviar sin preguntar» lo vuelve a decidir el usuario en este Mac.
+                if copy.sendWithoutAsking { copy.sendWithoutAsking = false; summary.skipped += 1 }
                 try taskStore.addTask(copy)
                 summary.tasks += 1
             }
         }
         for (action, raw) in rules {
             guard let rule = PermissionRule(rawValue: raw) else { continue }
+            // Una copia puede endurecer reglas, pero no dejar que algo salga del Mac sin preguntar.
+            if rule == .allow, GuardPolicy.isOutward(ActionID(action)) { summary.skipped += 1; continue }
             try store.setRule(rule, for: ActionID(action))
             summary.rules += 1
         }
         for (key, value) in settings where !Self.localOnlySettings.contains(key) {
+            if Self.protectedSettings.contains(key) { summary.skipped += 1; continue }
+            if key == SettingsKey.plugins {
+                // Solo plugins del catálogo, con su definición de este Mac: ni URL ni comandos ajenos,
+                // que recibirían los secretos del usuario.
+                let restored = (try? JSONDecoder().decode([PluginConfig].self, from: Data(value.utf8))) ?? []
+                let safe = restored.compactMap { config -> PluginConfig? in
+                    guard var known = PluginCatalog.all.first(where: { $0.id == config.id }) else { return nil }
+                    known.enabled = config.enabled
+                    return known
+                }
+                summary.skipped += restored.count - safe.count
+                // Los plugins que ya hay en este Mac se quedan como están.
+                let current: [PluginConfig] = ((try? store.codableSetting(key)) ?? nil) ?? []
+                let merged = current + safe.filter { config in !current.contains { $0.id == config.id } }
+                try store.setCodableSetting(merged, for: key)
+                summary.settings += 1
+                continue
+            }
             try store.setSetting(value, for: key)
             summary.settings += 1
         }

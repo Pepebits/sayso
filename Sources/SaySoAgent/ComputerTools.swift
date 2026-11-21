@@ -79,6 +79,8 @@ public struct ComputerRunTool: AgentTool {
 
     /// Hasta este número de claves en un comando.
     static let maxSecrets = 5
+    /// Lo que se ve en el diálogo de permiso: con secretos, el comando no puede ser más largo.
+    static let maxSecretCommand = 2000
 
     public func call(input: JSONValue, context: ToolContext) async throws -> String {
         let command = try input.requiredString("command", maxLength: 20000)
@@ -91,6 +93,10 @@ public struct ComputerRunTool: AgentTool {
             return ComputerTools.render(result)
         }
         guard let secrets else { throw ToolInputError("Aquí no se pueden usar secretos.") }
+        // Con secretos, el usuario tiene que poder leer el comando entero antes de permitirlo.
+        guard command.count <= Self.maxSecretCommand else {
+            throw ToolInputError("Con secretos, el comando no puede pasar de \(Self.maxSecretCommand) caracteres: el usuario lo revisa entero antes de permitirlo. Divídelo en pasos más cortos.")
+        }
         guard names.count <= Self.maxSecrets else { throw ToolInputError("Como mucho \(Self.maxSecrets) secretos por comando.") }
         var env: [String: String] = [:]
         var missing: [String] = []
@@ -114,7 +120,7 @@ public struct ComputerRunTool: AgentTool {
         let result = try await secrets.broker.run(ActionRequest(
             action: ComputerAction.useSecrets,
             summary: "Usar \(names.joined(separator: ", ")) en un comando: \(String(command.prefix(300)))",
-            parameters: ["Secretos": names.joined(separator: ", "), "Comando": String(command.prefix(2000))],
+            parameters: ["Secretos": names.joined(separator: ", "), "Comando": command],
             origin: origin)) {
             try await computer.run(command, cwd: cwd, timeout: TimeInterval(timeout), env: values, origin: origin)
         }

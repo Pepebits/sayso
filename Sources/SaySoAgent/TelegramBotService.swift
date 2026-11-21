@@ -27,6 +27,12 @@ public actor TelegramBotService {
     public private(set) var pairingCode: String?
     public private(set) var ownerID: Int64?
     private var pairingFailures = 0
+    /// Cuándo se creó el código: caduca a los 10 minutos y se cambia solo.
+    private var pairingCreated = Date()
+    /// Tras demasiados intentos fallidos, se ignora a todos durante un rato.
+    private var pairingLockedUntil: Date?
+    static let pairingLifetime: TimeInterval = 600
+    static let pairingLockout: TimeInterval = 900
     private var me: TGUser?
     private var pollTask: Task<Void, Never>?
     /// Apuntes para el registro de la app (fallos que se alargan, reconexiones).
@@ -84,7 +90,7 @@ public actor TelegramBotService {
     public func start() {
         guard pollTask == nil else { return }
         ownerID = Self.loadOwner(store)
-        if ownerID == nil, pairingCode == nil { pairingCode = Self.newPairingCode() }
+        if ownerID == nil, pairingCode == nil { renewPairingCode() }
         pollTask = Task { await self.pollLoop() }
     }
 
@@ -145,15 +151,23 @@ public actor TelegramBotService {
         try? store.setSetting(nil, for: SettingsKey.telegramOwnerID)
         ownerID = nil
         pairingFailures = 0
-        pairingCode = Self.newPairingCode()
+        pairingLockedUntil = nil
+        renewPairingCode()
     }
 
     static func loadOwner(_ store: SaySoStoring) -> Int64? {
         (try? store.setting(SettingsKey.telegramOwnerID)).flatMap { $0 }.flatMap { Int64($0) }
     }
 
+    /// Ocho caracteres sin los que se confunden (0/O, 1/I/L): unos 10¹² combinaciones.
+    static let pairingAlphabet = Array("ABCDEFGHJKMNPQRSTUVWXYZ23456789")
     static func newPairingCode() -> String {
-        String(format: "%06d", Int.random(in: 0...999_999))
+        String((0..<8).map { _ in pairingAlphabet.randomElement()! })
+    }
+
+    private func renewPairingCode() {
+        pairingCode = Self.newPairingCode()
+        pairingCreated = Date()
     }
 
     /// Nanosegundos de la primera espera antes de reintentar; las siguientes se doblan. Los tests la acortan.
@@ -374,17 +388,22 @@ public actor TelegramBotService {
     }
 
     private func tryPairing(_ message: TGMessage, from: TGUser) async {
-        guard let code = pairingCode, let text = message.text?.trimmingCharacters(in: .whitespacesAndNewlines) else {
+        guard pairingCode != nil, let text = message.text?.trimmingCharacters(in: .whitespacesAndNewlines) else {
             return
         }
+        if let until = pairingLockedUntil, Date() < until { return }
+        if Date().timeIntervalSince(pairingCreated) > Self.pairingLifetime { renewPairingCode() }
+        guard let code = pairingCode else { return }
         var candidate = text
         if let cmd = parseCommand(text), cmd.name == "start" { candidate = cmd.args }
         guard !candidate.isEmpty else { return }
-        guard candidate == code else {
-            // Sin respuesta para no dar pistas; tras demasiados fallos el código caduca.
+        guard candidate.uppercased() == code else {
+            // Sin respuesta para no dar pistas. Tras demasiados fallos se deja de escuchar un rato y
+            // el código cambia.
             pairingFailures += 1
             if pairingFailures >= Self.maxPairingFailures {
-                pairingCode = Self.newPairingCode()
+                pairingLockedUntil = Date().addingTimeInterval(Self.pairingLockout)
+                renewPairingCode()
                 pairingFailures = 0
             }
             return

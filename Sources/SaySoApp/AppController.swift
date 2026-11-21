@@ -436,6 +436,7 @@ final class AppController: AppActions {
     // MARK: - Dictado
 
     private func setUpDictation() {
+        hud.keySymbol = model.dictation.shortcut.symbol
         dictation = DictationController(
             settings: model.dictation,
             corrector: services.map { [vocabularyBox] in FastModelCorrector(services: $0, vocabulary: { vocabularyBox.current }) },
@@ -1930,8 +1931,14 @@ final class AppController: AppActions {
             model.log(.info, LogCategory.app, tr("Copia recuperada: %@ notas, %@ tareas, %@ reglas y %@ ajustes. Faltan %@ secretos por guardar.",
                                                  "\(summary.notes)", "\(summary.tasks)", "\(summary.rules)", "\(summary.settings)",
                                                  "\(summary.secrets)"))
+            if summary.skipped > 0 {
+                model.log(.warning, LogCategory.app, tr("Por seguridad no se han aplicado %@ cosas de la copia (dueño del bot, protección, reglas que permitirían enviar sin preguntar, plugins fuera del catálogo o tareas «sin preguntar»). Revísalas a mano.",
+                                                        "\(summary.skipped)"))
+            }
             // Las cuentas, el dictado y lo demás se leen otra vez de los ajustes recién guardados.
             loadSettings()
+            // El dictado en marcha usa el atajo y el motor de antes: se le pasan los nuevos.
+            updateDictation(model.dictation)
             refresh()
         } catch {
             model.lastError = tr("No se pudo leer la copia: %@", error.localizedDescription)

@@ -133,7 +133,9 @@ public struct ConfirmationView: View {
                     .keyboardShortcut(.cancelAction)
                 Spacer(minLength: Theme.Space.s)
                 // Con la protección de por medio, «siempre» no cambiaría nada: solo se ofrece una vez.
-                if guardReason == nil {
+                // Ni con la protección de por medio ni con secretos: «siempre» valdría para cualquier
+                // comando con cualquier clave. Esa regla solo se cambia a propósito, en Secretos.
+                if guardReason == nil, request.action != ComputerAction.useSecrets {
                     Button("Permitir siempre") { onResult(.allowAlways) }
                         .buttonStyle(BlockButtonStyle(.secondary))
                         .help("Cambia la regla de esta acción a Permitir")

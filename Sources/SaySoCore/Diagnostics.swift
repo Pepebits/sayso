@@ -86,6 +86,9 @@ public enum DiagnosticsReport {
         var out = text
         if !home.isEmpty && home != "/" { out = out.replacingOccurrences(of: home, with: "~") }
         let rules: [(String, String)] = [
+            // Token de un bot de Telegram (123456:AA…) y claves de API con prefijo conocido.
+            (#"\b\d{6,12}:[A-Za-z0-9_-]{30,}"#, "<bot-token>"),
+            (#"\b(sk|xai|gsk|pk)-[A-Za-z0-9_-]{16,}"#, "<api-key>"),
             (#"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"#, "<email>"),
             (#"\+\d[\d \-]{7,}\d"#, "<phone>"),
             (#"(?<![\w.])@[A-Za-z][A-Za-z0-9_]{3,}"#, "@<user>"),
