@@ -8,6 +8,8 @@ All notable changes to SaySo are documented here. The format follows
 
 ### Fixed
 
+- Read-only commands on the Linux machine (listing or reading files) no longer go to the action reviewer after the agent reads someone else's content; anything that could send data out still does
+- A dictated alias («at Lucia Mora 4-2») finds the chat: when a name finds nothing, it is tried as a Telegram username
 - Photos you ask the agent to send you («send them to me») reach you through your bot, one by one, instead of the agent looking for another chat or a group to send an album to
 
 ## [0.4.1] — 2026-11-21

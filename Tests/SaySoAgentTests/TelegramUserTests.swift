@@ -179,6 +179,18 @@ final class TelegramUserTests: XCTestCase {
         XCTAssertTrue(TelegramUserTools.all(api: api, broker: broker).map(\.name).contains("telegram_find_chat"))
     }
 
+    func testDictatedAliasIsTriedWhenTheNameFindsNothing() async throws {
+        let api = FakeTelegramUser()
+        let tool = FindChatTool(api: api, broker: FakeBroker(allow: true))
+        // Así llega un alias dictado: «arroba», mayúsculas, espacios y guiones.
+        let spoken = try await tool.call(input: ["query": "Arroba Lucas_Mor 8-2"], context: ToolContext())
+        XCTAssertEqual(spoken, "9 · privado · Lucas")
+        XCTAssertEqual(TelegramUserTools.spokenAlias("arroba Lucia Mora 4-2"), "@luciamora42")
+        XCTAssertNil(TelegramUserTools.spokenAlias("Ana"), "demasiado corto para ser un alias")
+        XCTAssertNil(TelegramUserTools.spokenAlias("María José"), "con tildes no es un alias")
+        XCTAssertNil(TelegramUserTools.spokenAlias("9430 Daniel"), "un alias empieza por letra")
+    }
+
     func testSendByNameFindsTheContactWithoutAskingForAnID() async throws {
         let api = FakeTelegramUser()
         let broker = FakeBroker(allow: true)

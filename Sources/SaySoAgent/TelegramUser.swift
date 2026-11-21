@@ -242,8 +242,37 @@ public enum TelegramUserTools {
         guard let raw = input["chat"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
             throw ToolInputError("Falta el parámetro «chat»: el nombre, el @alias o el identificador del chat.")
         }
-        let found = try await api.findChats(query: raw, limit: 10).filter { !TelegramUserFilter.isExcluded($0) }
-        guard !found.isEmpty else { throw UnknownChat(query: raw) }
+        let (found, query) = try await findChats(raw, api: api)
+        let visible = found.filter { !TelegramUserFilter.isExcluded($0) }
+        guard !visible.isEmpty else { throw UnknownChat(query: raw) }
+        return try pick(visible, query: query)
+    }
+
+    /// Busca y, si no hay nada, prueba el texto como un alias dictado: «arroba Lucia Mora 4-2»
+    /// es @luciamora42. Devuelve también lo que se buscó al final.
+    static func findChats(_ query: String, api: TelegramUserAPI) async throws -> ([TGUserChat], String) {
+        let found = try await api.findChats(query: query, limit: 10)
+        guard found.isEmpty, let alias = spokenAlias(query), alias != query else { return (found, query) }
+        return (try await api.findChats(query: alias, limit: 10), alias)
+    }
+
+    /// Un alias de Telegram dicho en voz alta: sin «arroba», espacios, guiones ni puntos. Solo si lo
+    /// que queda vale como alias (5–32 letras, números o «_»).
+    static func spokenAlias(_ query: String) -> String? {
+        var text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        for prefix in ["arroba", "at"] where text.lowercased().hasPrefix(prefix + " ") {
+            text = String(text.dropFirst(prefix.count))
+        }
+        text = text.trimmingCharacters(in: .whitespaces)
+        if text.hasPrefix("@") { text.removeFirst() }
+        let collapsed = text.filter { !" -.".contains($0) }.lowercased()
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789_")
+        guard (5...32).contains(collapsed.count), collapsed.unicodeScalars.allSatisfy(allowed.contains),
+              collapsed.first?.isLetter == true else { return nil }
+        return "@" + collapsed
+    }
+
+    private static func pick(_ found: [TGUserChat], query raw: String) throws -> TGUserChat {
         if found.count == 1 || raw.hasPrefix("@") { return found[0] }
         // Coincidencia exacta de nombre, o una sola persona entre los resultados: no hay duda.
         let exact = found.filter { $0.title.compare(raw, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }
@@ -324,7 +353,7 @@ public struct FindChatTool: AgentTool {
         let api = self.api
         let found = try await broker.run(ActionRequest(action: TelegramAction.listChats, summary: "Buscar el chat «\(query)»",
                                                        origin: context.origin)) {
-            try await api.findChats(query: query, limit: 10)
+            try await TelegramUserTools.findChats(query, api: api).0
         }
         let visible = found.filter { !TelegramUserFilter.isExcluded($0) }
         guard !visible.isEmpty else {
