@@ -8,6 +8,9 @@ struct PreferencesScreen: View {
     @State private var showingLicenses = false
     @State private var showingErase = false
     @State private var confirmingReset = false
+    @Environment(\.openURL) private var openURL
+
+    private func openPrivacyPolicy() { openURL(PublicPages.privacy(language: L10n.languageCode)) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.xl) {
@@ -111,6 +114,12 @@ struct PreferencesScreen: View {
                                                           set: { model.actions?.setRetentionDays($0) }),
                                        options: [(30, "30 días"), (90, "90 días"), (365, "1 año"), (0, "Siempre")],
                                        compact: true)
+                    }
+                    CardDivider()
+                    SettingRow(icon: "hand.raised", title: "Política de privacidad",
+                               detail: "Qué guarda SaySo, qué envía y a quién. Pepebits no tiene servidores.") {
+                        BlockButton("Abrir", compact: true) { openPrivacyPolicy() }
+                            .accessibilityLabel("Abrir la política de privacidad")
                     }
                     CardDivider()
                     SettingRow(icon: "doc.text", title: "Licencias",
@@ -513,5 +522,15 @@ private struct LocalModelPicker: View {
         let repo = customRepo.trimmingCharacters(in: .whitespaces)
         guard LocalGuardModel.isValidRepo(repo) else { return }
         model.actions?.setLocalModel(repo)
+    }
+}
+
+/// Páginas públicas de SaySo (site/ en el repositorio, publicado con GitHub Pages).
+enum PublicPages {
+    static let base = URL(string: "https://pepebits.github.io/sayso/")!
+
+    /// En español también para el gallego; en inglés para el resto.
+    static func privacy(language: String) -> URL {
+        base.appendingPathComponent(["es", "gl"].contains(language) ? "privacidad/" : "privacy/")
     }
 }

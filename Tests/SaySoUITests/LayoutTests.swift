@@ -30,3 +30,11 @@ final class ProviderConsentTests: XCTestCase {
         XCTAssertFalse(AddAccountSheet.isLocal(URL(string: "https://localhost.example.com")!))
     }
 }
+
+final class PublicPagesTests: XCTestCase {
+    func testPrivacyPolicyFollowsTheAppLanguage() {
+        XCTAssertEqual(PublicPages.privacy(language: "es").absoluteString, "https://pepebits.github.io/sayso/privacidad/")
+        XCTAssertEqual(PublicPages.privacy(language: "gl").absoluteString, "https://pepebits.github.io/sayso/privacidad/")
+        XCTAssertEqual(PublicPages.privacy(language: "fr").absoluteString, "https://pepebits.github.io/sayso/privacy/")
+    }
+}

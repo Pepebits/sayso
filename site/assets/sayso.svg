@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="20 20 80 80" width="256" height="256" role="img" aria-label="SaySo">
+<style>.ink{fill:#1c1b1b}@media (prefers-color-scheme:dark){.ink{fill:#fcf9f8}}</style>
+<path class="ink" d="M26 30h18v32h-9v16h-9zM50 30h18v32h-9v16h-9z"/>
+<rect x="74" y="70" width="20" height="20" fill="#ff3e3e"/>
+</svg>

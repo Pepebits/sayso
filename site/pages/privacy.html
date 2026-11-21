@@ -1,0 +1,54 @@
+<h1>Privacy policy</h1>
+<p class="meta">Effective November 22, 2026</p>
+
+<p class="lead">SaySo runs on your Mac. Pepebits has no servers: we don’t receive, store or see your data. There is no analytics, advertising or tracking.</p>
+
+<div class="box"><p>SaySo only sends data to the services you connect (your AI provider, Telegram and any plugins you add), and only to do what you ask.</p></div>
+
+<h2>What is stored on your Mac</h2>
+<ul>
+  <li><strong>Local database:</strong> your conversations with the agent, memory notes, scheduled tasks, the activity log and your settings.</li>
+  <li><strong>macOS Keychain:</strong> your AI account keys, your Telegram bot token and the secrets you save for the agent.</li>
+  <li><strong>Telegram session:</strong> if you connect your account, Telegram’s session data, encrypted.</li>
+  <li><strong>Linux machine:</strong> the disk of the virtual machine the agent works in, isolated from your files.</li>
+  <li><strong>Speech models:</strong> the transcription models you download.</li>
+</ul>
+<p>Everything lives in SaySo’s data folder (inside its container in the App Store version). None of it is copied to any Pepebits server.</p>
+
+<h2>Your voice</h2>
+<p>What you dictate is transcribed on your Mac with Whisper or with Apple’s speech recognition. With Apple’s, if your Mac can’t do it on device, macOS may send the audio to Apple under its terms. Audio is not stored.</p>
+
+<h2>What leaves your Mac, and to whom</h2>
+<ul>
+  <li><strong>Your AI provider</strong> (Anthropic, OpenAI, DeepSeek, OpenRouter, Grok or another you set up): what you ask, the recent conversation, your memory notes and what the agent reads to answer you (messages, calendar events, reminders, web pages, images you send). Before you add an account, SaySo explains this and asks for your permission. With a local model (such as Ollama), nothing leaves.</li>
+  <li><strong>Telegram</strong>: messages between you and your bot. If you connect your own account, the agent reads and sends messages in your chats only when you ask, under the permission rules you choose.</li>
+  <li><strong>Web search</strong>: the agent’s queries go to DuckDuckGo or, if you save a key, to Brave Search or Tavily.</li>
+  <li><strong>Plugins</strong> you add (GitHub, Linear, Context7…): what the agent asks them to do your task.</li>
+  <li><strong>Downloads</strong>: the Debian image (cloud.debian.org) and the speech and protection models (Hugging Face, PyTorch) are downloaded when you install them.</li>
+  <li><strong>Updates</strong>: the version downloaded from the web checks GitHub for new releases. The App Store version is updated by the App Store.</li>
+</ul>
+<p>Each of these services handles data under its own privacy policy.</p>
+
+<h2>macOS permissions</h2>
+<ul>
+  <li><strong>Microphone</strong>: to hear you when you use the shortcut or dictate.</li>
+  <li><strong>Input Monitoring</strong>: to detect the dictation shortcut. SaySo doesn’t store what you type.</li>
+  <li><strong>Calendars and Reminders</strong>: only if you let the agent use them.</li>
+  <li><strong>Speech Recognition</strong>: only with Apple’s engine.</li>
+</ul>
+
+<h2>You decide</h2>
+<ul>
+  <li>Every action the agent takes outside its Linux machine goes through rules you choose: allow, ask or never.</li>
+  <li>You can review the activity log, forget memory notes, start a new conversation and remove your accounts at any time.</li>
+  <li>To erase everything: in the version downloaded from the web, Settings → Remove SaySo from this Mac. In the App Store version, delete the app and its folder at <code>~/Library/Containers/com.pepebits.sayso</code>.</li>
+</ul>
+
+<h2>Error reports</h2>
+<p>SaySo never sends reports automatically. If you prepare one in Settings, it is saved to a file and you decide whether to send it to us.</p>
+
+<h2>Changes</h2>
+<p>If this policy changes, the new version will be published on this page with its new date. Earlier versions are in the <a href="https://github.com/Pepebits/sayso/commits/main/site/pages/privacy.html">repository history</a>.</p>
+
+<h2>Contact</h2>
+<p>For any privacy question: <a href="mailto:contacto@pepebits.com">contacto@pepebits.com</a>.</p>

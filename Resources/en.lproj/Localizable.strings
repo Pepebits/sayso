@@ -1610,3 +1610,6 @@
 "Qué se envía a %@" = "What is sent to %@";
 "Para responder, SaySo envía a este servicio lo que le pides y lo que el agente lee para hacerlo: tus mensajes, notas de memoria y, si se lo pides, mensajes de Telegram, el calendario, recordatorios o páginas web. Lo trata según sus condiciones. Pepebits no tiene servidores y no lo ve." = "To answer, SaySo sends this service what you ask and what the agent reads to do it: your messages, memory notes and, if you ask, Telegram messages, your calendar, reminders or web pages. The service handles it under its own terms. Pepebits has no servers and doesn’t see it.";
 "Acepto que SaySo envíe estos datos a %@" = "I agree that SaySo sends this data to %@";
+"Política de privacidad" = "Privacy policy";
+"Qué guarda SaySo, qué envía y a quién. Pepebits no tiene servidores." = "What SaySo stores, what it sends and to whom. Pepebits has no servers.";
+"Abrir la política de privacidad" = "Open the privacy policy";
