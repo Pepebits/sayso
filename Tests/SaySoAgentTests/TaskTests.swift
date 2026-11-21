@@ -155,6 +155,24 @@ final class TaskTests: XCTestCase {
         XCTAssertNotNil(tasks.items.get()[0].nextRun)
     }
 
+    func testATaskDisabledWhileAnotherRunsIsSkipped() async throws {
+        let tasks = MemoryTasks()
+        try tasks.addTask(ScheduledTask(instruction: "primera", schedule: .every(minutes: 10), nextRun: Date(timeIntervalSince1970: 0)))
+        try tasks.addTask(ScheduledTask(instruction: "segunda", schedule: .every(minutes: 10), nextRun: Date(timeIntervalSince1970: 0)))
+        let delivered = Locked<[String]>([])
+        let store = MemoryStore()
+        let provider = FakeProvider([], fallback: .text("hecho"))
+        let scheduler = TaskScheduler(
+            tasks: tasks, makeLoop: { AgentLoop(provider: provider, tools: [], store: store) },
+            deliver: { task, _ in
+                delivered.update { $0.append(task.instruction) }
+                // Mientras corría la primera, el usuario desactiva la segunda.
+                tasks.items.update { $0[1].enabled = false }
+            })
+        await scheduler.tick()
+        XCTAssertEqual(delivered.get(), ["primera"])
+    }
+
     func testFailuresNeverReachTheRecipients() async throws {
         let tasks = MemoryTasks()
         try tasks.addTask(ScheduledTask(instruction: "x", schedule: .every(minutes: 10), nextRun: Date(timeIntervalSince1970: 0),
