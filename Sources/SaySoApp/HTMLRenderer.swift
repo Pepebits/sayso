@@ -19,18 +19,23 @@ final class HTMLRenderer: NSObject, WKNavigationDelegate {
     /// Cuánto puede tardar en cargar antes de darlo por fallido.
     static let loadTimeout: UInt64 = 20_000_000_000
 
-    /// Bloquea todo menos `data:`, `blob:` y las CDN de librerías.
-    static let rules = """
-    [{"trigger":{"url-filter":".*"},"action":{"type":"block"}},
-     {"trigger":{"url-filter":"^(data|blob|about):"},"action":{"type":"ignore-previous-rules"}},
-     {"trigger":{"url-filter":"^https://(cdn\\\\.jsdelivr\\\\.net|cdnjs\\\\.cloudflare\\\\.com|unpkg\\\\.com|esm\\\\.sh|fonts\\\\.googleapis\\\\.com|fonts\\\\.gstatic\\\\.com)/"},"action":{"type":"ignore-previous-rules"}}]
-    """
+    /// Bloquea todo menos `data:`, `blob:` y las CDN de librerías. Las listas de contenido de WebKit no
+    /// admiten alternativas (`a|b`) en sus expresiones: una regla por cada excepción.
+    static let allowedHosts = ["cdn.jsdelivr.net", "cdnjs.cloudflare.com", "unpkg.com", "esm.sh",
+                               "fonts.googleapis.com", "fonts.gstatic.com"]
+    static var rules: String {
+        let allow = ["^data:", "^blob:", "^about:"]
+            + allowedHosts.map { "^https://" + $0.replacingOccurrences(of: ".", with: "\\.") + "/" }
+        let entries = [#"{"trigger":{"url-filter":".*"},"action":{"type":"block"}}"#]
+            + allow.map { #"{"trigger":{"url-filter":""# + $0.replacingOccurrences(of: "\\", with: "\\\\") + #""},"action":{"type":"ignore-previous-rules"}}"# }
+        return "[" + entries.joined(separator: ",") + "]"
+    }
     private static var compiled: WKContentRuleList?
 
     private static func ruleList() async throws -> WKContentRuleList {
         if let compiled { return compiled }
         guard let list = try await WKContentRuleListStore.default()
-            .compileContentRuleList(forIdentifier: "sayso-render-html", encodedContentRuleList: rules) else {
+            .compileContentRuleList(forIdentifier: "sayso-render-html-2", encodedContentRuleList: rules) else {
             throw HTMLRenderError.failed("no se pudieron preparar las reglas de red")
         }
         compiled = list
