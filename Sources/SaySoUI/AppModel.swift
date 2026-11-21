@@ -104,6 +104,8 @@ public final class AppModel {
     public var telegramFullAccess = false
     /// Las preguntas de permiso salen también por el bot.
     public var approveFromBot = false
+    /// Tareas programadas y avisos en pausa.
+    public var tasksPaused = false
     public var rules: [ActionID: PermissionRule] = [:]
     public var telegramActivity: [ActivityEntry] = []
     /// Entradas totales de cada ámbito del registro de actividad («telegram», «mac», «vm», «plugin»),
@@ -178,6 +180,7 @@ public protocol AppActions: AnyObject {
     func setAutomaticUpdates(_ enabled: Bool)
     func setTokenLimits(_ limits: TokenLimits)
     func setApproveFromBot(_ enabled: Bool)
+    func setTasksPaused(_ paused: Bool)
     /// Guarda un informe de errores sin datos personales y lo abre para revisarlo.
     func createDiagnostics()
     /// Abre la página para crear un issue en GitHub.

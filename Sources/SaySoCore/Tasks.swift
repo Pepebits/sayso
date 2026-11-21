@@ -229,6 +229,8 @@ public extension SettingsKey {
     static let budgetNotified = "budget.notified"
     /// «1»: las preguntas de permiso salen también por el bot, con botones.
     static let approveFromBot = "telegram.approveFromBot"
+    /// «1»: tareas programadas y avisos por mensajes en pausa (/pause del bot).
+    static let tasksPaused = "tasks.paused"
 }
 
 

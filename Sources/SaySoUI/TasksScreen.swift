@@ -31,7 +31,18 @@ struct TasksScreen: View {
         VStack(alignment: .leading, spacing: Theme.Space.xl) {
             ScreenHeader(icon: "clock", title: "Tareas",
                          subtitle: "Encargos que el agente hace solo y te envía por Telegram, a ti o a quien elijas.",
-                         tag: nextTag)
+                         tag: model.tasksPaused ? tr("En pausa") : nextTag)
+
+            if model.tasksPaused {
+                SettingsCard {
+                    SettingRow(icon: "pause.circle", title: "Tareas y avisos en pausa",
+                               detail: "No se ejecutan las tareas programadas ni los avisos por mensajes. Se pausan y se reanudan también desde el bot con /pause y /resume.") {
+                        BlockButton("Reanudar", systemImage: "play.fill", kind: .primary, compact: true) {
+                            model.actions?.setTasksPaused(false)
+                        }
+                    }
+                }
+            }
 
             VStack(alignment: .leading, spacing: Theme.Space.s) {
                 SectionBar("Nueva tarea")

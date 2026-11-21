@@ -185,6 +185,13 @@ public struct TelegramBotClient: Sendable {
         return sent
     }
 
+    /// Menú de comandos del bot (el botón «/» de Telegram), solo en chats privados.
+    public func setMyCommands(_ commands: [(command: String, description: String)]) async throws {
+        let list = commands.map { JSONValue.object(["command": .string($0.command), "description": .string(String($0.description.prefix(256)))]) }
+        let _: JSONValue = try await call("setMyCommands", ["commands": .array(list),
+                                                             "scope": .object(["type": .string("all_private_chats")])])
+    }
+
     public func editMessageText(chatID: Int64, messageID: Int64, text: String) async throws {
         let _: TGMessage = try await call("editMessageText", ["chat_id": .number(Double(chatID)),
                                                               "message_id": .number(Double(messageID)),

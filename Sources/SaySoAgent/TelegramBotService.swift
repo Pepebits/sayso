@@ -35,6 +35,8 @@ public actor TelegramBotService {
     private var chatQueues: [Int64: Task<Void, Never>] = [:]
     private var groups: [Int64: GroupBuffer] = [:]
     private var drafts: [String: Draft] = [:]
+    /// Respuestas de la app a /status, /tasks, /pause y /resume.
+    private var commandHandler: BotCommandHandling?
     /// Permisos preguntados por el bot que esperan respuesta.
     private var approvals: [String: PendingApproval] = [:]
 
@@ -84,6 +86,20 @@ public actor TelegramBotService {
         ownerID = Self.loadOwner(store)
         if ownerID == nil, pairingCode == nil { pairingCode = Self.newPairingCode() }
         pollTask = Task { await self.pollLoop() }
+    }
+
+    public func setCommandHandler(_ handler: BotCommandHandling?) {
+        commandHandler = handler
+    }
+
+    /// Comandos del menú del bot. Responden al momento, sin pasar por el modelo.
+    static var menu: [(command: String, description: String)] {
+        [("status", tr("Estado de SaySo: agente, modelo, máquina Linux y gasto de hoy")),
+         ("tasks", tr("Tareas programadas y cuándo toca cada una")),
+         ("pause", tr("Pausar las tareas programadas y los avisos")),
+         ("resume", tr("Reanudar las tareas programadas y los avisos")),
+         ("new", tr("Empezar una conversación nueva")),
+         ("help", tr("Qué puedo hacer y estos comandos"))]
     }
 
     public func stop() {
@@ -216,6 +232,8 @@ public actor TelegramBotService {
                 if me == nil {
                     let user = try await Self.withDeadline(40) { try await client.getMe() }
                     me = user
+                    // El menú se publica en el idioma de la app; si falla, los comandos funcionan igual.
+                    Task { try? await client.setMyCommands(Self.menu) }
                     try? store.setSetting(user.username, for: SettingsKey.telegramBotName)
                     try? store.setSetting(String(user.id), for: SettingsKey.telegramBotID)
                     onStatus(.connected("@" + (user.username ?? user.displayName)))
@@ -318,11 +336,29 @@ public actor TelegramBotService {
             if let cmd = parseCommand(text) {
                 switch cmd.name {
                 case "start":
-                    await send(chatID, tr("Hola, soy SaySo. Escríbeme o mándame una nota de voz. /new empieza una conversación nueva."))
+                    await send(chatID, tr("Hola, soy SaySo. Escríbeme o mándame una nota de voz. /help muestra lo que puedo hacer."))
                     return
                 case "new":
                     try? store.clearTurns(chatID: String(chatID))
                     await send(chatID, tr("Conversación nueva. He olvidado el historial de este chat (la memoria se mantiene)."))
+                    return
+                case "help":
+                    let lines = Self.menu.map { "/\($0.command) — \($0.description)" }
+                    await send(chatID, tr("Escríbeme, mándame una nota de voz o una foto y lo hago. Además:") + "\n\n" + lines.joined(separator: "\n"))
+                    return
+                case "status", "tasks", "pause", "resume":
+                    guard let handler = commandHandler else {
+                        await send(chatID, tr("Este comando no está disponible ahora."))
+                        return
+                    }
+                    let answer: String
+                    switch cmd.name {
+                    case "status": answer = await handler.status()
+                    case "tasks": answer = await handler.tasks()
+                    case "pause": answer = await handler.setTasksPaused(true)
+                    default: answer = await handler.setTasksPaused(false)
+                    }
+                    await send(chatID, answer)
                     return
                 default: break
                 }
@@ -803,6 +839,14 @@ public actor TelegramBotService {
         if pieces.count == 2, let mine = me?.username, pieces[1].lowercased() != mine.lowercased() { return nil }
         return (name, args)
     }
+}
+
+/// Lo que responde la app a los comandos del bot que no pasan por el modelo.
+public protocol BotCommandHandling: Sendable {
+    func status() async -> String
+    func tasks() async -> String
+    /// Pausa o reanuda las tareas programadas y los avisos por mensajes.
+    func setTasksPaused(_ paused: Bool) async -> String
 }
 
 /// El contexto de protección de un turno, guardado desde el bucle para usarlo después.

@@ -215,6 +215,7 @@ final class AppController: AppActions {
         model.telegramEnabled = flag(SettingsKey.telegramEnabled, default: true)
         model.telegramFullAccess = flag(SettingsKey.telegramFullAccess, default: false)
         model.approveFromBot = flag(SettingsKey.approveFromBot, default: false)
+        model.tasksPaused = flag(SettingsKey.tasksPaused, default: false)
         model.openAtLogin = LoginItem.isEnabled
         // La guía aparece hasta que se termina o se salta. Las ayudas de desarrollo que abren una
         // pantalla concreta la omiten; SAYSO_ONBOARDING la fuerza.
@@ -964,7 +965,7 @@ final class AppController: AppActions {
 
     private func tickScheduler() {
         checkBackgroundJobs()
-        guard model.agentRunning, !model.lockPaused, let scheduler else { return }
+        guard model.agentRunning, !model.lockPaused, !model.tasksPaused, let scheduler else { return }
         Task { await scheduler.tick() }
     }
 
@@ -2091,6 +2092,7 @@ final class AppController: AppActions {
                 Task { @MainActor in self?.model.log(.warning, LogCategory.telegram, note) }
             }
             await service.setGuestLoop { attachment in try await services.makeGuestLoop(attachment: attachment) }
+            await service.setCommandHandler(AppBotCommands(controller: self))
         }
         services.outbox.set { [weak service] data, filename, caption in
             guard let service else { throw ToolInputError("El bot de Telegram no está conectado.") }
@@ -2251,7 +2253,7 @@ final class AppController: AppActions {
     private var watchBatches: [String: [TGUserMessage]] = [:]
 
     private func incomingTelegramMessage(_ message: TGUserMessage) {
-        guard let store, model.agentRunning, !model.lockPaused,
+        guard let store, model.agentRunning, !model.lockPaused, !model.tasksPaused,
               !TelegramUserFilter.containsLoginCode(message.text), message.chatID != TelegramUserFilter.serviceChatID else { return }
         for watch in MessageWatch.load(store) where watch.matches(chatID: message.chatID, text: message.text) {
             let first = watchBatches[watch.id] == nil
@@ -2389,6 +2391,65 @@ final class AppController: AppActions {
     func setTelegramEnabled(_ enabled: Bool) {
         model.telegramEnabled = enabled
         setFlag(enabled, SettingsKey.telegramEnabled)
+    }
+
+    // MARK: - Comandos del bot
+
+    func setTasksPaused(_ paused: Bool) {
+        model.tasksPaused = paused
+        setFlag(paused, SettingsKey.tasksPaused)
+        model.log(.info, LogCategory.app, paused ? tr("Tareas programadas y avisos en pausa") : tr("Tareas programadas y avisos reanudados"))
+    }
+
+    func botStatus() -> String {
+        let computer: String
+        switch model.computerState {
+        case .running: computer = tr("en marcha")
+        case .paused: computer = tr("en pausa")
+        case .stopped: computer = tr("apagada")
+        case .notInstalled: computer = tr("sin instalar")
+        case .starting, .preparing: computer = tr("arrancando")
+        case .failed: computer = tr("con un error")
+        }
+        var lines = ["SaySo \(Updater.version)"]
+        lines.append(tr("Agente: %@", model.lockPaused ? tr("en pausa mientras el Mac está bloqueado") : tr("en marcha")))
+        if let account = model.activeAccount {
+            lines.append(tr("Modelo: %@ · %@", account.name, account.fullModel))
+        } else {
+            lines.append(tr("Modelo: sin configurar"))
+        }
+        lines.append(tr("Máquina Linux: %@", computer))
+        let active = model.tasks.filter(\.enabled)
+        if model.tasksPaused {
+            lines.append(tr("Tareas: en pausa (%@ activas). /resume las reanuda.", "\(active.count)"))
+        } else if let next = active.compactMap(\.nextRun).min() {
+            lines.append(tr("Tareas: %@ activas, la próxima a las %@", "\(active.count)", next.formatted(date: .omitted, time: .shortened)))
+        } else {
+            lines.append(tr("Tareas: %@ activas", "\(active.count)"))
+        }
+        refreshSpend()
+        let today = TokenLimits.short(model.tokenSpend.today)
+        if let daily = model.tokenLimits.daily {
+            lines.append(tr("Tokens hoy: %@ de %@", today, TokenLimits.short(daily)))
+        } else {
+            lines.append(tr("Tokens hoy: %@", today))
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    func botTasks() -> String {
+        guard !model.tasks.isEmpty else { return tr("No hay tareas programadas. Pídeme una: «envíame mi calendario cada mañana a las 9».") }
+        var lines = model.tasksPaused ? [tr("En pausa. /resume las reanuda."), ""] : []
+        for task in model.tasks {
+            var line = (task.enabled ? "• " : "◦ ") + task.instruction.prefix(120) + " — " + task.schedule.summary()
+            if !task.enabled {
+                line += " " + tr("(desactivada)")
+            } else if let next = task.nextRun {
+                line += " · " + tr("próxima %@", next.formatted(date: .abbreviated, time: .shortened))
+            }
+            lines.append(line)
+        }
+        return lines.joined(separator: "\n")
     }
 
     func setApproveFromBot(_ enabled: Bool) {
@@ -2867,6 +2928,21 @@ struct BotConfirmer: RemoteConfirming {
     func withdraw(id: String, allowed: Bool) async {
         guard let bot = await bot() else { return }
         await bot.withdrawApproval(id: id, allowed: allowed)
+    }
+}
+
+/// Respuestas a /status, /tasks, /pause y /resume del bot, con lo que sabe la app.
+struct AppBotCommands: BotCommandHandling {
+    weak var controller: AppController?
+
+    func status() async -> String { await MainActor.run { controller?.botStatus() ?? "" } }
+    func tasks() async -> String { await MainActor.run { controller?.botTasks() ?? "" } }
+    func setTasksPaused(_ paused: Bool) async -> String {
+        await MainActor.run {
+            controller?.setTasksPaused(paused)
+            return paused ? tr("Tareas programadas y avisos en pausa. /resume los reanuda.")
+                          : tr("Tareas programadas y avisos en marcha otra vez.")
+        }
     }
 }
 

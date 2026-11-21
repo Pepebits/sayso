@@ -20,6 +20,7 @@ final class PreviewActions: AppActions {
     func checkForUpdates() {}
     func setTokenLimits(_ limits: TokenLimits) { model.tokenLimits = limits }
     func setApproveFromBot(_ enabled: Bool) { model.approveFromBot = enabled }
+    func setTasksPaused(_ paused: Bool) { model.tasksPaused = paused }
     func createDiagnostics() {}
     func openIssues() {}
     func setAutomaticUpdates(_ enabled: Bool) { model.updates = .ready(automatic: enabled, lastCheck: nil) }
