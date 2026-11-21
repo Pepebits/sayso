@@ -54,6 +54,13 @@ public struct TGMessage: Decodable, Sendable, Hashable {
     public var guestQueryId: String?
     /// Tamaños de una foto, de menor a mayor.
     public var photo: [TGPhotoSize]?
+    /// De dónde viene un mensaje reenviado; `nil` si lo escribió quien lo manda.
+    public var forwardOrigin: TGForwardOrigin?
+}
+
+/// Origen de un mensaje reenviado. Solo importa que lo sea: el texto es de otra persona.
+public struct TGForwardOrigin: Decodable, Sendable, Hashable {
+    public var type: String?
 }
 
 public struct TGPhotoSize: Decodable, Sendable, Hashable {

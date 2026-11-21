@@ -242,6 +242,9 @@ public enum TelegramUserTools {
         guard let raw = input["chat"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
             throw ToolInputError("Falta el parámetro «chat»: el nombre, el @alias o el identificador del chat.")
         }
+        if isVague(raw) {
+            throw ToolInputError("«\(raw)» no es un destinatario: pregunta al usuario a quién, con su nombre o @alias.")
+        }
         let (found, query) = try await findChats(raw, api: api)
         let visible = found.filter { !TelegramUserFilter.isExcluded($0) }
         guard !visible.isEmpty else { throw UnknownChat(query: raw) }
@@ -272,8 +275,40 @@ public enum TelegramUserTools {
         return "@" + collapsed
     }
 
+    /// Palabras que no señalan a nadie: Telegram encuentra chats con ellas en el nombre, pero el
+    /// usuario no ha dicho a quién.
+    static let vagueTargets: Set<String> = [
+        "cualquiera", "cualquier", "cualquier chat", "cualquier persona", "alguien", "alguno", "alguna", "todos",
+        "todas", "todo el mundo", "nadie", "quien sea", "quien quieras", "el que sea", "la que sea", "uno", "una",
+        "calquera", "alguén", "todos eles", "anyone", "someone", "somebody", "everyone", "everybody", "any",
+    ]
+
+    static func isVague(_ raw: String) -> Bool {
+        let folded = raw.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+            .lowercased()
+        return vagueTargets.contains(folded)
+    }
+
+    /// El nombre del chat se parece a lo buscado: lo contiene, o comparte una palabra entera. Un
+    /// solo resultado que no se parece (Telegram busca también en otros campos) no basta.
+    static func resembles(_ chat: TGUserChat, _ query: String) -> Bool {
+        let fold = { (text: String) in
+            text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil).lowercased()
+        }
+        let name = fold(chat.displayName), wanted = fold(query)
+        if name.contains(wanted) { return true }
+        let words = { (text: String) in Set(text.split { !$0.isLetter && !$0.isNumber }.map(String.init).filter { $0.count > 1 }) }
+        return !words(name).isDisjoint(with: words(wanted))
+    }
+
     private static func pick(_ found: [TGUserChat], query raw: String) throws -> TGUserChat {
-        if found.count == 1 || raw.hasPrefix("@") { return found[0] }
+        if raw.hasPrefix("@") { return found[0] }
+        if found.count == 1 {
+            guard resembles(found[0], raw) else {
+                throw ToolInputError("El único chat que sale al buscar «\(raw)» es «\(found[0].displayName)» (id \(found[0].id)), y su nombre no se parece. Pregunta al usuario si es ese antes de usarlo.")
+            }
+            return found[0]
+        }
         // Coincidencia exacta de nombre, o una sola persona entre los resultados: no hay duda.
         let exact = found.filter { $0.title.compare(raw, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }
         if exact.count == 1 { return exact[0] }
@@ -391,7 +426,7 @@ public struct SearchMessagesTool: AgentTool {
     let api: TelegramUserAPI
     let broker: PermissionBrokering
     public var name: String { "telegram_search_messages" }
-    public var description: String { "Busca mensajes por texto en un chat de Telegram del usuario o, sin chat_id, en todos." }
+    public var description: String { "Busca mensajes por texto en un chat de Telegram del usuario o, sin «chat», en todos." }
     public var inputSchema: JSONValue {
         .objectSchema([
             "query": .property("string", "Texto a buscar"),

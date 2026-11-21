@@ -191,6 +191,27 @@ final class TelegramUserTests: XCTestCase {
         XCTAssertNil(TelegramUserTools.spokenAlias("9430 Daniel"), "un alias empieza por letra")
     }
 
+    func testVagueRecipientsAreRejected() async throws {
+        let api = FakeTelegramUser()
+        let tool = SendMessageTool(api: api, broker: FakeBroker(allow: true), limiter: SendRateLimiter())
+        for vague in ["cualquiera", "Alguien", "todos.", "anyone"] {
+            do {
+                _ = try await tool.call(input: ["chat": .string(vague), "text": "hola"], context: ToolContext())
+                XCTFail("«\(vague)» no es nadie")
+            } catch {
+                XCTAssertTrue(error.localizedDescription.contains("no es un destinatario"))
+            }
+        }
+        XCTAssertTrue(api.sent.get().isEmpty)
+    }
+
+    func testASingleResultMustLookLikeTheName() {
+        let anna = TGUserChat(id: 1, title: "Anna García", kind: .personal)
+        XCTAssertTrue(TelegramUserTools.resembles(anna, "anna"))
+        XCTAssertTrue(TelegramUserTools.resembles(anna, "García"))
+        XCTAssertFalse(TelegramUserTools.resembles(anna, "Bea"))
+    }
+
     func testSendByNameFindsTheContactWithoutAskingForAnID() async throws {
         let api = FakeTelegramUser()
         let broker = FakeBroker(allow: true)

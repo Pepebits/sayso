@@ -45,6 +45,9 @@ public actor TDLibSession: TelegramUserAPI {
     private var nextExtra = 1
     /// Mensajes con archivo que esperan a que Telegram confirme la subida.
     private var deliveries: [Int64: CheckedContinuation<Void, Error>] = [:]
+    /// Resultados de envío que llegaron antes de que nadie los esperase: la confirmación puede
+    /// procesarse antes de que `request` devuelva el mensaje en cola.
+    private var earlyDeliveries: [Int64: Error?] = [:]
     private var parametersSent = false
     private var pump: Task<Void, Never>?
     private var userNames: [Int64: String] = [:]
@@ -109,8 +112,12 @@ public actor TDLibSession: TelegramUserAPI {
     /// librería aborta al destruirse y macOS apunta un cierre inesperado. Si no contesta en
     /// `timeout`, se sigue adelante.
     public func stopAndWait(timeout: TimeInterval = 3) async {
+        await sendAndWaitClosed("close", timeout: timeout)
+    }
+
+    private func sendAndWaitClosed(_ type: String, timeout: TimeInterval) async {
         guard pump != nil else { return }
-        transport.send(["@type": "close"])
+        transport.send(["@type": .string(type)])
         let timer = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
             guard !Task.isCancelled else { return }
@@ -120,9 +127,10 @@ public actor TDLibSession: TelegramUserAPI {
         timer.cancel()
     }
 
-    /// Cierra la sesión en Telegram y borra los datos locales de TDLib.
-    public func logOut() async {
-        _ = try? await request(["@type": "logOut"])
+    /// Cierra la sesión en Telegram y borra los datos locales de TDLib. Vuelve cuando TDLib ha
+    /// terminado (`authorizationStateClosed`): borrar su carpeta antes lo hacía cerrarse de golpe.
+    public func logOut(timeout: TimeInterval = 8) async {
+        await sendAndWaitClosed("logOut", timeout: timeout)
     }
 
     private func finish(_ final: TelegramUserState) {
@@ -539,11 +547,13 @@ public actor TDLibSession: TelegramUserAPI {
     public func send(chatID: Int64, text: String) async throws {
         try checkTarget(chatID)
         try requireReady()
-        _ = try await request([
+        let message = try await request([
             "@type": "sendMessage", "chat_id": .number(Double(chatID)),
             "input_message_content": ["@type": "inputMessageText",
                                       "text": ["@type": "formattedText", "text": .string(text)]],
         ])
+        // En cola no es enviado: un chat bloqueado o el modo lento lo rechazan después.
+        if let id = message["id"]?.intValue { try await waitForDelivery(messageID: Int64(id), timeout: 8) }
     }
 
     /// Carpeta de donde TDLib sube los archivos salientes. Se vacía de lo que tenga más de una hora.
@@ -605,17 +615,30 @@ public actor TDLibSession: TelegramUserAPI {
     /// Espera a que Telegram confirme o rechace un mensaje en cola. Si pasa el tiempo sin noticia
     /// (una subida lenta), se da por bueno: sigue subiendo.
     func waitForDelivery(messageID: Int64, timeout: TimeInterval = 90) async throws {
+        if let early = earlyDeliveries.removeValue(forKey: messageID) {
+            if let early { throw early }
+            return
+        }
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             deliveries[messageID] = continuation
             Task { [weak self] in
                 try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                await self?.finishDelivery(messageID, error: nil)
+                await self?.expireDelivery(messageID)
             }
         }
     }
 
+    private func expireDelivery(_ messageID: Int64) {
+        deliveries.removeValue(forKey: messageID)?.resume()
+    }
+
     private func finishDelivery(_ messageID: Int64, error: Error?) {
-        guard let continuation = deliveries.removeValue(forKey: messageID) else { return }
+        guard let continuation = deliveries.removeValue(forKey: messageID) else {
+            // Solo interesan los recientes: los de mensajes que nadie espera no deben acumularse.
+            if earlyDeliveries.count > 50 { earlyDeliveries.removeAll() }
+            earlyDeliveries[messageID] = .some(error)
+            return
+        }
         if let error { continuation.resume(throwing: error) } else { continuation.resume() }
     }
 
