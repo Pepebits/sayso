@@ -66,4 +66,14 @@ test build never does, or it would take the regular app's data.
 - **App Review**: the reviewer needs a working setup. Provide an AI key with a low spending limit
   and, ideally, a test Telegram bot, plus notes explaining the Linux virtual machine (it is an
   isolated workspace for the agent, downloaded on request, not code that changes the app).
-- **Privacy policy URL** and screenshots for the listing.
+- **Screenshots** for the listing.
+
+## Public pages
+
+The privacy policy and support page live in `site/` and are published to GitHub Pages by
+`.github/workflows/pages.yml` (Settings → Pages → Source: GitHub Actions):
+
+- Privacy policy URL: `https://pepebits.github.io/sayso/privacy/` (Spanish: `/privacidad/`)
+- Support URL: `https://pepebits.github.io/sayso/support/` (Spanish: `/soporte/`)
+
+Edit the text in `site/pages/` and preview it with `python3 site/build.py`.
