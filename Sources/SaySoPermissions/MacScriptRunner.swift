@@ -1,4 +1,8 @@
 import AppKit
+#if APPSTORE
+import AudioToolbox
+import CoreAudio
+#endif
 import EventKit
 import Foundation
 import SaySoCore
@@ -137,8 +141,13 @@ public final class MacScriptRunner: MacScriptRunning {
             try await notify(title: title, body: body, sound: sound)
             return "Notificación mostrada."
         case let .volume(percent):
+            #if APPSTORE
+            // En el sandbox no hay osascript: se cambia directamente en la salida de audio.
+            try setOutputVolume(Float(percent) / 100)
+            #else
             try await osascript(["on run argv", "set volume output volume ((item 1 of argv) as integer)", "end run"],
                                 arguments: ["\(percent)"])
+            #endif
             return "Volumen al \(percent) %."
         case let .reminder(title, due):
             return try await addReminder(title: title, due: due)
@@ -457,6 +466,25 @@ public final class MacScriptRunner: MacScriptRunning {
         }
         return (today ? "Eventos de hoy:\n" : "Eventos (\(range)):\n") + lines.joined(separator: "\n")
     }
+
+    #if APPSTORE
+    /// Volumen principal de la salida de audio por defecto (0…1).
+    private static func setOutputVolume(_ level: Float) throws {
+        var device = AudioObjectID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioObjectID>.size)
+        var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+                                                 mScope: kAudioObjectPropertyScopeGlobal,
+                                                 mElement: kAudioObjectPropertyElementMain)
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &device) == noErr,
+              device != kAudioObjectUnknown else { throw MacScriptError.scriptFailed("No hay salida de audio.") }
+        var volume = min(max(level, 0), 1)
+        address = AudioObjectPropertyAddress(mSelector: kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
+                                             mScope: kAudioDevicePropertyScopeOutput,
+                                             mElement: kAudioObjectPropertyElementMain)
+        let status = AudioObjectSetPropertyData(device, &address, 0, nil, UInt32(MemoryLayout<Float32>.size), &volume)
+        guard status == noErr else { throw MacScriptError.scriptFailed("Esta salida de audio no deja cambiar el volumen.") }
+    }
+    #endif
 
     // MARK: - osascript
 

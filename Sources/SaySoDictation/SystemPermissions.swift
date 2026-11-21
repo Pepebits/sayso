@@ -15,7 +15,8 @@ public enum SystemPermissions {
         case .microphone:
             return AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         case .accessibility:
-            return AXIsProcessTrusted()
+            // En el sandbox no se usa ni se puede pedir: preguntarlo ya lo apunta como infracción.
+            return BuildFlavor.isAppStore ? false : AXIsProcessTrusted()
         case .inputMonitoring:
             return CGPreflightListenEventAccess()
         case .speechRecognition:
@@ -63,7 +64,8 @@ public enum SystemPermissions {
             }
         }
         let mic = ["sin preguntar", "restringido", "denegado", "concedido"][Int(AVCaptureDevice.authorizationStatus(for: .audio).rawValue)]
-        return "accesibilidad=\(AXIsProcessTrusted() ? "concedido" : "no") "
+        let accessibility = BuildFlavor.isAppStore ? "no-aplica" : (AXIsProcessTrusted() ? "concedido" : "no")
+        return "accesibilidad=\(accessibility) "
             + "escuchar-teclado=\(hid(kIOHIDRequestTypeListenEvent)) (preflight=\(CGPreflightListenEventAccess())) "
             + "enviar-teclado=\(hid(kIOHIDRequestTypePostEvent)) micrófono=\(mic) "
             + "ruta=\(Bundle.main.bundlePath)"

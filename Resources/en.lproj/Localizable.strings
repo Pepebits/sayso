@@ -1606,3 +1606,4 @@
 "¿Eliminar esta tarea?" = "Delete this task?";
 "¿Desconectar el bot?" = "Disconnect the bot?";
 "Se borran su token y el emparejamiento. Para volver a usarlo tendrás que pegar el token y emparejarlo otra vez." = "Its token and pairing are deleted. To use it again you’ll have to paste the token and pair it again.";
+"Versión %@. Las actualizaciones llegan por la App Store." = "Version %@. Updates come through the App Store.";

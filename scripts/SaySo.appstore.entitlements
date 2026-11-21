@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- La Mac App Store exige el sandbox. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- Proveedores de IA, Telegram, descargas de modelos y de la imagen de Linux. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<!-- Micrófono del dictado. -->
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<!-- Máquina Linux del agente. -->
+	<key>com.apple.security.virtualization</key>
+	<true/>
+	<!-- Calendario y Recordatorios (EventKit). -->
+	<key>com.apple.security.personal-information.calendars</key>
+	<true/>
+	<!-- Copias de seguridad: guardar y abrir el archivo que elige el usuario. -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+</dict>
+</plist>

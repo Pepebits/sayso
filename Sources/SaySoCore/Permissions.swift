@@ -168,6 +168,11 @@ public enum MacScript: String, CaseIterable, Codable, Sendable {
 
     public var action: ActionID { ActionID("mac.\(rawValue)") }
 
+    /// Las de esta versión: en la Mac App Store no hay Notas (solo se llega con AppleScript).
+    public static var available: [MacScript] {
+        BuildFlavor.isAppStore ? allCases.filter { $0 != .note && $0 != .readNotes } : allCases
+    }
+
     public var title: String {
         switch self {
         case .notification: return "Mostrar una notificación"

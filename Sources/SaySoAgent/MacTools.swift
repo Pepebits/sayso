@@ -10,9 +10,18 @@ public enum MacTools {
         [
             MacNotificationTool(runner: runner), MacVolumeTool(runner: runner), MacReminderTool(runner: runner),
             MacRemindersTool(runner: runner), MacChangeReminderTool(runner: runner),
-            MacNoteTool(runner: runner), MacNotesTool(runner: runner), MacCalendarTool(runner: runner), MacCalendarEventTool(runner: runner),
+            MacCalendarTool(runner: runner), MacCalendarEventTool(runner: runner),
             MacOpenURLTool(runner: runner),
-        ]
+        ] + notes(runner: runner)
+    }
+
+    /// Notas de Apple no tiene API: solo se llega con AppleScript, que la tienda no permite.
+    private static func notes(runner: MacScriptRunning) -> [AgentTool] {
+        #if APPSTORE
+        []
+        #else
+        [MacNoteTool(runner: runner), MacNotesTool(runner: runner)]
+        #endif
     }
 
     /// Fecha ISO 8601 con o sin zona; sin zona se toma la local.

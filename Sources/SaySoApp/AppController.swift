@@ -655,6 +655,21 @@ final class AppController: AppActions {
     }
 
     func relaunch() {
+        #if APPSTORE
+        // En el sandbox no se puede lanzar un shell: se abre otra copia y esta se cierra.
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        model.log(.info, LogCategory.app, tr("Reiniciando SaySo"))
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { [weak self] _, error in
+            DispatchQueue.main.async {
+                if let error {
+                    self?.model.lastError = tr("No se pudo reiniciar SaySo: %@", error.localizedDescription)
+                } else {
+                    NSApp.terminate(nil)
+                }
+            }
+        }
+        #else
         let pid = ProcessInfo.processInfo.processIdentifier
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
@@ -666,6 +681,7 @@ final class AppController: AppActions {
         } catch {
             model.lastError = tr("No se pudo reiniciar SaySo: %@", error.localizedDescription)
         }
+        #endif
     }
 
     func revealApp() {

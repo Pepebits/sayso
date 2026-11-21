@@ -119,7 +119,7 @@ final class AgentLoopTests: XCTestCase {
     func testMacToolsValidate() async throws {
         let runner = FakeMacRunner()
         let tools = MacTools.all(runner: runner)
-        XCTAssertEqual(tools.count, 10)
+        XCTAssertEqual(tools.count, BuildFlavor.isAppStore ? 8 : 10, "en la tienda no hay Notas")
         let volume = MacVolumeTool(runner: runner)
         _ = try await volume.call(input: ["percent": 30], context: ToolContext())
         do { _ = try await volume.call(input: ["percent": 150], context: ToolContext()); XCTFail() } catch is ToolInputError {}

@@ -85,7 +85,10 @@ public final class HotkeyMonitor: HotkeySource {
         }
         // Con una combinación, el tap se queda la tecla (necesita Accesibilidad). Si no se puede,
         // se escucha sin quedársela: funciona igual, pero la tecla llega también a la app activa.
-        guard let tap = (shortcut.kind == .combo ? make(.defaultTap) : nil) ?? make(.listenOnly) else {
+        // Quitarle la combinación a la app activa necesita Accesibilidad, que el sandbox de la tienda
+        // no da: allí solo se escucha.
+        let swallow = shortcut.kind == .combo && !BuildFlavor.isAppStore
+        guard let tap = (swallow ? make(.defaultTap) : nil) ?? make(.listenOnly) else {
             throw HotkeyMonitorError.tapUnavailable
         }
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)

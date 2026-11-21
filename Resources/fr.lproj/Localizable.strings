@@ -1596,3 +1596,4 @@
 "¿Eliminar esta tarea?" = "Supprimer cette tâche ?";
 "¿Desconectar el bot?" = "Déconnecter le bot ?";
 "Se borran su token y el emparejamiento. Para volver a usarlo tendrás que pegar el token y emparejarlo otra vez." = "Son jeton et l’association sont supprimés. Pour le réutiliser, vous devrez coller le jeton et l’associer à nouveau.";
+"Versión %@. Las actualizaciones llegan por la App Store." = "Version %@. Les mises à jour arrivent par l’App Store.";

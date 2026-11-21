@@ -486,8 +486,23 @@ public enum KeychainName {
     public static func workSecret(_ name: String) -> String { "secret.\(name)" }
 }
 
+/// Qué versión de la app es: la del DMG (con Sparkle) o la de la Mac App Store (en sandbox).
+public enum BuildFlavor {
+    #if APPSTORE
+    public static let isAppStore = true
+    #else
+    public static let isAppStore = false
+    #endif
+}
+
 public enum AppPaths {
+    #if APPSTORE
+    /// En la tienda, el de la app: así una compilación de prueba con otro identificador no toca las
+    /// claves del Llavero de la versión normal.
+    public static let bundleID = Bundle.main.bundleIdentifier ?? "com.pepebits.sayso"
+    #else
     public static let bundleID = "com.pepebits.sayso"
+    #endif
 
     /// `~/Library/Application Support/SaySo/`, creada si no existe.
     public static func supportDirectory() throws -> URL {

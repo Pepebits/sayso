@@ -127,6 +127,9 @@ struct PreferencesScreen: View {
                 }
             }
 
+            // En la tienda no se puede: restablecer pasa por tccutil y borrar, por un shell que sigue
+            // al cerrar la app. Para desinstalar, la app se borra desde el Finder o Launchpad.
+            if !BuildFlavor.isAppStore {
             VStack(alignment: .leading, spacing: Theme.Space.s) {
                 SectionBar("Restablecer y borrar")
                 SettingsCard {
@@ -142,6 +145,7 @@ struct PreferencesScreen: View {
                             .accessibilityLabel("Borrar SaySo de este Mac")
                     }
                 }
+            }
             }
 
         }
@@ -225,7 +229,9 @@ struct PreferencesScreen: View {
     private var updatesDetail: String {
         switch model.updates {
         case .unavailable:
-            return tr("Versión %@. Esta compilación no se actualiza sola.", model.appVersion)
+            return BuildFlavor.isAppStore
+                ? tr("Versión %@. Las actualizaciones llegan por la App Store.", model.appVersion)
+                : tr("Versión %@. Esta compilación no se actualiza sola.", model.appVersion)
         case .ready(_, let lastCheck?):
             return tr("Versión %@. Última comprobación: %@.", model.appVersion, RelativeDate.string(lastCheck))
         case .ready(_, nil):

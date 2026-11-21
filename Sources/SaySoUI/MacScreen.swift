@@ -11,8 +11,8 @@ struct MacScreen: View {
     }
 
     private var summaryTag: String {
-        let free = MacScript.allCases.filter { model.rule(for: $0.descriptor) == .allow }.count
-        return tr("%@ acciones · %@ sin preguntar", "\(MacScript.allCases.count)", "\(free)")
+        let free = MacScript.available.filter { model.rule(for: $0.descriptor) == .allow }.count
+        return tr("%@ acciones · %@ sin preguntar", "\(MacScript.available.count)", "\(free)")
     }
 
     var body: some View {
@@ -35,7 +35,7 @@ struct MacScreen: View {
 
             VStack(alignment: .leading, spacing: Theme.Space.s) {
                 SectionBar("Acciones del Mac")
-                TileGrid(MacScript.allCases.map(ScriptItem.init), columns: 3, minTileWidth: 226) { scriptTile($0.script) }
+                TileGrid(MacScript.available.map(ScriptItem.init), columns: 3, minTileWidth: 226) { scriptTile($0.script) }
                 Text(tr("La lista es cerrada: añadir un script exige una nueva versión de SaySo."))
                     .font(Theme.caption)
                     .foregroundStyle(Theme.secondary)
