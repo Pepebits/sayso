@@ -202,7 +202,10 @@ struct TileGrid<Item: Identifiable, Cell: View>: View {
             ForEach(Array(rows(count).enumerated()), id: \.offset) { _, row in
                 HStack(alignment: .top, spacing: spacing) {
                     ForEach(row) { item in
-                        cell(item).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        // `minWidth: 0`: una tarjeta más ancha que su hueco no ensancha la rejilla. Si no,
+                        // el ancho medido incluía el desborde, nunca bajaban las columnas y la vista
+                        // empujaba la barra lateral fuera de la ventana.
+                        cell(item).frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     }
                     // Huecos para que la última fila no estire sus tarjetas.
                     ForEach(0..<(count - row.count), id: \.self) { _ in
