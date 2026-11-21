@@ -6,9 +6,11 @@ All notable changes to SaySo are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-11-21
+
 ### Added
 
-- Automatic updates with Sparkle: SaySo checks the latest GitHub release once a day and asks before installing a new version, signed by Pepebits. Settings → «Updates» shows the installed version, a «Check now» button and the automatic-checks switch, and the menu bar has «Check for Updates…». Updates start with the version after this one; 0.3.0 has to be updated by hand once
+- Automatic updates with Sparkle: SaySo checks the latest GitHub release once a day and asks before installing a new version, signed by Pepebits. Settings → «Updates» shows the installed version, a «Check now» button and the automatic-checks switch, and the menu bar has «Check for Updates…». If you have 0.3.0 or earlier, install 0.4.0 by hand once; from then on it updates itself
 - Tasks → «Ideas to get started»: ready-made tasks (morning summary, unread chats, plan for the week, overdue reminders, Linux machine clean-up). «Use» fills in the new-task form so you can review it before scheduling
 - Settings → «Error report»: saves a file with the version, status, the last week's warnings and errors and SaySo's unexpected quits (with the crashing thread), hiding names, numbers, addresses and secrets, so you can review it and attach it to an issue. After an unexpected quit, Logs says how to report it
 - Homebrew: `brew install --cask pepebits/sayso/sayso`, with the repository as its own tap. The release script updates the cask's version and checksum
@@ -91,6 +93,7 @@ First public version, signed and notarized.
 
 - "Type at the cursor", so SaySo no longer needs the Accessibility permission
 
-[Unreleased]: https://github.com/Pepebits/sayso/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Pepebits/sayso/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Pepebits/sayso/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Pepebits/sayso/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Pepebits/sayso/releases/tag/v0.2.0
