@@ -1,3 +1,4 @@
+import Carbon.HIToolbox
 import CoreGraphics
 import Foundation
 import SaySoCore
@@ -46,7 +47,7 @@ public final class HotkeyMonitor: HotkeySource {
             timer?.cancel()
             swallowing = false
             // Una combinación con tecla necesita un tap que pueda quedarse el evento: se rehace.
-            if tap != nil, (shortcut.kind == .combo) != (oldValue.kind == .combo) {
+            if tap != nil, (shortcut.kind == .combo) != (oldValue.kind == .combo) || hotKey != nil {
                 stop()
                 try? start()
             }
@@ -59,6 +60,10 @@ public final class HotkeyMonitor: HotkeySource {
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var timer: DispatchWorkItem?
+    /// Atajo del sistema (Carbon) para la combinación en la versión de la tienda: se queda la tecla
+    /// sin Accesibilidad. Mientras existe, el tap no cuenta la tecla de la combinación.
+    private var hotKey: EventHotKeyRef?
+    private var hotKeyHandler: EventHandlerRef?
 
     // Códigos de tecla.
     static let leftOption: Int64 = 58
@@ -96,11 +101,57 @@ public final class HotkeyMonitor: HotkeySource {
         CGEvent.tapEnable(tap: tap, enable: true)
         self.tap = tap
         self.source = source
+        if shortcut.kind == .combo, BuildFlavor.isAppStore { registerHotKey() }
+    }
+
+    /// Modificadores de Carbon de una combinación; `nil` si lleva fn, que Carbon no admite.
+    static func carbonModifiers(_ shortcut: DictationShortcut) -> UInt32? {
+        let m = shortcut.modifiers
+        guard m.rawValue & DictationShortcut.fnFlag == 0 else { return nil }
+        var out: UInt32 = 0
+        if m.contains(.command) { out |= UInt32(cmdKey) }
+        if m.contains(.option) { out |= UInt32(optionKey) }
+        if m.contains(.control) { out |= UInt32(controlKey) }
+        if m.contains(.shift) { out |= UInt32(shiftKey) }
+        return out
+    }
+
+    private func registerHotKey() {
+        guard hotKey == nil, let modifiers = Self.carbonModifiers(shortcut) else { return }
+        var types = [EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed)),
+                     EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased))]
+        var handler: EventHandlerRef?
+        let installed = InstallEventHandler(GetApplicationEventTarget(), hotKeyCallback, types.count, &types,
+                                            Unmanaged.passUnretained(self).toOpaque(), &handler)
+        guard installed == noErr else { return }
+        var ref: EventHotKeyRef?
+        let id = EventHotKeyID(signature: OSType(0x5361_5953), id: 1) // «SaYS»
+        guard RegisterEventHotKey(UInt32(shortcut.keyCode), modifiers, id, GetApplicationEventTarget(), 0, &ref) == noErr,
+              let ref else {
+            // Ya la usa otra app: se sigue escuchando sin quedársela.
+            if let handler { RemoveEventHandler(handler) }
+            return
+        }
+        hotKey = ref
+        hotKeyHandler = handler
+    }
+
+    private func unregisterHotKey() {
+        if let hotKey { UnregisterEventHotKey(hotKey) }
+        if let hotKeyHandler { RemoveEventHandler(hotKeyHandler) }
+        hotKey = nil
+        hotKeyHandler = nil
+    }
+
+    fileprivate func hotKeyEvent(pressed: Bool) {
+        let now = ProcessInfo.processInfo.systemUptime
+        feed(pressed ? .optionDown(.left, at: now, alone: true) : .optionUp(.left, at: now))
     }
 
     public func stop() {
         timer?.cancel()
         timer = nil
+        unregisterHotKey()
         if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
         if let tap {
             CGEvent.tapEnable(tap: tap, enable: false)
@@ -130,6 +181,8 @@ public final class HotkeyMonitor: HotkeySource {
         let now = ProcessInfo.processInfo.systemUptime
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+        // La tecla de la combinación la cuenta el atajo del sistema.
+        if hotKey != nil, keyCode == Int64(shortcut.keyCode), type == .keyDown || type == .keyUp { return false }
         var consume = false
         if shortcut.kind == .combo, keyCode == Int64(shortcut.keyCode) {
             switch type {
@@ -277,4 +330,13 @@ private func hotkeyTapCallback(proxy: CGEventTapProxy, type: CGEventType, event:
         return nil
     }
     return Unmanaged.passUnretained(event)
+}
+
+/// Recibe el atajo del sistema (pulsado y soltado) y lo pasa al monitor.
+private func hotKeyCallback(_ next: EventHandlerCallRef?, _ event: EventRef?, _ user: UnsafeMutableRawPointer?) -> OSStatus {
+    guard let event, let user else { return OSStatus(eventNotHandledErr) }
+    let monitor = Unmanaged<HotkeyMonitor>.fromOpaque(user).takeUnretainedValue()
+    let pressed = GetEventKind(event) == UInt32(kEventHotKeyPressed)
+    monitor.hotKeyEvent(pressed: pressed)
+    return noErr
 }
