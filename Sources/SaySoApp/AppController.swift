@@ -2186,7 +2186,11 @@ final class AppController: AppActions {
                 Task { @MainActor in self?.telegramUserChanged(state, generation: generation, order: number) }
             }
             telegramUser.session = session
+            let store = self.store
             Task { [weak self] in
+                await session.blockWrites {
+                    Set([(try? store?.setting(SettingsKey.telegramBotID)).flatMap { $0 }.flatMap { Int64($0) }].compactMap { $0 })
+                }
                 await session.onNewMessage { message in
                     Task { @MainActor in self?.incomingTelegramMessage(message) }
                 }

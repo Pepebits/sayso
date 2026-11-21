@@ -378,4 +378,22 @@ final class TDLibSessionTests: XCTestCase {
         XCTAssertNil(JSONValue.number(1e17).intValue, "por encima de 2^53 ya no es exacto")
         XCTAssertNil(JSONValue.number(2.5).intValue)
     }
+
+    func testNeverWritesToTheOwnBotChat() async throws {
+        let session = makeSession(FakeTD(), states: Locked([]))
+        await session.blockWrites { [777] }
+        for attempt in 0..<3 {
+            do {
+                switch attempt {
+                case 0: try await session.send(chatID: 777, text: "hola")
+                case 1: try await session.forward(fromChatID: 1, messageIDs: [2], toChatID: 777)
+                default: try await session.reply(chatID: 777, messageID: 1, text: "hola")
+                }
+                XCTFail("no debería escribir al propio bot")
+            } catch {
+                XCTAssertTrue(error.localizedDescription.contains("bot de SaySo"), "\(error)")
+            }
+        }
+    }
+
 }

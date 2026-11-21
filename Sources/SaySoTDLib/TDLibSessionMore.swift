@@ -22,6 +22,7 @@ extension TDLibSession {
     // MARK: Envíos
 
     public func send(chatID: Int64, text: String, at date: Date?) async throws {
+        try checkTarget(chatID)
         guard let date else { return try await send(chatID: chatID, text: text) }
         try requireReady()
         // Hasta que Telegram lo confirma, no aparece entre los programados del chat.
@@ -36,6 +37,7 @@ extension TDLibSession {
     }
 
     public func sendAlbum(chatID: Int64, files: [TGOutgoingFile], caption: String?) async throws {
+        try checkTarget(chatID)
         try requireReady()
         let folder = try Self.outgoingFolder().appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -78,6 +80,7 @@ extension TDLibSession {
     }
 
     public func sendSpecial(chatID: Int64, content: TGSpecialContent) async throws {
+        try checkTarget(chatID)
         try requireReady()
         var contact: JSONValue?
         if case .contact(let personChat) = content {
@@ -338,6 +341,7 @@ extension TDLibSession {
 
     /// Envía el primer sticker del usuario que encaje con el emoji. Devuelve el emoji del sticker enviado.
     public func sendSticker(chatID: Int64, emoji: String, packID: String?) async throws -> String {
+        try checkTarget(chatID)
         try requireReady()
         var candidates: [JSONValue]
         if let packID {

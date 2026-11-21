@@ -56,6 +56,17 @@ public actor TDLibSession: TelegramUserAPI {
     /// Quien quiera enterarse de los mensajes que llegan (los avisos).
     private var incoming: (@Sendable (TGUserMessage) -> Void)?
 
+    /// Chats a los que no se escribe nunca desde la cuenta: el del propio bot de SaySo. Lo que se
+    /// mandara ahí llegaría al agente como si lo hubiera escrito el usuario.
+    private var blockedTargets: @Sendable () -> Set<Int64> = { [] }
+    public func blockWrites(to targets: @escaping @Sendable () -> Set<Int64>) { blockedTargets = targets }
+
+    func checkTarget(_ chatID: Int64) throws {
+        if blockedTargets().contains(chatID) {
+            throw ToolInputError("Ese chat es tu propia conversación con el bot de SaySo: desde la cuenta no se escribe ahí. Pon el contenido en tu respuesta.")
+        }
+    }
+
     /// Avisa de cada mensaje nuevo que llega a la cuenta (no los enviados ni los programados).
     public func onNewMessage(_ handler: (@Sendable (TGUserMessage) -> Void)?) { incoming = handler }
     public private(set) var state: TelegramUserState = .off {
@@ -524,6 +535,7 @@ public actor TDLibSession: TelegramUserAPI {
     }
 
     public func send(chatID: Int64, text: String) async throws {
+        try checkTarget(chatID)
         try requireReady()
         _ = try await request([
             "@type": "sendMessage", "chat_id": .number(Double(chatID)),
@@ -572,6 +584,7 @@ public actor TDLibSession: TelegramUserAPI {
     }
 
     public func sendFile(chatID: Int64, data: Data, filename: String, caption: String?, kind: TGMediaKind) async throws {
+        try checkTarget(chatID)
         try requireReady()
         // TDLib sube desde un archivo local, y lo hace después de contestar: tiene que seguir ahí.
         let folder = try Self.outgoingFolder().appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -609,6 +622,7 @@ public actor TDLibSession: TelegramUserAPI {
     }
 
     public func reply(chatID: Int64, messageID: Int64, text: String) async throws {
+        try checkTarget(chatID)
         try requireReady()
         let message = try await request([
             "@type": "sendMessage", "chat_id": .number(Double(chatID)),
@@ -619,6 +633,7 @@ public actor TDLibSession: TelegramUserAPI {
     }
 
     public func forward(fromChatID: Int64, messageIDs: [Int64], toChatID: Int64) async throws {
+        try checkTarget(toChatID)
         try requireReady()
         _ = try await request([
             "@type": "forwardMessages", "chat_id": .number(Double(toChatID)), "from_chat_id": .number(Double(fromChatID)),
