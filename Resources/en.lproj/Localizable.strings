@@ -1527,3 +1527,16 @@
 "Texto que la sustituye" = "Text that replaces it";
 "Añadir sustitución" = "Add replacement";
 "Quitar «%@» del diccionario" = "Remove «%@» from the dictionary";
+"%@ gastados" = "%@ spent";
+"Gastado %@" = "Spent %@";
+"Has llegado al límite diario de %@ tokens. El agente vuelve mañana, o súbelo en Estadísticas → Límite de gasto." = "You reached the daily limit of %@ tokens. The agent is back tomorrow, or raise it in Statistics → Spending limit.";
+"Has llegado al límite mensual de %@ tokens. El agente vuelve el mes que viene, o súbelo en Estadísticas → Límite de gasto." = "You reached the monthly limit of %@ tokens. The agent is back next month, or raise it in Statistics → Spending limit.";
+"Límite %@" = "Limit %@";
+"Límite de gasto" = "Spending limit";
+"Sin límite" = "No limit";
+"Tope de tokens con modelos de pago; los locales (Ollama, LM Studio) no cuentan. Al 80 % te avisa por el bot y en el Mac; al llegar, el agente no hace más peticiones hasta el día o el mes siguiente." = "Token cap for paid models; local ones (Ollama, LM Studio) don't count. At 80 % it warns you through the bot and on the Mac; when reached, the agent makes no more requests until the next day or month.";
+"alcanzado" = "reached";
+"Al día" = "Per day";
+"Al mes" = "Per month";
+"Llevas %@ de %@ tokens del límite diario." = "You have used %@ of %@ tokens of the daily limit.";
+"Llevas %@ de %@ tokens del límite mensual." = "You have used %@ of %@ tokens of the monthly limit.";

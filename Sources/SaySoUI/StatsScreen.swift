@@ -62,6 +62,8 @@ struct StatsScreen: View {
                            detail: "Dicta algo o habla con el agente y aquí verás cuánto lo usas.")
             }
 
+            budgetSection
+
             resourcesSection
         }
         .onAppear { model.actions?.refreshResources() }
@@ -117,6 +119,59 @@ struct StatsScreen: View {
                             .font(Theme.caption).foregroundStyle(Theme.secondary)
                     }
                 }
+            }
+        }
+    }
+
+    // MARK: Límite de gasto
+
+    private static func limitLabel(_ value: Int?) -> String {
+        value.map(TokenLimits.short) ?? tr("Sin límite")
+    }
+
+    private var budgetSection: some View {
+        let limits = model.tokenLimits
+        let spend = model.tokenSpend
+        return VStack(alignment: .leading, spacing: Theme.Space.s) {
+            SectionBar("Límite de gasto", note: spend.reached(limits) != nil ? tr("alcanzado") : nil)
+            Panel {
+                Text(tr("Tope de tokens con modelos de pago; los locales (Ollama, LM Studio) no cuentan. Al 80 % te avisa por el bot y en el Mac; al llegar, el agente no hace más peticiones hasta el día o el mes siguiente."))
+                    .font(Theme.caption)
+                    .foregroundStyle(Theme.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                budgetRow(title: "Al día", used: spend.today, limit: limits.daily,
+                          options: TokenLimits.dailyOptions) { value in
+                    var l = limits
+                    l.daily = value
+                    model.actions?.setTokenLimits(l)
+                }
+                CardDivider()
+                budgetRow(title: "Al mes", used: spend.month, limit: limits.monthly,
+                          options: TokenLimits.monthlyOptions) { value in
+                    var l = limits
+                    l.monthly = value
+                    model.actions?.setTokenLimits(l)
+                }
+            }
+        }
+    }
+
+    private func budgetRow(title: String, used: Int, limit: Int?, options: [Int?],
+                           set: @escaping (Int?) -> Void) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Space.s) {
+            HStack(alignment: .firstTextBaseline, spacing: Theme.Space.m) {
+                Text(tr(title)).font(Theme.bodyStrong).foregroundStyle(Theme.ink)
+                Text(limit.map { tr("%@ de %@", Self.compact(used), TokenLimits.short($0)) } ?? tr("%@ gastados", Self.compact(used)))
+                    .font(Theme.mono(12)).foregroundStyle(Theme.secondary)
+                Spacer(minLength: Theme.Space.s)
+                BlockSegmented(tr("Límite %@", tr(title).lowercased()),
+                               selection: Binding(get: { limit ?? 0 }, set: { set($0 == 0 ? nil : $0) }),
+                               options: options.map { ($0 ?? 0, Self.limitLabel($0)) }, compact: true)
+            }
+            if let limit {
+                let fraction = min(Double(used) / Double(max(limit, 1)), 1)
+                BlockProgress(value: fraction, label: tr("Gastado %@", title),
+                              tint: fraction >= 1 ? Theme.destructive : fraction >= TokenLimits.warnAt ? Theme.ink : Theme.chartAI)
             }
         }
     }

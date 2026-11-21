@@ -13,6 +13,7 @@ All notable changes to SaySo are documented here. The format follows
 - Settings → «Error report»: saves a file with the version, status, the last week's warnings and errors and SaySo's unexpected quits (with the crashing thread), hiding names, numbers, addresses and secrets, so you can review it and attach it to an issue. After an unexpected quit, Logs says how to report it
 - Homebrew: `brew install --cask pepebits/sayso/sayso`, with the repository as its own tap. The release script updates the cask's version and checksum
 - Dictation dictionary (Dictation → Dictionary): names, brands and acronyms are given as a hint to Whisper and Apple's recognizer and to AI correction, and always come out with your capitalization; fixed replacements turn a dictated word or phrase into another («at sign» → «@»)
+- Spending limit (Statistics → Spending limit): a daily and a monthly token cap for paid models (local ones don't count). At 80 % SaySo warns through the bot and on the Mac; when reached, the agent makes no more paid requests until the next day or month, or until you raise it
 
 ### Fixed
 

@@ -106,6 +106,9 @@ final class AppController: AppActions {
                                          telegramUser: telegramUser)
             self.services = services
             broker.reviewer = services.reviewer
+            services.budgetEvents.set { [weak self] event in
+                Task { @MainActor in await self?.announceBudget(event) }
+            }
             services.voice.set { [weak self] data, filename in
                 guard let self else { throw ToolInputError("La app se está cerrando.") }
                 return try await self.transcribeAudio(data, filename: filename)
@@ -188,6 +191,7 @@ final class AppController: AppActions {
         model.keepAwake = flag(SettingsKey.keepAwake, default: false)
         model.speakAlerts = flag(SettingsKey.speakAlerts, default: true)
         model.alertStyle = (try? store.setting(SettingsKey.alertStyle)).flatMap { $0 }.flatMap(AlertStyle.init(rawValue:)) ?? .sound
+        model.tokenLimits = ((try? store.codableSetting(SettingsKey.tokenLimits)) ?? nil) ?? TokenLimits()
         model.pauseWhenLocked = flag(SettingsKey.pauseWhenLocked, default: false)
         model.guardReview = flag(GuardSettings.review, default: true)
         model.guardDetector = (try? store.setting(GuardSettings.detector)).flatMap { $0 }
@@ -323,6 +327,7 @@ final class AppController: AppActions {
         let stats = (try? store.usageStats(days: 90, now: Date())) ?? UsageStats()
         assign(\.stats, stats)
         assign(\.requestsWeek, stats.lastDays(7).map(\.totals.requests))
+        refreshSpend()
     }
 
     func showMoreActivity(scope: String) {
@@ -1612,6 +1617,39 @@ final class AppController: AppActions {
         model.updates = updater.state
     }
 
+    // MARK: - Límite de gasto
+
+    func setTokenLimits(_ limits: TokenLimits) {
+        model.tokenLimits = limits
+        attempt { try store?.setCodableSetting(limits, for: SettingsKey.tokenLimits) }
+        refreshSpend()
+    }
+
+    /// Lo gastado hoy y este mes con modelos de pago, para Estadísticas.
+    func refreshSpend() {
+        guard let store else { return }
+        let accounts: [ProviderAccount] = ((try? store.codableSetting(SettingsKey.accounts)) ?? nil) ?? []
+        let local = Set(accounts.filter { $0.keychainKey == nil }.flatMap { [$0.fullModel, $0.fastModel] })
+        model.tokenSpend = (try? store.tokenSpend(now: Date(), excluding: local)) ?? TokenSpend()
+    }
+
+    /// Aviso al 80 % y al llegar al tope: en Registros, en el Mac y por el bot.
+    private func announceBudget(_ event: BudgetEvent) async {
+        refreshSpend()
+        let text: String
+        switch event {
+        case let .nearing(period, used, limit):
+            text = tr(period == .day ? "Llevas %@ de %@ tokens del límite diario." : "Llevas %@ de %@ tokens del límite mensual.",
+                      TokenLimits.short(used), TokenLimits.short(limit))
+            model.log(.warning, LogCategory.app, text)
+        case let .reached(period, limit):
+            text = BudgetReachedError(period: period, limit: limit).localizedDescription
+            model.log(.error, LogCategory.app, text)
+        }
+        await notifyOnMac(title: tr("Límite de gasto"), body: text, origin: "budget")
+        _ = await telegram?.sendToOwner("💸 " + text)
+    }
+
     func setSpeakAlerts(_ enabled: Bool) {
         model.speakAlerts = enabled
         setFlag(enabled, SettingsKey.speakAlerts)
@@ -2650,6 +2688,8 @@ final class AgentServices: Sendable {
     let promptGuard: PromptGuardDetector
     /// Transcripción de notas de voz de Telegram; la conecta la app (usa el Whisper del dictado).
     let voice = VoiceHook()
+    /// Avisos del tope de tokens; los recoge la app.
+    let budgetEvents = BudgetHook()
     var transcribeVoice: TelegramUserTools.Transcribe? { voice.current }
 
     init(store: SaySoStoring, tasks: TaskStoring, vault: SecretVault, runner: MacScriptRunning,
@@ -2676,7 +2716,12 @@ final class AgentServices: Sendable {
         guard let account = accounts.first(where: { $0.id == activeID }) ?? accounts.first else {
             throw AgentSetupError.noAccount
         }
-        return try ProviderFactory.make(account: account, vault: vault, transport: URLSessionTransport())
+        let provider = try ProviderFactory.make(account: account, vault: vault, transport: URLSessionTransport())
+        // Los modelos locales no gastan: ni se limitan ni cuentan para el tope.
+        guard account.keychainKey != nil else { return provider }
+        let local = Set(accounts.filter { $0.keychainKey == nil }.flatMap { [$0.fullModel, $0.fastModel] })
+        return BudgetedProvider(base: provider, store: store, excluded: local,
+                                onEvent: { [budgetEvents] in budgetEvents.send($0) })
     }
 
     /// `quick`: para la voz. No espera a conectar plugins ni arranca la máquina Linux.
@@ -2789,6 +2834,14 @@ struct FastModelCorrector: TextCorrector {
         try await LLMTextCorrector(provider: services.makeProvider(), redactor: services.redactor,
                                    store: services.store, vocabulary: vocabulary()).correct(text)
     }
+}
+
+/// Dónde van los avisos del tope de tokens. Se llama desde cualquier hilo.
+final class BudgetHook: @unchecked Sendable {
+    private let lock = NSLock()
+    private var handler: (@Sendable (BudgetEvent) -> Void)?
+    func set(_ handler: @escaping @Sendable (BudgetEvent) -> Void) { lock.lock(); self.handler = handler; lock.unlock() }
+    func send(_ event: BudgetEvent) { lock.lock(); let h = handler; lock.unlock(); h?(event) }
 }
 
 /// Diccionario del dictado, legible desde cualquier hilo.

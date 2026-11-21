@@ -223,6 +223,10 @@ public extension SettingsKey {
     static let speakAlerts = "alerts.speak"
     /// Cómo se avisa en el Mac (`AlertStyle`).
     static let alertStyle = "alerts.style"
+    /// Tope de tokens (`TokenLimits` en JSON).
+    static let tokenLimits = "budget.tokens"
+    /// Último aviso o bloqueo por el tope, para no repetirlo: «warn-day-2026-11-21».
+    static let budgetNotified = "budget.notified"
 }
 
 

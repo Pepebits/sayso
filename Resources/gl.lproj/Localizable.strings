@@ -1526,3 +1526,16 @@
 "Texto que la sustituye" = "Texto que a substitúe";
 "Añadir sustitución" = "Engadir substitución";
 "Quitar «%@» del diccionario" = "Quitar «%@» do dicionario";
+"%@ gastados" = "%@ gastados";
+"Gastado %@" = "Gastado %@";
+"Has llegado al límite diario de %@ tokens. El agente vuelve mañana, o súbelo en Estadísticas → Límite de gasto." = "Chegaches ao límite diario de %@ tokens. O axente volve mañá, ou súbeo en Estatísticas → Límite de gasto.";
+"Has llegado al límite mensual de %@ tokens. El agente vuelve el mes que viene, o súbelo en Estadísticas → Límite de gasto." = "Chegaches ao límite mensual de %@ tokens. O axente volve o mes que vén, ou súbeo en Estatísticas → Límite de gasto.";
+"Límite %@" = "Límite %@";
+"Límite de gasto" = "Límite de gasto";
+"Sin límite" = "Sen límite";
+"Tope de tokens con modelos de pago; los locales (Ollama, LM Studio) no cuentan. Al 80 % te avisa por el bot y en el Mac; al llegar, el agente no hace más peticiones hasta el día o el mes siguiente." = "Tope de tokens cos modelos de pago; os locais (Ollama, LM Studio) non contan. Ao 80 % avísate polo bot e no Mac; ao chegar, o axente non fai máis peticións ata o día ou o mes seguinte.";
+"alcanzado" = "alcanzado";
+"Al día" = "Ao día";
+"Al mes" = "Ao mes";
+"Llevas %@ de %@ tokens del límite diario." = "Levas %@ de %@ tokens do límite diario.";
+"Llevas %@ de %@ tokens del límite mensual." = "Levas %@ de %@ tokens do límite mensual.";

@@ -26,6 +26,10 @@ public final class AppModel {
     public var speakAlerts = true
     /// Cómo se avisa en el Mac: con sonido, en silencio o sin notificación.
     public var alertStyle: AlertStyle = .sound
+    /// Tope de tokens de los modelos de pago.
+    public var tokenLimits = TokenLimits()
+    /// Gastado hoy y este mes con modelos de pago.
+    public var tokenSpend = TokenSpend()
     /// Versión instalada, p. ej. «0.4.0 (8)».
     public var appVersion = ""
     /// Estado de las actualizaciones automáticas (Sparkle).
@@ -170,6 +174,7 @@ public protocol AppActions: AnyObject {
     /// Busca una versión nueva ahora, con la ventana de Sparkle.
     func checkForUpdates()
     func setAutomaticUpdates(_ enabled: Bool)
+    func setTokenLimits(_ limits: TokenLimits)
     /// Guarda un informe de errores sin datos personales y lo abre para revisarlo.
     func createDiagnostics()
     /// Abre la página para crear un issue en GitHub.

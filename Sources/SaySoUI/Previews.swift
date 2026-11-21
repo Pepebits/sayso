@@ -18,6 +18,7 @@ final class PreviewActions: AppActions {
     func setAlertStyle(_ style: AlertStyle) { model.alertStyle = style }
     func exportBackup() {}
     func checkForUpdates() {}
+    func setTokenLimits(_ limits: TokenLimits) { model.tokenLimits = limits }
     func createDiagnostics() {}
     func openIssues() {}
     func setAutomaticUpdates(_ enabled: Bool) { model.updates = .ready(automatic: enabled, lastCheck: nil) }

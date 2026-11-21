@@ -137,3 +137,60 @@ public struct UsageStats: Hashable, Sendable {
         text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
     }
 }
+
+// MARK: - Límite de gasto
+
+/// Tope de tokens de los modelos de pago (los locales no cuentan). `nil`: sin tope.
+public struct TokenLimits: Hashable, Codable, Sendable {
+    public var daily: Int?
+    public var monthly: Int?
+
+    public init(daily: Int? = nil, monthly: Int? = nil) {
+        self.daily = daily
+        self.monthly = monthly
+    }
+
+    public var isEmpty: Bool { daily == nil && monthly == nil }
+
+    /// A partir de esta fracción del tope se avisa.
+    public static let warnAt = 0.8
+    public static let dailyOptions: [Int?] = [nil, 200_000, 500_000, 1_000_000, 2_000_000, 5_000_000]
+    public static let monthlyOptions: [Int?] = [nil, 5_000_000, 10_000_000, 20_000_000, 50_000_000, 100_000_000]
+
+    /// «500 k», «2 M», «1.5 M».
+    public static func short(_ tokens: Int) -> String {
+        if tokens >= 1_000_000 {
+            return tokens % 1_000_000 == 0 ? "\(tokens / 1_000_000) M" : String(format: "%.1f M", Double(tokens) / 1_000_000)
+        }
+        return tokens >= 1000 ? "\(tokens / 1000) k" : "\(tokens)"
+    }
+}
+
+public enum BudgetPeriod: String, Sendable, Equatable {
+    case day, month
+}
+
+/// Tokens gastados hoy y este mes con los modelos que cuentan.
+public struct TokenSpend: Equatable, Sendable {
+    public var today: Int
+    public var month: Int
+
+    public init(today: Int = 0, month: Int = 0) {
+        self.today = today
+        self.month = month
+    }
+
+    /// El periodo cuyo tope se ha alcanzado, si hay alguno.
+    public func reached(_ limits: TokenLimits) -> BudgetPeriod? {
+        if let daily = limits.daily, today >= daily { return .day }
+        if let monthly = limits.monthly, month >= monthly { return .month }
+        return nil
+    }
+
+    /// El periodo que ha pasado del aviso (80 %) sin llegar al tope.
+    public func nearing(_ limits: TokenLimits) -> BudgetPeriod? {
+        if let daily = limits.daily, Double(today) >= Double(daily) * TokenLimits.warnAt, today < daily { return .day }
+        if let monthly = limits.monthly, Double(month) >= Double(monthly) * TokenLimits.warnAt, month < monthly { return .month }
+        return nil
+    }
+}

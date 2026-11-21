@@ -1517,3 +1517,16 @@
 "Texto que la sustituye" = "Texte qui la remplace";
 "Añadir sustitución" = "Ajouter un remplacement";
 "Quitar «%@» del diccionario" = "Retirer «%@» du dictionnaire";
+"%@ gastados" = "%@ dépensés";
+"Gastado %@" = "Dépensé %@";
+"Has llegado al límite diario de %@ tokens. El agente vuelve mañana, o súbelo en Estadísticas → Límite de gasto." = "Vous avez atteint la limite quotidienne de %@ tokens. L’agent revient demain, ou augmentez-la dans Statistiques → Limite de dépense.";
+"Has llegado al límite mensual de %@ tokens. El agente vuelve el mes que viene, o súbelo en Estadísticas → Límite de gasto." = "Vous avez atteint la limite mensuelle de %@ tokens. L’agent revient le mois prochain, ou augmentez-la dans Statistiques → Limite de dépense.";
+"Límite %@" = "Limite %@";
+"Límite de gasto" = "Limite de dépense";
+"Sin límite" = "Sans limite";
+"Tope de tokens con modelos de pago; los locales (Ollama, LM Studio) no cuentan. Al 80 % te avisa por el bot y en el Mac; al llegar, el agente no hace más peticiones hasta el día o el mes siguiente." = "Plafond de tokens pour les modèles payants ; les modèles locaux (Ollama, LM Studio) ne comptent pas. À 80 %, il vous prévient par le bot et sur le Mac ; une fois atteint, l’agent ne fait plus de requêtes jusqu’au jour ou au mois suivant.";
+"alcanzado" = "atteint";
+"Al día" = "Par jour";
+"Al mes" = "Par mois";
+"Llevas %@ de %@ tokens del límite diario." = "Vous avez utilisé %@ des %@ tokens de la limite quotidienne.";
+"Llevas %@ de %@ tokens del límite mensual." = "Vous avez utilisé %@ des %@ tokens de la limite mensuelle.";

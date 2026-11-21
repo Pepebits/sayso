@@ -404,6 +404,25 @@ public final class SQLiteStore: SaySoStoring, TaskStoring {
         }
     }
 
+    public func tokenSpend(now: Date, excluding models: Set<String>) throws -> TokenSpend {
+        let today = Self.dayKey(now)
+        let month = String(today.prefix(7))
+        return try db.read { db in
+            var spend = TokenSpend()
+            let rows = try Row.fetchAll(db, sql: "SELECT day, model, input + output AS total FROM tokens WHERE day >= ?",
+                                        arguments: [month + "-01"])
+            for row in rows {
+                let model: String = row["model"]
+                guard !models.contains(model) else { continue }
+                let day: String = row["day"]
+                let total: Int = row["total"]
+                if day.hasPrefix(month) { spend.month += total }
+                if day == today { spend.today += total }
+            }
+            return spend
+        }
+    }
+
     public func recordDictation(words: Int, seconds: Double, on day: Date) throws {
         try db.write { db in
             try db.execute(sql: """

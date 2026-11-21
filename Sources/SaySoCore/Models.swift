@@ -391,6 +391,8 @@ public protocol SaySoStoring: Sendable {
     func requestCount(on day: Date) throws -> Int
     /// Suma los tokens de una petición al modelo, por día y modelo. `estimated`: el proveedor no dio la cifra.
     func recordTokens(model: String, input: Int, output: Int, estimated: Bool, on day: Date) throws
+    /// Tokens de hoy y del mes en curso, sin contar `models` (los locales).
+    func tokenSpend(now: Date, excluding models: Set<String>) throws -> TokenSpend
     /// Apunta un dictado que terminó en texto.
     func recordDictation(words: Int, seconds: Double, on day: Date) throws
     /// Uso de los últimos `days` días (hoy incluido) y totales desde el principio.
@@ -405,6 +407,7 @@ public protocol SaySoStoring: Sendable {
 public extension SaySoStoring {
     func recordDictation(words: Int, seconds: Double, on day: Date) throws {}
     func recordTokens(model: String, input: Int, output: Int, estimated: Bool, on day: Date) throws {}
+    func tokenSpend(now: Date, excluding models: Set<String>) throws -> TokenSpend { TokenSpend() }
     func allSettings() throws -> [String: String] { [:] }
     func activityCount(scope: String?) throws -> Int { try recentActivity(limit: .max, scope: scope).count }
     func setNoteKind(_ kind: MemoryNote.Kind, id: Int64) throws {}
