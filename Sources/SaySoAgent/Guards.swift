@@ -222,6 +222,17 @@ public actor PromptGuardDetector: InjectionDetecting {
     }
 
     public func looksLikeInjection(_ text: String) async throws -> Bool {
+        // La máquina Linux se apaga sola cuando no se usa: la conexión guardada puede estar muerta
+        // (errno 32). Entonces se vuelve a probar una vez con el detector arrancado de nuevo.
+        let reused = stream != nil
+        do {
+            return try await ask(text)
+        } catch where reused {
+            return try await ask(text)
+        }
+    }
+
+    private func ask(_ text: String) async throws -> Bool {
         let stream = try await ready()
         var payload = try JSONSerialization.data(withJSONObject: ["text": text])
         payload.append(0x0A)
