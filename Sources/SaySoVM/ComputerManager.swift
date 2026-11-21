@@ -20,6 +20,9 @@ public final class ComputerManager: NSObject, VZVirtualMachineDelegate {
     private var startTask: Task<Void, Error>?
     private let activity = ActivityClock()
     private var requestsInFlight = 0
+    /// Apagado en curso. Una orden que llega entonces espera a que termine y vuelve a arrancar:
+    /// si se mandara a la máquina que se apaga, moriría a medias.
+    private var stopping: Task<Void, Never>?
 
     /// Segundos desde la última orden del agente o del usuario; 0 mientras haya alguna en curso.
     /// Las lecturas de recursos de la pantalla no cuentan.
@@ -155,8 +158,26 @@ public final class ComputerManager: NSObject, VZVirtualMachineDelegate {
         state = .running
     }
 
+    /// Apaga si sigue sin uso pasado `limit`: se vuelve a mirar justo antes, porque entre la
+    /// primera comprobación y el apagado (cerrar los plugins) puede haber llegado una orden.
+    /// Devuelve si se ha apagado.
+    @discardableResult
+    public func shutdownIfIdle(limit: TimeInterval) async -> Bool {
+        guard state == .running, stopping == nil, idleTime > limit else { return false }
+        await shutdown()
+        return true
+    }
+
     /// Apagado ordenado: se lo pide al invitado y, si no obedece a tiempo, corta.
     public func shutdown(grace: TimeInterval = 15) async {
+        if let stopping { return await stopping.value }
+        let task = Task { await self.performShutdown(grace: grace) }
+        stopping = task
+        await task.value
+        stopping = nil
+    }
+
+    private func performShutdown(grace: TimeInterval) async {
         startTask?.cancel()
         guard let machine else {
             if !state.isBusy { state = files.isInstalled ? .stopped : .notInstalled }
@@ -192,6 +213,7 @@ public final class ComputerManager: NSObject, VZVirtualMachineDelegate {
 
     /// Envía una orden al agente invitado. Arranca la máquina si está instalada y parada.
     public func request(_ request: GuestRequest, receiveTimeout: TimeInterval = 150) async throws -> GuestResponse {
+        if let stopping { await stopping.value }
         if state != .running {
             guard files.isInstalled else { throw GuestError.notRunning }
             try await start()
@@ -209,6 +231,7 @@ public final class ComputerManager: NSObject, VZVirtualMachineDelegate {
 
     /// Arranca un proceso que sigue vivo en la máquina y devuelve su entrada y salida.
     public func openProcess(_ command: String, env: [String: String]) async throws -> ProcessStream {
+        if let stopping { await stopping.value }
         if state != .running {
             guard files.isInstalled else { throw GuestError.notRunning }
             try await start()
