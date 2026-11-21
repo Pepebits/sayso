@@ -14,6 +14,8 @@ public enum HotkeyMonitorError: Error, LocalizedError, Equatable {
 /// Fuente de acciones del atajo; permite sustituir el monitor real en pruebas.
 public protocol HotkeySource: AnyObject {
     var onAction: ((HotkeyStateMachine.Action) -> Void)? { get set }
+    /// Esc pulsada sin gesto en curso: sirve para cancelar una petición al agente o su respuesta.
+    var onEscape: (() -> Void)? { get set }
     var side: OptionKeySide { get set }
     /// Tecla o combinación que se vigila.
     var shortcut: DictationShortcut { get set }
@@ -29,6 +31,7 @@ public protocol HotkeySource: AnyObject {
 /// Event tap de solo escucha sobre `flagsChanged` y `keyDown`. Usar desde el hilo principal.
 public final class HotkeyMonitor: HotkeySource {
     public var onAction: ((HotkeyStateMachine.Action) -> Void)?
+    public var onEscape: (() -> Void)?
     public var side: OptionKeySide {
         get { machine.side }
         set { machine.side = newValue; machine.reset(); timer?.cancel() }
@@ -245,9 +248,11 @@ public final class HotkeyMonitor: HotkeySource {
     }
 
     private func feed(_ input: HotkeyStateMachine.Input) {
+        let wasIdle = machine.state == .idle
         let action = machine.handle(input)
         scheduleTick()
         if let action { onAction?(action) }
+        if case .escape = input, action == nil, wasIdle { onEscape?() }
     }
 
     private func scheduleTick() {

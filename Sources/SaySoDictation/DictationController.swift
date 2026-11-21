@@ -19,6 +19,8 @@ public final class DictationController {
         var idleToEnd: TimeInterval = 12
         /// En conversación sin voz: cuánto se deja leer la respuesta antes de volver a escuchar.
         var replyPause: TimeInterval = 0.4
+        /// Tope de una petición de voz al agente.
+        var agentTimeout: TimeInterval = 180
     }
 
     public private(set) var settings: DictationSettings
@@ -29,6 +31,8 @@ public final class DictationController {
     public var agentHandler: ((String) async throws -> String)?
     /// Hay agente con el que hablar (cuenta de IA y agente en marcha). Si no, esa tecla dicta.
     public var agentAvailable: () -> Bool = { true }
+    /// Por qué no hay agente (detenido, en pausa…), para no culpar siempre a la cuenta de IA.
+    public var agentUnavailableReason: () -> String? = { nil }
     /// Texto reconocido hasta el momento (en vivo mientras se habla y definitivo al terminar).
     public var onPartial: ((String) -> Void)?
     /// Un dictado terminó en texto: el texto final, los segundos de audio y si iba para el agente.
@@ -48,6 +52,11 @@ public final class DictationController {
     /// Espera a que la respuesta se haya leído en voz alta (si se lee) antes de volver a escuchar,
     /// para que el micrófono no recoja la voz del propio agente.
     public var waitForReply: ((String) async -> Void)?
+    /// El usuario canceló con Esc una petición al agente o su respuesta: hay que callar la voz.
+    public var onAgentCancelled: (() -> Void)?
+    /// Petición al agente en curso, para poder cancelarla.
+    private var agentTask: Task<String, Error>?
+    private var agentGeneration = 0
     private var heardSpeech = false
     private var lastLoud = Date()
     private var listenStart = Date()
@@ -114,6 +123,9 @@ public final class DictationController {
         hotkey.shortcut = settings.shortcut
         hotkey.onAction = { [weak self] action in
             MainActor.assumeIsolated { self?.handle(action) }
+        }
+        hotkey.onEscape = { [weak self] in
+            MainActor.assumeIsolated { self?.cancelAgent() }
         }
         recorder.onLevel = { [weak self] level in
             MainActor.assumeIsolated { self?.levelChanged(level) }
@@ -198,7 +210,7 @@ public final class DictationController {
     public func startConversation() {
         guard !conversing, !recording, !busy else { return }
         guard agentHandler != nil, agentAvailable() else {
-            fail(message: tr("No hay agente con el que hablar: añade una cuenta de IA en Modelo."))
+            fail(message: noAgentMessage)
             return
         }
         setConversing(true)
@@ -244,7 +256,7 @@ public final class DictationController {
         // Con el atajo se le habla al agente: sin agente no hay a quién.
         guard manualForAgent != nil || isAgentGesture else {
             hotkey.resetGesture()
-            fail(message: tr("No hay agente con el que hablar: añade una cuenta de IA en Modelo."))
+            fail(message: noAgentMessage)
             return
         }
         do {
@@ -270,6 +282,10 @@ public final class DictationController {
         onPartial?("")
         setPhase(listeningPhase(level: 0))
         startPartials()
+    }
+
+    private var noAgentMessage: String {
+        agentUnavailableReason() ?? tr("No hay agente con el que hablar: añade una cuenta de IA en Modelo.")
     }
 
     /// Hay agente que escuche lo que se dice con el atajo.
@@ -394,6 +410,25 @@ public final class DictationController {
         setPhase(.idle)
     }
 
+    /// Esc mientras el agente piensa o enseña su respuesta: se deja de esperar, se cierra la
+    /// respuesta y calla la voz. El dictado queda libre al momento.
+    public func cancelAgent() {
+        switch phase {
+        case .agentThinking:
+            agentGeneration += 1
+            agentTask?.cancel()
+            agentTask = nil
+            busy = false
+        case .agentReply:
+            replyGeneration += 1
+        default:
+            return
+        }
+        setConversing(false)
+        setPhase(.idle)
+        onAgentCancelled?()
+    }
+
     /// Entrega la frase al agente y muestra su respuesta un rato proporcional a su longitud.
     private func askAgent(_ text: String) async {
         guard !text.isEmpty, let agentHandler else {
@@ -404,8 +439,19 @@ public final class DictationController {
         }
         if conversing { onConversationTurn?(true, text) }
         setPhase(.agentThinking(text))
+        agentGeneration += 1
+        let request = agentGeneration
+        let limit = timing.agentTimeout
+        // Con tope: una petición colgada no puede dejar el dictado bloqueado. Al cancelar la tarea
+        // se cancela también la petición.
+        let task = Task { try await Self.withDeadline(limit) { try await agentHandler(text) } }
+        agentTask = task
         do {
-            let answer = try await agentHandler(text).trimmingCharacters(in: .whitespacesAndNewlines)
+            let result = try await task.value
+            // Cancelada con Esc: ya se ha vuelto a reposo y lo que llegue se descarta.
+            guard agentGeneration == request else { return }
+            agentTask = nil
+            let answer = result.trimmingCharacters(in: .whitespacesAndNewlines)
             busy = false
             guard !answer.isEmpty else {
                 setConversing(false)
@@ -436,6 +482,8 @@ public final class DictationController {
                 }
             }
         } catch {
+            guard agentGeneration == request else { return }
+            agentTask = nil
             busy = false
             setConversing(false)
             fail(error)
@@ -479,6 +527,22 @@ public final class DictationController {
 
     /// Ejecuta `operation` con límite de tiempo; `nil` si falla o se pasa del límite.
     /// No espera a que la operación termine tras el límite.
+    /// Como `withTimeout`, pero los errores llegan al llamante y cancelar al llamante cancela la
+    /// operación.
+    nonisolated static func withDeadline<T: Sendable>(_ seconds: TimeInterval,
+                                                       _ operation: @escaping @Sendable () async throws -> T) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask { try await operation() }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1_000_000_000))
+                throw AgentTimeout()
+            }
+            defer { group.cancelAll() }
+            guard let first = try await group.next() else { throw CancellationError() }
+            return first
+        }
+    }
+
     nonisolated static func withTimeout<T: Sendable>(_ seconds: TimeInterval,
                                                       _ operation: @escaping @Sendable () async throws -> T) async -> T? {
         let once = ResumeOnce()
@@ -528,4 +592,9 @@ private final class StatusSink: @unchecked Sendable {
         lock.lock(); let handler = self.handler; lock.unlock()
         handler?(status)
     }
+}
+
+/// La petición de voz al agente pasó de su tope.
+struct AgentTimeout: Error, LocalizedError {
+    var errorDescription: String? { tr("El agente ha tardado demasiado en responder. Vuelve a intentarlo.") }
 }

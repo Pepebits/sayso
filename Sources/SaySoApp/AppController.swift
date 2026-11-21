@@ -469,6 +469,7 @@ final class AppController: AppActions {
             self.model.conversationLines = Array((lines + [ConversationLine(id: (lines.last?.id ?? 0) + 1,
                                                                              fromUser: fromUser, text: text)]).suffix(12))
         }
+        dictation?.onAgentCancelled = { [weak self] in self?.speaker.stop() }
         dictation?.waitForReply = { [weak self] text in
             guard let self else { return }
             if self.model.dictation.speakReplies {
@@ -500,6 +501,12 @@ final class AppController: AppActions {
             guard let self else { return false }
             return self.model.agentRunning && !self.model.lockPaused && self.model.activeAccount != nil
         }
+        dictation?.agentUnavailableReason = { [weak self] in
+            guard let self, self.model.activeAccount != nil else { return nil }
+            if !self.model.agentRunning { return tr("El agente está detenido. Reanúdalo en Inicio.") }
+            if self.model.lockPaused { return tr("El agente está en pausa mientras el Mac está bloqueado.") }
+            return nil
+        }
         if let services {
             dictation?.agentHandler = { [weak self] text in
                 // La voz va siempre por el camino rápido: modelo rápido, respuesta corta y sin
@@ -514,8 +521,11 @@ final class AppController: AppActions {
                 Timings.note("voz", ["preparar": prepared.timeIntervalSince(started),
                                      "modelo": Date().timeIntervalSince(prepared)],
                              detail: "\(loop.tools.count) herramientas")
-                // Si hay bot, la conversación queda también en Telegram.
-                _ = await self?.telegram?.sendToOwner("🎙 \(text)\n\n\(answer)")
+                // Si hay bot, la conversación queda también en Telegram, sin hacer esperar a la
+                // respuesta hablada.
+                if let telegram = self?.telegram {
+                    Task { _ = await telegram.sendToOwner("🎙 \(text)\n\n\(answer)") }
+                }
                 return answer
             }
         }
@@ -861,7 +871,8 @@ final class AppController: AppActions {
               computer.idleTime > Self.computerIdleLimit else { return }
         Task {
             await plugins?.closeAll()
-            await computer.shutdown()
+            // Mientras se cerraban los plugins pudo llegar una orden: se vuelve a mirar.
+            await computer.shutdownIfIdle(limit: Self.computerIdleLimit)
         }
     }
 
