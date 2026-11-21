@@ -14,6 +14,7 @@ All notable changes to SaySo are documented here. The format follows
 - Homebrew: `brew install --cask pepebits/sayso/sayso`, with the repository as its own tap. The release script updates the cask's version and checksum
 - Dictation dictionary (Dictation → Dictionary): names, brands and acronyms are given as a hint to Whisper and Apple's recognizer and to AI correction, and always come out with your capitalization; fixed replacements turn a dictated word or phrase into another («at sign» → «@»)
 - Spending limit (Statistics → Spending limit): a daily and a monthly token cap for paid models (local ones don't count). At 80 % SaySo warns through the bot and on the Mac; when reached, the agent makes no more paid requests until the next day or month, or until you raise it
+- Approve from the bot (Telegram → General switches, off by default): when an action asks for permission, your bot also sends «Allow once» and «Deny» buttons; the first answer, on the Mac or in Telegram, counts. Questions expire after 5 minutes, only your account can press the buttons, and «Always allow» stays on the Mac
 
 ### Fixed
 

@@ -1540,3 +1540,17 @@
 "Al mes" = "Per month";
 "Llevas %@ de %@ tokens del límite diario." = "You have used %@ of %@ tokens of the daily limit.";
 "Llevas %@ de %@ tokens del límite mensual." = "You have used %@ of %@ tokens of the monthly limit.";
+"Caduca en %@ min. También puedes contestar en el Mac." = "Expires in %@ min. You can also answer on the Mac.";
+"Caducada. Si sigue pendiente, contesta en el Mac." = "Expired. If it is still pending, answer on the Mac.";
+"Denegado" = "Denied";
+"Denegado desde el bot." = "Denied from the bot.";
+"Denegado en el Mac." = "Denied on the Mac.";
+"Esta pregunta ya no está pendiente." = "This question is no longer pending.";
+"Los permisos se pueden aprobar también desde el bot" = "Permissions can also be approved from the bot";
+"Los permisos solo se aprueban en el Mac" = "Permissions are only approved on the Mac";
+"Origen: %@" = "Origin: %@";
+"Permitido" = "Allowed";
+"Permitido desde el bot." = "Allowed from the bot.";
+"Permitido en el Mac." = "Allowed on the Mac.";
+"Aprobar desde el bot" = "Approve from the bot";
+"Cuando una acción pide permiso, el bot te envía «Permitir una vez» y «Denegar» además de la ventana del Mac. Vale la primera respuesta; la pregunta caduca a los 5 minutos y «Permitir siempre» solo se puede elegir en el Mac." = "When an action asks for permission, the bot sends you «Allow once» and «Deny» as well as the window on the Mac. The first answer counts; the question expires after 5 minutes, and «Always allow» can only be chosen on the Mac.";

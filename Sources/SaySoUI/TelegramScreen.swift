@@ -351,6 +351,12 @@ struct TelegramScreen: View {
                             .padding(.horizontal, Theme.Space.l)
                             .padding(.vertical, Theme.Space.m)
                     }
+                    CardDivider()
+                    SettingRow(icon: "hand.raised", title: "Aprobar desde el bot",
+                               detail: "Cuando una acción pide permiso, el bot te envía «Permitir una vez» y «Denegar» además de la ventana del Mac. Vale la primera respuesta; la pregunta caduca a los 5 minutos y «Permitir siempre» solo se puede elegir en el Mac.") {
+                        BlockToggle(isOn: Binding(get: { model.approveFromBot }, set: { model.actions?.setApproveFromBot($0) }),
+                                    label: "Aprobar desde el bot")
+                    }
                 }
             }
 

@@ -49,6 +49,8 @@ final class AppController: AppActions {
     private var started = false
     let updater = Updater()
     private let vocabularyBox = VocabularyBox()
+    /// Ventana de permisos del Mac; con «Aprobar desde el bot», pregunta también por Telegram.
+    private let confirmations = ConfirmationWindowPresenter()
 
     func start() {
         guard !started else { return }
@@ -64,7 +66,7 @@ final class AppController: AppActions {
             noteUnexpectedQuit()
             let redactor = SecretRedactor(values: { [secretCache] in secretCache.values })
             let broker = PermissionBroker(
-                store: store, presenter: ConfirmationWindowPresenter(),
+                store: store, presenter: confirmations,
                 descriptors: TelegramAction.descriptors + MacScript.allCases.map(\.descriptor) + ComputerAction.descriptors
                     + TaskAction.descriptors + PluginCatalog.all.map(\.descriptor) + [WebSearchTool.descriptor],
                 redactor: redactor)
@@ -106,6 +108,10 @@ final class AppController: AppActions {
                                          telegramUser: telegramUser)
             self.services = services
             broker.reviewer = services.reviewer
+            confirmations.remote = BotConfirmer(
+                bot: { [weak self] in await MainActor.run { self?.telegram } },
+                enabled: { ((try? store.setting(SettingsKey.approveFromBot)) ?? nil) == "1" },
+                redact: { redactor.redact($0) })
             services.budgetEvents.set { [weak self] event in
                 Task { @MainActor in await self?.announceBudget(event) }
             }
@@ -208,6 +214,7 @@ final class AppController: AppActions {
         model.rememberNew = flag(SettingsKey.rememberNew, default: true)
         model.telegramEnabled = flag(SettingsKey.telegramEnabled, default: true)
         model.telegramFullAccess = flag(SettingsKey.telegramFullAccess, default: false)
+        model.approveFromBot = flag(SettingsKey.approveFromBot, default: false)
         model.openAtLogin = LoginItem.isEnabled
         // La guía aparece hasta que se termina o se salta. Las ayudas de desarrollo que abren una
         // pantalla concreta la omiten; SAYSO_ONBOARDING la fuerza.
@@ -2384,6 +2391,13 @@ final class AppController: AppActions {
         setFlag(enabled, SettingsKey.telegramEnabled)
     }
 
+    func setApproveFromBot(_ enabled: Bool) {
+        model.approveFromBot = enabled
+        setFlag(enabled, SettingsKey.approveFromBot)
+        model.log(.info, LogCategory.telegram, enabled ? tr("Los permisos se pueden aprobar también desde el bot")
+                                                       : tr("Los permisos solo se aprueban en el Mac"))
+    }
+
     func setTelegramFullAccess(_ enabled: Bool) {
         model.telegramFullAccess = enabled
         setFlag(enabled, SettingsKey.telegramFullAccess)
@@ -2833,6 +2847,26 @@ struct FastModelCorrector: TextCorrector {
     func correct(_ text: String) async throws -> String {
         try await LLMTextCorrector(provider: services.makeProvider(), redactor: services.redactor,
                                    store: services.store, vocabulary: vocabulary()).correct(text)
+    }
+}
+
+/// «Aprobar desde el bot»: la pregunta de permiso sale también por el bot, con botones.
+struct BotConfirmer: RemoteConfirming {
+    let bot: @Sendable () async -> TelegramBotService?
+    let enabled: @Sendable () -> Bool
+    let redact: @Sendable (String) -> String
+
+    func ask(id: String, request: ActionRequest, descriptor: ActionDescriptor?) async -> ConfirmationResult? {
+        guard enabled(), let bot = await bot() else { return nil }
+        let title = descriptor.map { tr($0.title) } ?? request.action.rawValue
+        var detail = redact(request.summary)
+        if let origin = request.origin { detail += "\n" + tr("Origen: %@", origin) }
+        return await bot.askApproval(id: id, title: title, detail: String(detail.prefix(1500)))
+    }
+
+    func withdraw(id: String, allowed: Bool) async {
+        guard let bot = await bot() else { return }
+        await bot.withdrawApproval(id: id, allowed: allowed)
     }
 }
 

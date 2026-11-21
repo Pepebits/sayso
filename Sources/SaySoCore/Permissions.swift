@@ -59,7 +59,8 @@ public struct ActionRequest: Sendable, Hashable {
 
 public enum ConfirmationResult: Sendable { case allowOnce, allowAlways, deny }
 
-/// Muestra el diálogo «Preguntar» en el Mac. Nunca se confirma desde el chat.
+/// Muestra el diálogo «Preguntar» en el Mac. Solo con «Aprobar desde el bot» activado se puede
+/// contestar también desde el bot, y nunca con «Permitir siempre».
 public protocol ConfirmationPresenter: Sendable {
     func confirm(_ request: ActionRequest, descriptor: ActionDescriptor?) async -> ConfirmationResult
 }

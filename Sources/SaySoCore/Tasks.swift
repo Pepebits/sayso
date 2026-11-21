@@ -227,6 +227,8 @@ public extension SettingsKey {
     static let tokenLimits = "budget.tokens"
     /// Último aviso o bloqueo por el tope, para no repetirlo: «warn-day-2026-11-21».
     static let budgetNotified = "budget.notified"
+    /// «1»: las preguntas de permiso salen también por el bot, con botones.
+    static let approveFromBot = "telegram.approveFromBot"
 }
 
 

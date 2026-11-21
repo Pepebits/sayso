@@ -35,6 +35,8 @@ public actor TelegramBotService {
     private var chatQueues: [Int64: Task<Void, Never>] = [:]
     private var groups: [Int64: GroupBuffer] = [:]
     private var drafts: [String: Draft] = [:]
+    /// Permisos preguntados por el bot que esperan respuesta.
+    private var approvals: [String: PendingApproval] = [:]
 
     struct GroupLine: Sendable {
         var date: Date
@@ -539,10 +541,87 @@ public actor TelegramBotService {
         for (key, _) in oldest { drafts.removeValue(forKey: key) }
     }
 
+    // MARK: - Permisos desde el bot
+
+    struct PendingApproval {
+        let continuation: CheckedContinuation<ConfirmationResult?, Never>
+        let chatID: Int64
+        var messageID: Int64?
+        let text: String
+    }
+
+    /// Cuánto espera una pregunta de permiso en el bot antes de caducar.
+    public static let approvalTimeout: TimeInterval = 300
+
+    /// Pregunta un permiso al usuario por el bot, con «Permitir una vez» y «Denegar».
+    /// Devuelve `nil` si no hay nadie emparejado, si caduca o si se contesta en el Mac antes.
+    public func askApproval(id: String, title: String, detail: String,
+                            timeout: TimeInterval = approvalTimeout) async -> ConfirmationResult? {
+        guard let owner = ownerID else { return nil }
+        let minutes = Int((timeout / 60).rounded())
+        let text = "🔐 " + tr("SaySo necesita tu permiso") + "\n\n" + title + "\n" + detail + "\n\n"
+            + tr("Caduca en %@ min. También puedes contestar en el Mac.", "\(minutes)")
+        return await withCheckedContinuation { continuation in
+            approvals[id] = PendingApproval(continuation: continuation, chatID: owner, messageID: nil, text: text)
+            Task {
+                let buttons = [[TGInlineButton(text: "✅ " + tr("Permitir una vez"), callbackData: "perm:\(id):allow"),
+                                TGInlineButton(text: "⛔️ " + tr("Denegar"), callbackData: "perm:\(id):deny")]]
+                let sent = try? await self.client.sendMessage(chatID: owner, text: text, buttons: buttons)
+                await self.attach(messageID: sent?.last?.messageId, to: id)
+                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                await self.finishApproval(id: id, result: nil, note: "⌛️ " + tr("Caducada. Si sigue pendiente, contesta en el Mac."))
+            }
+        }
+    }
+
+    private func attach(messageID: Int64?, to id: String) async {
+        guard var pending = approvals[id] else {
+            // Ya contestada (en el Mac) antes de que el mensaje saliera: se quitan los botones.
+            if let messageID, let owner = ownerID {
+                try? await client.editMessageReplyMarkup(chatID: owner, messageID: messageID, buttons: nil)
+            }
+            return
+        }
+        pending.messageID = messageID
+        approvals[id] = pending
+        if messageID == nil { await finishApproval(id: id, result: nil, note: "") }
+    }
+
+    /// Contestada en el Mac: el mensaje del bot pierde los botones y dice qué pasó.
+    public func withdrawApproval(id: String, allowed: Bool) async {
+        await finishApproval(id: id, result: nil,
+                             note: allowed ? "✅ " + tr("Permitido en el Mac.") : "⛔️ " + tr("Denegado en el Mac."))
+    }
+
+    private func finishApproval(id: String, result: ConfirmationResult?, note: String) async {
+        guard let pending = approvals.removeValue(forKey: id) else { return }
+        pending.continuation.resume(returning: result)
+        if let messageID = pending.messageID, !note.isEmpty {
+            try? await client.editMessageText(chatID: pending.chatID, messageID: messageID, text: pending.text + "\n\n" + note)
+        }
+    }
+
+    private func handleApproval(_ query: TGCallbackQuery, data: String) async {
+        let parts = data.split(separator: ":").map(String.init)
+        guard parts.count == 3, approvals[parts[1]] != nil,
+              query.message?.chat.id == approvals[parts[1]]?.chatID else {
+            try? await client.answerCallbackQuery(id: query.id, text: tr("Esta pregunta ya no está pendiente."))
+            return
+        }
+        let allow = parts[2] == "allow"
+        try? await client.answerCallbackQuery(id: query.id, text: allow ? tr("Permitido") : tr("Denegado"))
+        await finishApproval(id: parts[1], result: allow ? .allowOnce : .deny,
+                             note: allow ? "✅ " + tr("Permitido desde el bot.") : "⛔️ " + tr("Denegado desde el bot."))
+    }
+
     // MARK: - Botones
 
     private func handleCallback(_ query: TGCallbackQuery) async {
         guard let owner = ownerID, query.from.id == owner else { return }
+        if let data = query.data, data.hasPrefix("perm:") {
+            await handleApproval(query, data: data)
+            return
+        }
         let parts = (query.data ?? "").split(separator: ":", maxSplits: 1).map(String.init)
         guard parts.count == 2, let draft = drafts[parts[1]] else {
             try? await client.answerCallbackQuery(id: query.id, text: tr("Esta respuesta ya no está disponible."))

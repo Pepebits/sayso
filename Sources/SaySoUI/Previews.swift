@@ -19,6 +19,7 @@ final class PreviewActions: AppActions {
     func exportBackup() {}
     func checkForUpdates() {}
     func setTokenLimits(_ limits: TokenLimits) { model.tokenLimits = limits }
+    func setApproveFromBot(_ enabled: Bool) { model.approveFromBot = enabled }
     func createDiagnostics() {}
     func openIssues() {}
     func setAutomaticUpdates(_ enabled: Bool) { model.updates = .ready(automatic: enabled, lastCheck: nil) }

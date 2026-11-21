@@ -1539,3 +1539,17 @@
 "Al mes" = "Por mês";
 "Llevas %@ de %@ tokens del límite diario." = "Já usou %@ de %@ tokens do limite diário.";
 "Llevas %@ de %@ tokens del límite mensual." = "Já usou %@ de %@ tokens do limite mensal.";
+"Caduca en %@ min. También puedes contestar en el Mac." = "Expira em %@ min. Também pode responder no Mac.";
+"Caducada. Si sigue pendiente, contesta en el Mac." = "Expirada. Se ainda estiver pendente, responda no Mac.";
+"Denegado" = "Recusado";
+"Denegado desde el bot." = "Recusado a partir do bot.";
+"Denegado en el Mac." = "Recusado no Mac.";
+"Esta pregunta ya no está pendiente." = "Esta pergunta já não está pendente.";
+"Los permisos se pueden aprobar también desde el bot" = "As permissões também podem ser aprovadas a partir do bot";
+"Los permisos solo se aprueban en el Mac" = "As permissões só são aprovadas no Mac";
+"Origen: %@" = "Origem: %@";
+"Permitido" = "Permitido";
+"Permitido desde el bot." = "Permitido a partir do bot.";
+"Permitido en el Mac." = "Permitido no Mac.";
+"Aprobar desde el bot" = "Aprovar a partir do bot";
+"Cuando una acción pide permiso, el bot te envía «Permitir una vez» y «Denegar» además de la ventana del Mac. Vale la primera respuesta; la pregunta caduca a los 5 minutos y «Permitir siempre» solo se puede elegir en el Mac." = "Quando uma ação pede permissão, o bot envia-lhe «Permitir uma vez» e «Recusar», além da janela do Mac. Vale a primeira resposta; a pergunta expira ao fim de 5 minutos e «Permitir sempre» só pode ser escolhido no Mac.";
