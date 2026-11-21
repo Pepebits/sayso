@@ -372,7 +372,7 @@ final class TelegramTests: XCTestCase {
                 return (200, Data(#"{"ok":true,"result":true}"#.utf8))
             }
         }
-        let provider = FakeProvider([.tool("attach_photo", ["path": "~/sayso/gato.jpg"]), .text("Un gato para el grupo")])
+        let provider = FakeProvider([.tool("attach_photo", ["path": "~/.sayso-guest/gato.jpg"]), .text("Un gato para el grupo")])
         let broker = FakeBroker(allow: true)
         let service = makeService(store: store, transport: t, provider: provider, broker: broker)
         await service.setGuestLoop { attachment in

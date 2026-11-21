@@ -39,22 +39,36 @@ public enum GuardPolicy {
         TaskAction.schedule, TaskAction.cancel, ComputerAction.useSecrets,
     ]
 
-    public static func isOutward(_ action: ActionID) -> Bool { outwardActions.contains(action) }
+    /// Además de la lista: los comandos y archivos de la máquina Linux (tiene internet: un `curl` puede
+    /// sacar datos) y cualquier plugin. Solo cuestan una revisión cuando el turno ha leído contenido ajeno.
+    public static func isOutward(_ action: ActionID) -> Bool {
+        outwardActions.contains(action) || action == ComputerAction.run || action == ComputerAction.writeFile
+            || action.rawValue.hasPrefix("plugin.")
+    }
 
     /// Si una herramienta trae contenido que no escribió el usuario, su nombre para el aviso.
     public static func thirdPartySource(tool: String, input: String) -> String? {
         switch tool {
         case "web_search": return "una búsqueda web"
         case "telegram_read_messages", "telegram_search_messages", "telegram_list_chats", "telegram_transcribe",
-             "telegram_profile", "telegram_stories", "telegram_view_image":
+             "telegram_profile", "telegram_stories", "telegram_view_image", "telegram_saved_messages",
+             "telegram_find_chat", "telegram_scheduled":
             return "mensajes de Telegram de otras personas"
+        case "mac_calendar", "mac_notes", "mac_reminders":
+            // Invitaciones, notas y listas compartidas: las puede haber escrito otra persona.
+            return "datos del Mac que pueden venir de otras personas"
+        case "computer_read_file", "view_image", "computer_jobs":
+            return "archivos de la máquina Linux"
         case "computer_run":
-            // Un comando que descarga algo de internet trae contenido ajeno en su salida.
+            // Un comando que descarga algo de internet, o que lee lo descargado, trae contenido ajeno.
             let lower = input.lowercased()
-            return ["curl", "wget", "http://", "https://", "git clone", "pip download"].contains(where: lower.contains)
+            return ["curl", "wget", "http://", "https://", "git clone", "pip download", "telegram", "download",
+                    "descarga", "python", "node ", "requests", "fetch"].contains(where: lower.contains)
                 ? "una descarga de internet" : nil
         default:
             if tool.hasPrefix("fetch__") || tool.hasPrefix("browser__") { return "una página web" }
+            // Cualquier otro plugin (GitHub, Linear…): sus datos los escriben terceros.
+            if tool.contains("__") { return "un plugin" }
             return nil
         }
     }

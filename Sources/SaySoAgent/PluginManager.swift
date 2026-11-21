@@ -301,14 +301,21 @@ public struct ClaudeCodeTool: AgentTool {
         }
         let request = ActionRequest(action: plugin.action,
                                     summary: "Claude Code: " + String(task.prefix(200)),
-                                    parameters: ["Tarea": String(task.prefix(2000)), "Directorio": directory ?? "~/sayso"],
+                                    parameters: ["Tarea": task, "Directorio": directory ?? "~/sayso"],
                                     origin: context.origin)
+        // La clave entra en la máquina Linux: pasa por la misma regla que cualquier comando con secretos.
+        let secretRequest = ActionRequest(action: ComputerAction.useSecrets,
+                                          summary: "Claude Code usará el secreto \(secret) en la máquina Linux",
+                                          parameters: ["Secretos": secret, "Tarea": task], origin: context.origin)
         let computer = self.computer
         let origin = context.origin
-        let result = try await broker.run(request) {
-            try await computer.run(
-                "\"$HOME/.local/bin/claude\" -p \"$SAYSO_TASK\" --output-format text --dangerously-skip-permissions",
-                cwd: directory, timeout: 1800, env: ["ANTHROPIC_API_KEY": key, "SAYSO_TASK": task], origin: origin)
+        let broker = self.broker
+        let result = try await broker.run(secretRequest) {
+            try await broker.run(request) {
+                try await computer.run(
+                    "\"$HOME/.local/bin/claude\" -p \"$SAYSO_TASK\" --output-format text --dangerously-skip-permissions",
+                    cwd: directory, timeout: 1800, env: ["ANTHROPIC_API_KEY": key, "SAYSO_TASK": task], origin: origin)
+            }
         }
         return ComputerTools.render(result)
     }

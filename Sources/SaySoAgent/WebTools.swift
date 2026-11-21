@@ -353,6 +353,40 @@ public final class GuestAttachment: @unchecked Sendable {
 }
 
 /// `attach_photo(path)`: en modo invitado, la respuesta va con esta foto del ordenador Linux.
+/// Modo invitado: descarga una imagen de internet a una carpeta aparte de la máquina Linux. El
+/// invitado no tiene comandos ni lectura de archivos: lo que hay en ~/sayso es del usuario.
+public struct GuestDownloadTool: AgentTool {
+    public static let folder = "~/.sayso-guest"
+    let computer: AgentComputer
+
+    public init(computer: AgentComputer) {
+        self.computer = computer
+    }
+
+    public var name: String { "download_image" }
+    public var description: String {
+        "Descarga una imagen (jpg, png o webp, hasta 8 MB) desde una URL http o https para adjuntarla con attach_photo. Devuelve la ruta y el tipo de archivo."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema(["url": .property("string", "URL de la imagen")], required: ["url"])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let raw = try input.requiredString("url", maxLength: 2000)
+        guard let url = URL(string: raw), ["http", "https"].contains(url.scheme?.lowercased() ?? "") else {
+            throw ToolInputError("Solo URL http o https.")
+        }
+        let ext = ["jpg", "jpeg", "png", "webp"].contains(url.pathExtension.lowercased()) ? url.pathExtension.lowercased() : "jpg"
+        let name = UUID().uuidString.prefix(8).lowercased() + "." + ext
+        // La URL y el nombre van por el entorno, nunca dentro del comando.
+        let result = try await computer.run(
+            #"mkdir -p "$HOME/.sayso-guest" && curl -fsSL --max-time 60 --max-filesize 8388608 -o "$HOME/.sayso-guest/$NAME" "$URL" && file -b "$HOME/.sayso-guest/$NAME""#,
+            cwd: nil, timeout: 90, env: ["URL": url.absoluteString, "NAME": String(name)], origin: context.origin)
+        guard result.exitCode == 0 else { throw ToolInputError("No se pudo descargar la imagen.") }
+        return "Descargada en \(Self.folder)/\(name): \(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines))"
+    }
+}
+
 public struct GuestPhotoTool: AgentTool {
     let computer: AgentComputer
     let attachment: GuestAttachment
@@ -364,8 +398,8 @@ public struct GuestPhotoTool: AgentTool {
 
     public var name: String { "attach_photo" }
     public var description: String {
-        "Adjunta a tu respuesta una foto de tu ordenador Linux (jpg, png o webp, hasta 8 MB). Tu texto final irá " +
-            "como pie de foto. Descárgala antes con computer_run y comprueba con «file» que es una imagen. Solo una."
+        "Adjunta a tu respuesta una foto descargada con download_image (jpg, png o webp, hasta 8 MB). Tu texto final irá " +
+            "como pie de foto. Solo una."
     }
     public var inputSchema: JSONValue {
         .objectSchema(["path": .property("string", "Ruta de la imagen, p. ej. ~/sayso/foto.jpg")], required: ["path"])
@@ -375,6 +409,11 @@ public struct GuestPhotoTool: AgentTool {
         let path = try input.requiredString("path", maxLength: 1000)
         let filename = (path as NSString).lastPathComponent
         guard SendFileTool.isPhoto(filename) else { throw ToolInputError("Solo fotos: jpg, png o webp.") }
+        // Solo lo descargado en este modo: nada de los archivos del usuario.
+        guard !filename.isEmpty, !filename.hasPrefix("."), !filename.contains("/"),
+              path == "\(GuestDownloadTool.folder)/\(filename)" || path.hasSuffix("/.sayso-guest/\(filename)") else {
+            throw ToolInputError("Solo se pueden adjuntar imágenes descargadas con download_image.")
+        }
         let data = try await computer.readData(path, origin: context.origin)
         guard !data.isEmpty, data.count <= SendFileTool.maxBytes else {
             throw ToolInputError("La imagen está vacía o pasa de 8 MB.")

@@ -713,9 +713,9 @@ public actor TelegramBotService {
     """
 
     static let guestToolsNote = """
-    Herramientas de este modo: puedes buscar en la web y usar tu ordenador Linux (por ejemplo, descargar una \
-    imagen con curl). Si te piden una foto o una imagen, consíguela, compruébala con «file» y adjúntala con \
-    attach_photo; tu texto final irá como pie de foto. No hay más herramientas: ni chats, ni el Mac.
+    Herramientas de este modo: puedes buscar en la web y descargar una imagen con download_image. Si te piden \
+    una foto o una imagen, búscala, descárgala y adjúntala con attach_photo; tu texto final irá como pie de foto. \
+    No hay más herramientas: ni comandos, ni archivos, ni chats, ni el Mac.
     """
 
     /// Quita la mención al bot del texto: «@mi_bot resume esto» → «resume esto».
@@ -755,6 +755,8 @@ public actor TelegramBotService {
                                                 instructions: Self.guestInstructions + "\n\n" + Self.guestToolsNote,
                                                 maxTokens: 1024, useHistory: false,
                                                 untrusted: quoted.isEmpty ? [] : [(quotedSource, quoted)],
+                                                guardRequest: asked.isEmpty ? "Comenta o resume el mensaje citado." : asked,
+                                                includeMemory: false,
                                                 onGuard: { turn.set($0) })
             } else {
                 let loop = try await makeLoop()

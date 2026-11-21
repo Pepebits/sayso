@@ -26,13 +26,20 @@ public struct RememberTool: AgentTool {
         if try store.setting(SettingsKey.rememberNew) == "0" {
             return "No guardado: el usuario ha desactivado que se recuerden datos nuevos."
         }
-        let kind = input["kind"]?.stringValue.flatMap(MemoryNote.Kind.init(rawValue:))
+        var kind = input["kind"]?.stringValue.flatMap(MemoryNote.Kind.init(rawValue:))
             ?? (MemoryNote.looksLikeInstruction(text) ? .instruction : .fact)
+        // Tras leer contenido ajeno en el turno, una «instrucción» podría venir de ahí y aplicarse en
+        // todas las conversaciones: se guarda como dato y el usuario la puede cambiar en Memoria.
+        let tainted = GuardContext.current?.isTainted ?? false
+        if tainted, kind == .instruction { kind = .fact }
         if let twin = try store.notes().first(where: { Self.isNearDuplicate($0.text, text) }) {
             return "No guardado: ya hay una nota casi igual («\(String(twin.text.prefix(120)))»). Si es un registro de " +
                 "lo que haces, llévalo en un archivo de ~/sayso/registro/, no en la memoria."
         }
-        try store.addNote(MemoryNote(text: text, source: "agente", kind: kind))
+        try store.addNote(MemoryNote(text: text, source: tainted ? "agente (tras leer contenido ajeno)" : "agente", kind: kind))
+        if tainted, input["kind"]?.stringValue == "instruccion" {
+            return "Guardado en memoria como dato, no como instrucción: en este turno has leído contenido de otras personas. Si el usuario quiere que sea una instrucción, puede cambiarlo en SaySo → Memoria."
+        }
         return kind == .instruction ? "Guardado en memoria como instrucción." : "Guardado en memoria como dato."
     }
 

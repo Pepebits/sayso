@@ -2292,7 +2292,8 @@ final class AppController: AppActions {
                     "\n\nTu respuesta le llega al usuario por su bot. Si según la instrucción no hay nada que contar, responde solo «-»."
                 let answer = try await loop.respond(to: prompt, chatID: "aviso-\(watch.id)", origin: "aviso:\(watch.id)",
                                                     useHistory: false,
-                                                    untrusted: [("mensajes de Telegram de otras personas", lines.joined(separator: "\n"))])
+                                                    untrusted: [("mensajes de Telegram de otras personas", lines.joined(separator: "\n"))],
+                                                    guardRequest: "Aviso de «\(watch.chatTitle)»: \(instruction)")
                 let text = answer.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !text.isEmpty, text != "-" else { return }
                 _ = await self.telegram?.sendToOwner("🔔 «\(watch.chatTitle)»\n\n" + text)
@@ -2859,7 +2860,8 @@ final class AgentServices: Sendable {
         }
         var tools: [AgentTool] = [WebSearchTool(store: store, vault: vault, broker: broker, browser: viaPlugin)]
         if vmFiles.isInstalled {
-            tools += ComputerTools.all(computer: computer, vision: provider.supportsImages) + [GuestPhotoTool(computer: computer, attachment: attachment)]
+            // Sin comandos ni lectura de archivos: solo descargar una imagen a una carpeta aparte.
+            tools += [GuestDownloadTool(computer: computer), GuestPhotoTool(computer: computer, attachment: attachment)]
         }
         return AgentLoop(provider: provider, tools: tools, store: store, redactor: redactor, maxIterations: 10,
                          diagnostics: { note in Timings.note("agente", [:], detail: note) },
