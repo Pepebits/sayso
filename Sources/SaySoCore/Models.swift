@@ -202,11 +202,18 @@ public struct DictationSettings: Hashable, Codable, Sendable {
     public var speakReplies: Bool
     /// Tecla o combinación que se mantiene para hablar.
     public var shortcut: DictationShortcut
+    /// Nombres y palabras que se escriben así: pista para el reconocimiento y para la corrección.
+    public var vocabulary: [String]
+    /// Sustituciones fijas que se aplican al texto dictado.
+    public var replacements: [TextReplacement]
 
     public init(enabled: Bool = true, side: OptionKeySide = .any, aiCorrection: Bool = false,
                 engine: TranscriberEngine = .whisper, language: String? = "es-ES",
-                voiceMode: VoiceMode = .agent, speakReplies: Bool = true, shortcut: DictationShortcut = .option) {
+                voiceMode: VoiceMode = .agent, speakReplies: Bool = true, shortcut: DictationShortcut = .option,
+                vocabulary: [String] = [], replacements: [TextReplacement] = []) {
         self.shortcut = shortcut
+        self.vocabulary = vocabulary
+        self.replacements = replacements
         self.enabled = enabled
         self.side = side
         self.aiCorrection = aiCorrection
@@ -217,7 +224,7 @@ public struct DictationSettings: Hashable, Codable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case enabled, side, aiCorrection, engine, language, voiceMode, speakReplies, shortcut
+        case enabled, side, aiCorrection, engine, language, voiceMode, speakReplies, shortcut, vocabulary, replacements
         /// Ajuste de una versión anterior (interruptor de «una tecla para cada cosa»).
         case voiceAgent
     }
@@ -231,6 +238,8 @@ public struct DictationSettings: Hashable, Codable, Sendable {
         engine = try c.decodeIfPresent(TranscriberEngine.self, forKey: .engine) ?? .whisper
         language = try c.decodeIfPresent(String.self, forKey: .language)
         speakReplies = try c.decodeIfPresent(Bool.self, forKey: .speakReplies) ?? true
+        vocabulary = try c.decodeIfPresent([String].self, forKey: .vocabulary) ?? []
+        replacements = try c.decodeIfPresent([TextReplacement].self, forKey: .replacements) ?? []
         shortcut = try c.decodeIfPresent(DictationShortcut.self, forKey: .shortcut) ?? .option
         if let mode = try c.decodeIfPresent(VoiceMode.self, forKey: .voiceMode) {
             voiceMode = mode
@@ -251,6 +260,8 @@ public struct DictationSettings: Hashable, Codable, Sendable {
         try c.encode(voiceMode, forKey: .voiceMode)
         try c.encode(speakReplies, forKey: .speakReplies)
         try c.encode(shortcut, forKey: .shortcut)
+        try c.encode(vocabulary, forKey: .vocabulary)
+        try c.encode(replacements, forKey: .replacements)
     }
 
     /// Teclas que hay que vigilar: con una tecla para cada cosa, las dos.
@@ -281,7 +292,14 @@ public enum DictationPhase: Hashable, Sendable {
 
 /// Convierte audio PCM mono en texto.
 public protocol Transcriber: Sendable {
-    func transcribe(samples: [Float], sampleRate: Double, language: String?) async throws -> String
+    /// `vocabulary`: nombres y palabras que conviene reconocer tal cual (pista, no obligación).
+    func transcribe(samples: [Float], sampleRate: Double, language: String?, vocabulary: [String]) async throws -> String
+}
+
+public extension Transcriber {
+    func transcribe(samples: [Float], sampleRate: Double, language: String?) async throws -> String {
+        try await transcribe(samples: samples, sampleRate: sampleRate, language: language, vocabulary: [])
+    }
 }
 
 /// «Corregir con IA»: gramática y puntuación, conservando el estilo.

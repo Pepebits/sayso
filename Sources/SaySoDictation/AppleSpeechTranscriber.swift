@@ -21,7 +21,8 @@ public enum AppleSpeechError: Error, LocalizedError {
 public final class AppleSpeechTranscriber: Transcriber {
     public init() {}
 
-    public func transcribe(samples: [Float], sampleRate: Double, language: String?) async throws -> String {
+    public func transcribe(samples: [Float], sampleRate: Double, language: String?,
+                           vocabulary: [String]) async throws -> String {
         guard SFSpeechRecognizer.authorizationStatus() == .authorized else { throw AppleSpeechError.notAuthorized }
         let locale = language.map { Locale(identifier: $0) } ?? Locale.current
         guard let recognizer = SFSpeechRecognizer(locale: locale), recognizer.isAvailable else {
@@ -40,6 +41,7 @@ public final class AppleSpeechTranscriber: Transcriber {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = false
         request.addsPunctuation = true
+        request.contextualStrings = DictationVocabulary.clean(vocabulary)
         if recognizer.supportsOnDeviceRecognition { request.requiresOnDeviceRecognition = true }
         request.append(buffer)
         request.endAudio()

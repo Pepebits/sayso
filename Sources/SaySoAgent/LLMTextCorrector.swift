@@ -13,9 +13,11 @@ public struct LLMTextCorrector: TextCorrector {
     private let timeout: TimeInterval
     private let redactor: SecretRedacting?
     private let store: SaySoStoring?
+    private let vocabulary: [String]
 
     public init(provider: ModelProvider, timeout: TimeInterval = 8, redactor: SecretRedacting? = nil,
-                store: SaySoStoring? = nil) {
+                store: SaySoStoring? = nil, vocabulary: [String] = []) {
+        self.vocabulary = vocabulary
         self.provider = provider
         self.timeout = timeout
         self.redactor = redactor
@@ -25,7 +27,8 @@ public struct LLMTextCorrector: TextCorrector {
     public func correct(_ text: String) async throws -> String {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return text }
         let input = redactor?.redact(text) ?? text
-        let request = ModelRequest(model: provider.fastModel, system: Self.instruction,
+        let system = [Self.instruction, DictationVocabulary.correctionHint(vocabulary)].compactMap { $0 }.joined(separator: "\n\n")
+        let request = ModelRequest(model: provider.fastModel, system: system,
                                    messages: [.user(input)], tools: [], maxTokens: max(256, input.count * 2))
         try? store?.incrementRequests(on: Date())
         let provider = self.provider

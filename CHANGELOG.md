@@ -12,6 +12,7 @@ All notable changes to SaySo are documented here. The format follows
 - Tasks → «Ideas to get started»: ready-made tasks (morning summary, unread chats, plan for the week, overdue reminders, Linux machine clean-up). «Use» fills in the new-task form so you can review it before scheduling
 - Settings → «Error report»: saves a file with the version, status, the last week's warnings and errors and SaySo's unexpected quits (with the crashing thread), hiding names, numbers, addresses and secrets, so you can review it and attach it to an issue. After an unexpected quit, Logs says how to report it
 - Homebrew: `brew install --cask pepebits/sayso/sayso`, with the repository as its own tap. The release script updates the cask's version and checksum
+- Dictation dictionary (Dictation → Dictionary): names, brands and acronyms are given as a hint to Whisper and Apple's recognizer and to AI correction, and always come out with your capitalization; fixed replacements turn a dictated word or phrase into another («at sign» → «@»)
 
 ### Fixed
 

@@ -57,14 +57,16 @@ final class FakeTranscriber: Transcriber, @unchecked Sendable {
     private let lock = NSLock()
     private var _calls: [(count: Int, language: String?)] = []
     var calls: [(count: Int, language: String?)] { lock.withLock { _calls } }
+    private var _vocabulary: [[String]] = []
+    var vocabularies: [[String]] { lock.withLock { _vocabulary } }
 
     init(text: String, error: Error? = nil) {
         self.text = text
         self.error = error
     }
 
-    func transcribe(samples: [Float], sampleRate: Double, language: String?) async throws -> String {
-        lock.withLock { _calls.append((samples.count, language)) }
+    func transcribe(samples: [Float], sampleRate: Double, language: String?, vocabulary: [String]) async throws -> String {
+        lock.withLock { _calls.append((samples.count, language)); _vocabulary.append(vocabulary) }
         if let error { throw error }
         return text
     }

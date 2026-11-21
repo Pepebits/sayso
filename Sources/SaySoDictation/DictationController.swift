@@ -162,8 +162,10 @@ public final class DictationController {
     /// Transcribe audio que no viene del micrófono (notas de voz de Telegram), con el motor y el
     /// idioma del dictado.
     public func transcribe(samples: [Float]) async throws -> String {
-        try await transcriber(for: settings.engine)
-            .transcribe(samples: samples, sampleRate: AudioMath.targetSampleRate, language: settings.language)
+        let text = try await transcriber(for: settings.engine)
+            .transcribe(samples: samples, sampleRate: AudioMath.targetSampleRate, language: settings.language,
+                        vocabulary: settings.vocabulary)
+        return DictationVocabulary.apply(text, vocabulary: settings.vocabulary, replacements: settings.replacements)
     }
 
     public func setCorrector(_ corrector: TextCorrector?) {
@@ -340,6 +342,8 @@ public final class DictationController {
         setPhase(.transcribing)
         let transcriber = transcriber(for: settings.engine)
         let language = settings.language
+        let vocabulary = settings.vocabulary
+        let replacements = settings.replacements
         let forAgent = recordingForAgent
         // Lo que va al agente no se corrige: él ya entiende una frase dictada.
         let corrector = settings.aiCorrection && !forAgent ? corrector : nil
@@ -348,15 +352,16 @@ public final class DictationController {
         Task { [weak self] in
             do {
                 var text = try await transcriber.transcribe(samples: samples, sampleRate: AudioMath.targetSampleRate,
-                                                            language: language)
+                                                            language: language, vocabulary: vocabulary)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
+                text = DictationVocabulary.apply(text, vocabulary: vocabulary, replacements: replacements)
                 self?.onPartial?(text)
                 if !text.isEmpty, let corrector {
                     self?.setPhase(.correcting)
                     let original = text
                     let corrected = await Self.withTimeout(timeout) { try await corrector.correct(original) }
                     if let corrected = corrected?.trimmingCharacters(in: .whitespacesAndNewlines), !corrected.isEmpty {
-                        text = corrected
+                        text = DictationVocabulary.apply(corrected, vocabulary: vocabulary, replacements: replacements)
                         self?.onPartial?(text)
                     }
                 }

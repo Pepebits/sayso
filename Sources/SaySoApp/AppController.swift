@@ -48,6 +48,7 @@ final class AppController: AppActions {
     private var refreshTimer: Timer?
     private var started = false
     let updater = Updater()
+    private let vocabularyBox = VocabularyBox()
 
     func start() {
         guard !started else { return }
@@ -182,6 +183,7 @@ final class AppController: AppActions {
         model.activeAccountID = (try? store.setting(SettingsKey.activeAccount)).flatMap { $0 }.flatMap(UUID.init)
         model.autoSpeed = flag(SettingsKey.autoSpeed, default: true)
         model.dictation = (try? store.codableSetting(SettingsKey.dictation)) ?? DictationSettings()
+        vocabularyBox.set(model.dictation.vocabulary)
         model.agentRunning = flag(SettingsKey.agentRunning, default: true)
         model.keepAwake = flag(SettingsKey.keepAwake, default: false)
         model.speakAlerts = flag(SettingsKey.speakAlerts, default: true)
@@ -423,7 +425,7 @@ final class AppController: AppActions {
     private func setUpDictation() {
         dictation = DictationController(
             settings: model.dictation,
-            corrector: services.map { FastModelCorrector(services: $0) },
+            corrector: services.map { [vocabularyBox] in FastModelCorrector(services: $0, vocabulary: { vocabularyBox.current }) },
             onPhase: { [weak self] phase in
                 guard let self else { return }
                 self.model.dictationPhase = phase
@@ -580,6 +582,7 @@ final class AppController: AppActions {
         }
         hud.keySymbol = settings.shortcut.symbol
         model.dictation = settings
+        vocabularyBox.set(settings.vocabulary)
         attempt { try store?.setCodableSetting(settings, for: SettingsKey.dictation) }
         dictation?.update(settings: settings)
         startDictationIfPossible()
@@ -2779,11 +2782,21 @@ struct ServicesReviewer: ActionReviewing {
 /// «Corregir con IA» con el modelo rápido de la cuenta activa en ese momento.
 struct FastModelCorrector: TextCorrector {
     let services: AgentServices
+    /// Diccionario del dictado en el momento de corregir.
+    var vocabulary: @Sendable () -> [String] = { [] }
 
     func correct(_ text: String) async throws -> String {
         try await LLMTextCorrector(provider: services.makeProvider(), redactor: services.redactor,
-                                   store: services.store).correct(text)
+                                   store: services.store, vocabulary: vocabulary()).correct(text)
     }
+}
+
+/// Diccionario del dictado, legible desde cualquier hilo.
+final class VocabularyBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: [String] = []
+    var current: [String] { lock.lock(); defer { lock.unlock() }; return stored }
+    func set(_ value: [String]) { lock.lock(); stored = value; lock.unlock() }
 }
 
 /// Dónde está la transcripción de notas de voz. Se puede leer desde cualquier hilo.

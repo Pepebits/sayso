@@ -48,12 +48,13 @@ public actor WhisperTranscriber: Transcriber {
         _ = try? await loadedKit()
     }
 
-    public func transcribe(samples: [Float], sampleRate: Double, language: String?) async throws -> String {
+    public func transcribe(samples: [Float], sampleRate: Double, language: String?,
+                           vocabulary: [String]) async throws -> String {
         let kit = try await loadedKit().kit
         let audio = AudioMath.resample(samples, from: sampleRate)
         guard !audio.isEmpty else { return "" }
         let lang = Self.whisperLanguage(language)
-        let options = DecodingOptions(
+        var options = DecodingOptions(
             task: .transcribe,
             language: lang,
             temperatureFallbackCount: 3,
@@ -63,6 +64,14 @@ public actor WhisperTranscriber: Transcriber {
             withoutTimestamps: true,
             chunkingStrategy: .vad
         )
+        // El diccionario va como texto previo: Whisper tiende a escribir las palabras que ya ha «visto».
+        let words = DictationVocabulary.clean(vocabulary)
+        if !words.isEmpty, let tokenizer = kit.tokenizer {
+            let prompt = tokenizer.encode(text: " " + words.joined(separator: ", ") + ".")
+                .filter { $0 < tokenizer.specialTokens.specialTokenBegin }
+            // Whisper admite como mucho 224 fichas de contexto; con más se ignora el resto.
+            options.promptTokens = Array(prompt.suffix(200))
+        }
         let results = try await kit.transcribe(audioArray: audio, decodeOptions: options)
         return Self.clean(results.map(\.text).joined(separator: " "))
     }
