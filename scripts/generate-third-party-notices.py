@@ -25,6 +25,7 @@ PACKAGES = [
     ("grdb.swift", "GRDB.swift", "GRDB.swift", "MIT License", ["LICENSE"]),
     ("whisperkit", "WhisperKit (Argmax OSS)", "WhisperKit", "MIT License", ["LICENSE", "NOTICES"]),
     ("tdlibframework", "TDLibFramework", "TDLibFramework", "MIT License", ["LICENSE"]),
+    ("sparkle", "Sparkle", "Sparkle", "MIT License (with the licenses of its bundled components)", ["LICENSE"]),
 ]
 
 # Componentes compilados dentro de TDLibFramework.

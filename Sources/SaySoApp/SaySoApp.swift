@@ -35,6 +35,9 @@ private struct MenuContent: View {
         Button(tr(controller.model.agentRunning ? "Detener el agente" : "Reanudar el agente")) {
             controller.setAgentRunning(!controller.model.agentRunning)
         }
+        if case .ready = controller.model.updates {
+            Button("Buscar actualizaciones…") { controller.checkForUpdates() }
+        }
         Divider()
         Button("Salir de SaySo") { NSApp.terminate(nil) }
     }

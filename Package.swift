@@ -18,6 +18,8 @@ let package = Package(
         // Binario oficial de TDLib empaquetado como xcframework. Versión fijada: cada etiqueta es una
         // compilación concreta de TDLib.
         .package(url: "https://github.com/Swiftgram/TDLibFramework.git", exact: "1.8.70-fe61d641"),
+        // Actualizaciones de la app: comprueba un appcast firmado con EdDSA y la instala.
+        .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.6.0"),
     ],
     targets: [
         // Contratos y modelos compartidos. Sin dependencias.
@@ -53,9 +55,11 @@ let package = Package(
             name: "SaySoApp",
             dependencies: [
                 "SaySoCore", "SaySoStore", "SaySoPermissions", "SaySoAgent", "SaySoDictation", "SaySoVM", "SaySoTDLib",
-                "SaySoUI",
+                "SaySoUI", .product(name: "Sparkle", package: "Sparkle"),
             ],
-            swiftSettings: swift5
+            swiftSettings: swift5,
+            // Sparkle es un framework dinámico: en la app va en Contents/Frameworks.
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
         ),
         .testTarget(name: "SaySoStoreTests", dependencies: ["SaySoStore"], swiftSettings: swift5),
         .testTarget(name: "SaySoPermissionsTests", dependencies: ["SaySoPermissions"], swiftSettings: swift5),

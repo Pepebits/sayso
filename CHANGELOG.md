@@ -6,6 +6,14 @@ All notable changes to SaySo are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Automatic updates with Sparkle: SaySo checks the latest GitHub release once a day and asks before installing a new version, signed by Pepebits. Settings → «Updates» shows the installed version, a «Check now» button and the automatic-checks switch, and the menu bar has «Check for Updates…». Updates start with the version after this one; 0.3.0 has to be updated by hand once
+
+### Fixed
+
+- Release script: notarization no longer fails with «No Keychain password item found» when the screen locks while Apple reviews the app
+
 ## [0.3.0] — 2026-11-20
 
 ### Added

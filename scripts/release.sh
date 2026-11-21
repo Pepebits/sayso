@@ -9,6 +9,11 @@
 #   2. Credenciales de notarización guardadas en el Llavero con el nombre «sayso-notary»:
 #      xcrun notarytool store-credentials sayso-notary --apple-id <tu Apple ID> --team-id <tu equipo>
 #      (pide una contraseña específica de app, que se crea en account.apple.com).
+#   3. Clave EdDSA de Sparkle para firmar las actualizaciones, también en el Llavero:
+#      .build/artifacts/sparkle/Sparkle/bin/generate_keys
+#      La clave pública que imprime va en SUPublicEDKey de scripts/Info.plist. Guarda una copia de
+#      la privada (generate_keys -x <archivo>) fuera del Mac: sin ella no se pueden publicar
+#      actualizaciones para quien ya tiene la app.
 #
 # Uso:
 #   scripts/release.sh            # todo: compilar, firmar, dmg, notarizar y grapar
@@ -17,6 +22,10 @@
 #   scripts/release.sh --staple        # grapa el resultado al .dmg ya creado, cuando Apple lo acepte
 #   SAYSO_SIGN_ID="Developer ID Application: …"  fuerza una identidad concreta
 #   SAYSO_NOTARY_PROFILE=otro-nombre             usa otro perfil de credenciales
+#   SAYSO_SPARKLE_KEY_FILE=<archivo>             firma el appcast con esa clave en vez de la del Llavero
+#
+# Junto al .dmg queda build/appcast.xml: súbelo a la misma release de GitHub. La app busca
+# actualizaciones en releases/latest/download/appcast.xml.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -25,6 +34,18 @@ WAIT=1
 [ "${1:-}" = "--no-notarize" ] && NOTARIZE=0
 [ "${1:-}" = "--no-wait" ] && WAIT=0
 PROFILE="${SAYSO_NOTARY_PROFILE:-sayso-notary}"
+SPARKLE_BIN=.build/artifacts/sparkle/Sparkle/bin
+
+# Appcast de Sparkle para el .dmg ya grapado: la firma EdDSA del archivo y la del propio feed.
+appcast() {
+    local version build key=()
+    version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' scripts/Info.plist)"
+    build="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' scripts/Info.plist)"
+    [ -n "${SAYSO_SPARKLE_KEY_FILE:-}" ] && key=(--ed-key-file "$SAYSO_SPARKLE_KEY_FILE")
+    echo "→ Firmando la actualización para Sparkle…"
+    python3 scripts/make-appcast.py "$version" "$build" "$("$SPARKLE_BIN/sign_update" ${key[@]+"${key[@]}"} "$1")" build/appcast.xml
+    "$SPARKLE_BIN/sign_update" ${key[@]+"${key[@]}"} build/appcast.xml
+}
 
 # notarytool guarda el perfil en el Llavero con protección de datos, que solo se puede leer con la
 # sesión desbloqueada. Si la pantalla se bloquea mientras Apple revisa la app, la siguiente llamada
@@ -51,7 +72,8 @@ if [ "${1:-}" = "--staple" ]; then
     DMG="build/SaySo-$VERSION.dmg"
     xcrun stapler staple "$DMG"
     spctl --assess --type open --context context:primary-signature -v "$DMG"
-    echo "Listo: $DMG (firmado y notarizado). Ya se puede compartir."
+    appcast "$DMG"
+    echo "Listo: $DMG (firmado y notarizado) y build/appcast.xml. Sube los dos a la release."
     exit 0
 fi
 
@@ -66,9 +88,16 @@ if [ -z "$SIGN_ID" ]; then
     echo "Aviso: sin Developer ID; se firma con la identidad de desarrollo solo para probar en este Mac."
 fi
 
+if [ "$NOTARIZE" = 1 ] && ! /usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' scripts/Info.plist >/dev/null 2>&1; then
+    echo "Falta SUPublicEDKey en scripts/Info.plist: crea la clave con $SPARKLE_BIN/generate_keys (requisito 3)." >&2
+    exit 1
+fi
+
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' scripts/Info.plist)"
 APP="build/release/SaySo.app"
 DMG="build/SaySo-$VERSION.dmg"
+# Una prueba sin notarizar no pisa el .dmg publicado de la misma versión.
+[ "$NOTARIZE" = 0 ] && DMG="build/SaySo-$VERSION-sin-notarizar.dmg"
 
 echo "→ Compilando (release)…"
 swift build -c release --product SaySo
@@ -80,6 +109,10 @@ rm -rf build/release
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/SaySo"
 cp scripts/Info.plist "$APP/Contents/Info.plist"
+# Sparkle (actualizaciones). La app no está en sandbox, así que sus servicios XPC no hacen falta.
+mkdir -p "$APP/Contents/Frameworks"
+ditto "$(dirname "$BIN")/Sparkle.framework" "$APP/Contents/Frameworks/Sparkle.framework"
+rm -rf "$APP/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices" "$APP/Contents/Frameworks/Sparkle.framework/XPCServices"
 swift scripts/make-icon.swift "$APP/Contents/Resources" >/dev/null
 cp -R Resources/*.lproj "$APP/Contents/Resources/"
 cp Resources/brand/*.svg "$APP/Contents/Resources/"
@@ -90,6 +123,10 @@ find "$(dirname "$BIN")" -maxdepth 1 -name '*.bundle' -exec cp -R {} "$APP/Conte
 echo "→ Firmando con runtime endurecido…"
 # Primero lo de dentro y al final la app, con sus permisos.
 find "$APP/Contents/Resources" -name '*.bundle' -exec codesign --force --options runtime --timestamp --sign "$SIGN_ID" {} \;
+SPARKLE="$APP/Contents/Frameworks/Sparkle.framework"
+for part in "$SPARKLE/Versions/B/Autoupdate" "$SPARKLE/Versions/B/Updater.app" "$SPARKLE"; do
+    codesign --force --options runtime --timestamp --sign "$SIGN_ID" "$part"
+done
 codesign --force --options runtime --timestamp --entitlements scripts/SaySo.release.entitlements --sign "$SIGN_ID" "$APP"
 codesign --verify --strict --deep "$APP"
 
@@ -132,7 +169,8 @@ elif [ "$NOTARIZE" = 1 ]; then
     notary submit "$DMG" --wait
     xcrun stapler staple "$DMG"
     spctl --assess --type open --context context:primary-signature -v "$DMG"
-    echo "Listo: $DMG (firmado y notarizado). Ya se puede compartir."
+    appcast "$DMG"
+    echo "Listo: $DMG (firmado y notarizado) y build/appcast.xml. Sube los dos a la release."
 else
     echo "Listo: $DMG (firmado, SIN notarizar). En otros Mac macOS lo bloqueará."
 fi

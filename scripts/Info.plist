@@ -16,6 +16,11 @@
 	<key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
 	<key>NSHighResolutionCapable</key><true/>
 	<key>NSPrincipalClass</key><string>NSApplication</string>
+	<!-- Actualizaciones (Sparkle): appcast firmado en la última release de GitHub. -->
+	<key>SUFeedURL</key><string>https://github.com/Pepebits/sayso/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key><string>mMIgnQVDDu98HuTDMK8f6CJ2trSQRd6KBHM8nXC5XRk=</string>
+	<key>SURequireSignedFeed</key><true/>
+	<key>SUEnableAutomaticChecks</key><true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>SaySo escucha el micrófono solo mientras mantienes el atajo de dictado.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

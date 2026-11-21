@@ -66,6 +66,8 @@ struct PreferencesScreen: View {
                             .accessibilityLabel("Abrir la guía de inicio")
                     }
                     CardDivider()
+                    updatesRow
+                    CardDivider()
                     SettingRow(icon: "externaldrive", title: "Copia de seguridad",
                                detail: "Memoria, tareas, avisos, reglas, cuentas y ajustes en un archivo, para otro Mac o para guardarla. Sin claves ni conversaciones.") {
                         HStack(spacing: Theme.Space.s) {
@@ -208,6 +210,34 @@ struct PreferencesScreen: View {
         case .installing: return (tr("Instalando…"), .connecting)
         case .installed: return (tr("Instalado"), .active)
         case .failed: return (tr("Falló"), .error)
+        }
+    }
+
+    private var updatesDetail: String {
+        switch model.updates {
+        case .unavailable:
+            return tr("Versión %@. Esta compilación no se actualiza sola.", model.appVersion)
+        case .ready(_, let lastCheck?):
+            return tr("Versión %@. Última comprobación: %@.", model.appVersion, RelativeDate.string(lastCheck))
+        case .ready(_, nil):
+            return tr("Versión %@. Las versiones nuevas se descargan de GitHub, firmadas por Pepebits.", model.appVersion)
+        }
+    }
+
+    @ViewBuilder private var updatesRow: some View {
+        SettingRow(icon: "arrow.down.app", title: "Actualizaciones", detail: updatesDetail) {
+            if case .ready = model.updates {
+                BlockButton("Buscar ahora", compact: true) { model.actions?.checkForUpdates() }
+                    .accessibilityLabel("Buscar actualizaciones ahora")
+            }
+        }
+        if case .ready(let automatic, _) = model.updates {
+            CardDivider(inset: Theme.Space.l)
+            SettingRow(title: "Buscar actualizaciones automáticamente",
+                       detail: "Una vez al día. Antes de instalar una versión nueva, SaySo te pregunta.") {
+                BlockToggle(isOn: Binding(get: { automatic }, set: { model.actions?.setAutomaticUpdates($0) }),
+                            label: "Buscar actualizaciones automáticamente")
+            }
         }
     }
 

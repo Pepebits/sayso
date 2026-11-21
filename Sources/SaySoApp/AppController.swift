@@ -47,12 +47,15 @@ final class AppController: AppActions {
     private let keepAwake = KeepAwake()
     private var refreshTimer: Timer?
     private var started = false
+    let updater = Updater()
 
     func start() {
         guard !started else { return }
         started = true
         model.actions = self
         Self.shared = self
+        model.appVersion = Updater.version
+        model.updates = updater.state
         startLog()
         do {
             let store = try SQLiteStore(url: AppPaths.supportDirectory().appendingPathComponent("sayso.sqlite"))
@@ -242,6 +245,8 @@ final class AppController: AppActions {
     private func refresh() {
         refreshData()
         refreshSystemState()
+        let updates = updater.state
+        if model.updates != updates { model.updates = updates }
     }
 
     /// Lo que la app necesita aunque nadie mire: apagar la máquina ociosa, permisos y dictado.
@@ -1591,6 +1596,16 @@ final class AppController: AppActions {
         } catch {
             model.log(.warning, LogCategory.app, tr("No se pudo mostrar la notificación: %@", error.localizedDescription))
         }
+    }
+
+    func checkForUpdates() {
+        updater.check()
+        model.updates = updater.state
+    }
+
+    func setAutomaticUpdates(_ enabled: Bool) {
+        updater.setAutomatic(enabled)
+        model.updates = updater.state
     }
 
     func setSpeakAlerts(_ enabled: Bool) {

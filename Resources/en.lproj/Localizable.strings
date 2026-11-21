@@ -1481,3 +1481,12 @@
 "Ocultar" = "Hide";
 "Ocultar la lista de modelos" = "Hide the model list";
 "Mostrar la lista de modelos" = "Show the model list";
+"Actualizaciones" = "Updates";
+"Buscar ahora" = "Check now";
+"Buscar actualizaciones ahora" = "Check for updates now";
+"Buscar actualizaciones automáticamente" = "Check for updates automatically";
+"Buscar actualizaciones…" = "Check for Updates…";
+"Una vez al día. Antes de instalar una versión nueva, SaySo te pregunta." = "Once a day. SaySo asks you before installing a new version.";
+"Versión %@. Esta compilación no se actualiza sola." = "Version %@. This build does not update itself.";
+"Versión %@. Última comprobación: %@." = "Version %@. Last checked: %@.";
+"Versión %@. Las versiones nuevas se descargan de GitHub, firmadas por Pepebits." = "Version %@. New versions are downloaded from GitHub, signed by Pepebits.";

@@ -26,6 +26,10 @@ public final class AppModel {
     public var speakAlerts = true
     /// Cómo se avisa en el Mac: con sonido, en silencio o sin notificación.
     public var alertStyle: AlertStyle = .sound
+    /// Versión instalada, p. ej. «0.4.0 (8)».
+    public var appVersion = ""
+    /// Estado de las actualizaciones automáticas (Sparkle).
+    public var updates = UpdateState.unavailable
     /// El agente deja de atender mientras el Mac está bloqueado.
     public var pauseWhenLocked = false
     /// Protección: revisar acciones tras leer contenido ajeno, y qué detector de inyecciones se usa.
@@ -163,6 +167,9 @@ public protocol AppActions: AnyObject {
     func setKeepAwake(_ enabled: Bool)
     func setSpeakAlerts(_ enabled: Bool)
     func setAlertStyle(_ style: AlertStyle)
+    /// Busca una versión nueva ahora, con la ventana de Sparkle.
+    func checkForUpdates()
+    func setAutomaticUpdates(_ enabled: Bool)
     /// Guarda la configuración en un archivo (sin secretos ni conversaciones).
     func exportBackup()
     /// Recupera la configuración de un archivo de copia.
@@ -306,4 +313,11 @@ public struct ConversationLine: Identifiable, Hashable, Sendable {
         self.fromUser = fromUser
         self.text = text
     }
+}
+
+/// Actualizaciones de la app.
+public enum UpdateState: Equatable, Sendable {
+    /// Compilación de desarrollo o sin clave pública: no se actualiza sola.
+    case unavailable
+    case ready(automatic: Bool, lastCheck: Date?)
 }
