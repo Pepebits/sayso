@@ -6,6 +6,12 @@ All notable changes to SaySo are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.2] — 2026-11-22
+
+### Added
+
+- Settings → Privacy policy opens SaySo's privacy policy, now published with a support page
+
 ### Security
 
 - A message you forward to the bot is treated as someone else's: the agent sums it up and asks what to do, instead of following it
@@ -32,6 +38,7 @@ All notable changes to SaySo are documented here. The format follows
 - The Linux machine's idle shutdown checks again right before powering off, and a command that arrives while it shuts down waits and starts it again
 - «Step limit reached» and «No answer from the model» are translated; an API key error points to SaySo → Model
 - Photos you ask the agent to send you («send them to me») reach you through your bot, one by one, instead of the agent looking for another chat or a group to send an album to
+- In a smaller window, the Mac screen and other card grids pushed the sidebar out of the window; they now drop to fewer columns
 
 ## [0.4.1] — 2026-11-21
 
@@ -149,7 +156,9 @@ First public version, signed and notarized.
 
 - "Type at the cursor", so SaySo no longer needs the Accessibility permission
 
-[Unreleased]: https://github.com/Pepebits/sayso/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Pepebits/sayso/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/Pepebits/sayso/compare/v0.4.1...v0.4.2
+[0.4.1]: https://github.com/Pepebits/sayso/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Pepebits/sayso/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Pepebits/sayso/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Pepebits/sayso/releases/tag/v0.2.0

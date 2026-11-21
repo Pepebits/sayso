@@ -4,8 +4,8 @@
 #   brew install --cask pepebits/sayso/sayso
 # scripts/release.sh updates the version and checksum for each release.
 cask "sayso" do
-  version "0.4.1"
-  sha256 "000bdfb58f2ebc7b147c23c2afb28c150e5d344883f52b14ceedfc31192767f8"
+  version "0.4.2"
+  sha256 "a7f69cbbaf97c75451b0fd065af77a2dcc8ce2887b7b64f7eb72bf836545e445"
 
   url "https://github.com/Pepebits/sayso/releases/download/v#{version}/SaySo-#{version}.dmg"
   name "SaySo"
