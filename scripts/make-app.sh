@@ -17,6 +17,11 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/SaySo"
 cp scripts/Info.plist "$APP/Contents/Info.plist"
+# Las compilaciones de desarrollo no se actualizan solas: Sparkle las cambiaría por la versión publicada.
+/usr/libexec/PlistBuddy -c 'Add :SaySoDevBuild bool true' "$APP/Contents/Info.plist"
+# Sparkle (actualizaciones) es un framework dinámico.
+mkdir -p "$APP/Contents/Frameworks"
+ditto "$(dirname "$BIN")/Sparkle.framework" "$APP/Contents/Frameworks/Sparkle.framework"
 swift scripts/make-icon.swift "$APP/Contents/Resources" >/dev/null
 
 # Idiomas: el español del código es la clave; Resources/en.lproj lleva el inglés.

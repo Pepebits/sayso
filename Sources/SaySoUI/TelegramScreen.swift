@@ -76,6 +76,7 @@ struct TelegramScreen: View {
     let model: AppModel
     @State private var tab: Tab = .permissions
     @State private var token = ""
+    @State private var confirmingDisconnect = false
 
     /// Bot emparejado y cuenta con sesión: los dos caben como paneles gemelos.
     private var compactConnection: Bool {
@@ -123,6 +124,9 @@ struct TelegramScreen: View {
             case .activity: activity
             }
         }
+        .confirmRemoval(isPresented: $confirmingDisconnect, title: tr("¿Desconectar el bot?"),
+                        message: tr("Se borran su token y el emparejamiento. Para volver a usarlo tendrás que pegar el token y emparejarlo otra vez."),
+                        button: tr("Desconectar")) { model.actions?.disconnectTelegram() }
     }
 
     private var botPanel: some View {
@@ -154,7 +158,7 @@ struct TelegramScreen: View {
             HStack {
                 MonoTag(text: tr("canal de conversación"))
                 Spacer(minLength: 0)
-                BlockButton("Desconectar", kind: .destructive, compact: true) { model.actions?.disconnectTelegram() }
+                BlockButton("Desconectar", kind: .destructive, compact: true) { confirmingDisconnect = true }
                     .accessibilityLabel(tr("Desconectar el bot"))
             }
         }
@@ -237,9 +241,7 @@ struct TelegramScreen: View {
                     } else {
                         StatusTag("Conectado", kind: .active)
                     }
-                    BlockButton("Desconectar", kind: .destructive, compact: true) {
-                        model.actions?.disconnectTelegram()
-                    }
+                    BlockButton("Desconectar", kind: .destructive, compact: true) { confirmingDisconnect = true }
                 }
                 .padding(.horizontal, Theme.Space.l)
                 .padding(.vertical, Theme.Space.m)
@@ -296,11 +298,19 @@ struct TelegramScreen: View {
         case TelegramAction.deleteMessages: return "trash"
         case TelegramAction.guestReply: return "at"
         case "telegram.sendFile": return "paperclip"
+        case "telegram.sendWidget": return "rectangle.on.rectangle"
         case TelegramAction.forward: return "arrowshape.turn.up.right"
         case TelegramAction.edit: return "pencil"
         case TelegramAction.react: return "face.smiling"
         case TelegramAction.markRead: return "checkmark.circle"
         case TelegramAction.download: return "arrow.down.circle"
+        case TelegramAction.pin: return "pin"
+        case TelegramAction.organize: return "archivebox"
+        case TelegramAction.contacts: return "person.crop.circle.badge.plus"
+        case TelegramAction.groups: return "person.3"
+        case TelegramAction.vote: return "chart.bar"
+        case TelegramAction.savedMessages: return "bookmark"
+        case TelegramAction.watch: return "bell"
         default: return "gearshape"
         }
     }
@@ -342,6 +352,12 @@ struct TelegramScreen: View {
                                    systemImage: "exclamationmark.triangle", emphasis: true)
                             .padding(.horizontal, Theme.Space.l)
                             .padding(.vertical, Theme.Space.m)
+                    }
+                    CardDivider()
+                    SettingRow(icon: "hand.raised", title: "Aprobar desde el bot",
+                               detail: "Cuando una acción pide permiso, el bot te envía «Permitir una vez» y «Denegar» además de la ventana del Mac. Vale la primera respuesta; la pregunta caduca a los 5 minutos y «Permitir siempre» solo se puede elegir en el Mac.") {
+                        BlockToggle(isOn: Binding(get: { model.approveFromBot }, set: { model.actions?.setApproveFromBot($0) }),
+                                    label: "Aprobar desde el bot")
                     }
                 }
             }

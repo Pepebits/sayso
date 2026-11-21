@@ -4,7 +4,7 @@ import SwiftUI
 /// Pantalla Estadísticas: cuánto se usa el dictado, la IA y las acciones del agente.
 /// Solo enseña lo que la app cuenta de verdad en la base de datos de este Mac.
 struct StatsScreen: View {
-    enum Metric: Hashable { case requests, dictations, words }
+    enum Metric: Hashable { case requests, tokens, dictations, words }
 
     let model: AppModel
     @State private var range = 30
@@ -45,6 +45,8 @@ struct StatsScreen: View {
 
                 chartPanel
 
+                tokensSection
+
                 actionsSection
 
                 VStack(alignment: .leading, spacing: Theme.Space.s) {
@@ -58,6 +60,277 @@ struct StatsScreen: View {
             } else {
                 EmptyState(systemImage: "chart.bar", title: "Aún no hay datos",
                            detail: "Dicta algo o habla con el agente y aquí verás cuánto lo usas.")
+            }
+
+            budgetSection
+
+            resourcesSection
+        }
+        .onAppear { model.actions?.refreshResources() }
+    }
+
+    // MARK: Tokens
+
+    private static func compact(_ n: Int) -> String {
+        n.formatted(.number.notation(.compactName).locale(L10n.locale))
+    }
+
+    private var tokensSection: some View {
+        let models = stats.tokensByModel(lastDays: range)
+        let total = totals.tokens
+        return VStack(alignment: .leading, spacing: Theme.Space.s) {
+            SectionBar("Tokens", note: total > 0 ? tr("%@ en %@ días", Self.compact(total), "\(range)") : nil)
+            Panel {
+                if models.isEmpty {
+                    Text(tr("Aún no hay tokens contados en este periodo. Se cuentan desde esta versión."))
+                        .font(Theme.body).foregroundStyle(Theme.secondary)
+                } else {
+                    HStack(alignment: .top, spacing: Theme.Space.l) {
+                        tokenCell("Entrada", totals.inputTokens, "lo que se manda: instrucciones, historial y herramientas")
+                        tokenCell("Salida", totals.outputTokens, "lo que escribe el modelo")
+                        tokenCell("Por solicitud", totals.requests > 0 ? total / max(totals.requests, 1) : 0, "de media")
+                    }
+                    CardDivider()
+                    PanelLabel("Por modelo")
+                    let top = max(models.map { $0.input + $0.output }.max() ?? 1, 1)
+                    VStack(alignment: .leading, spacing: Theme.Space.s + 2) {
+                        ForEach(models, id: \.model) { bucket in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
+                                    Text(verbatim: bucket.model)
+                                        .font(Theme.mono(12, weight: .medium)).foregroundStyle(Theme.ink)
+                                        .lineLimit(1).truncationMode(.middle)
+                                    Text(tr("%@ entrada · %@ salida · %@ solicitudes", Self.compact(bucket.input),
+                                            Self.compact(bucket.output), bucket.requests.formatted()))
+                                        .font(Theme.caption).foregroundStyle(Theme.secondary).lineLimit(1)
+                                    Spacer(minLength: Theme.Space.s)
+                                    Text(verbatim: (bucket.estimated ? "≈ " : "") + Self.compact(bucket.input + bucket.output))
+                                        .font(Theme.mono(12, weight: .semibold)).foregroundStyle(Theme.ink)
+                                }
+                                BlockProgress(value: Double(bucket.input + bucket.output) / Double(top), label: bucket.model,
+                                              tint: Theme.chartAI)
+                                    .accessibilityHidden(true)
+                            }
+                            .accessibilityElement(children: .combine)
+                        }
+                    }
+                    if models.contains(where: \.estimated) {
+                        Text(tr("≈: el proveedor no dice cuántos tokens usa y se estiman por la longitud del texto."))
+                            .font(Theme.caption).foregroundStyle(Theme.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Límite de gasto
+
+    private static func limitLabel(_ value: Int?) -> String {
+        value.map(TokenLimits.short) ?? tr("Sin límite")
+    }
+
+    private var budgetSection: some View {
+        let limits = model.tokenLimits
+        let spend = model.tokenSpend
+        return VStack(alignment: .leading, spacing: Theme.Space.s) {
+            SectionBar("Límite de gasto", note: spend.reached(limits) != nil ? tr("alcanzado") : nil)
+            Panel {
+                Text(tr("Tope de tokens con modelos de pago; los locales (Ollama, LM Studio) no cuentan. Al 80 % te avisa por el bot y en el Mac; al llegar, el agente no hace más peticiones hasta el día o el mes siguiente."))
+                    .font(Theme.caption)
+                    .foregroundStyle(Theme.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                budgetRow(title: "Al día", used: spend.today, limit: limits.daily,
+                          options: TokenLimits.dailyOptions) { value in
+                    var l = limits
+                    l.daily = value
+                    model.actions?.setTokenLimits(l)
+                }
+                CardDivider()
+                budgetRow(title: "Al mes", used: spend.month, limit: limits.monthly,
+                          options: TokenLimits.monthlyOptions) { value in
+                    var l = limits
+                    l.monthly = value
+                    model.actions?.setTokenLimits(l)
+                }
+            }
+        }
+    }
+
+    private func budgetRow(title: String, used: Int, limit: Int?, options: [Int?],
+                           set: @escaping (Int?) -> Void) -> some View {
+        VStack(alignment: .leading, spacing: Theme.Space.s) {
+            HStack(alignment: .firstTextBaseline, spacing: Theme.Space.m) {
+                Text(tr(title)).font(Theme.bodyStrong).foregroundStyle(Theme.ink)
+                Text(limit.map { tr("%@ de %@", TokenLimits.short(used), TokenLimits.short($0)) } ?? tr("%@ gastados", TokenLimits.short(used)))
+                    .font(Theme.mono(12)).foregroundStyle(Theme.secondary)
+                Spacer(minLength: Theme.Space.s)
+                BlockSegmented(tr("Límite %@", tr(title).lowercased()),
+                               selection: Binding(get: { limit ?? 0 }, set: { set($0 == 0 ? nil : $0) }),
+                               options: options.map { ($0 ?? 0, Self.limitLabel($0)) }, compact: true)
+            }
+            if let limit {
+                let fraction = min(Double(used) / Double(max(limit, 1)), 1)
+                BlockProgress(value: fraction, label: tr("Gastado %@", title),
+                              tint: fraction >= 1 ? Theme.destructive : fraction >= TokenLimits.warnAt ? Theme.ink : Theme.chartAI)
+            }
+        }
+    }
+
+    private func tokenCell(_ title: String, _ value: Int, _ detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(verbatim: Self.compact(value)).font(Theme.mono(18, weight: .bold)).foregroundStyle(Theme.ink)
+            Text(tr(title)).font(Theme.bodyStrong).foregroundStyle(Theme.ink)
+            Text(tr(detail)).font(Theme.caption).foregroundStyle(Theme.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: Recursos
+
+    private static func bytes(_ value: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: value, countStyle: .file)
+    }
+
+    /// La memoria en sus unidades (4 GB y no 4,29 GB).
+    private static func memory(_ value: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: value, countStyle: .memory)
+    }
+
+    private var resourcesSection: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.s) {
+            SectionBar("Recursos", note: model.resources.map { tr("%@ en disco", Self.bytes($0.totalDisk)) })
+            if let usage = model.resources {
+                TileGrid(memoryTiles(usage), columns: 3, minTileWidth: 160) { tile in
+                    StatTile(title: tile.title, value: tile.value, detail: tile.detail, swatch: tile.color)
+                }
+                Panel {
+                    HStack {
+                        PanelLabel("Espacio en disco")
+                        Spacer(minLength: Theme.Space.s)
+                        Text(tr("Medido %@", RelativeDate.string(usage.measuredAt)))
+                            .font(Theme.caption).foregroundStyle(Theme.secondary)
+                    }
+                    diskRows(usage)
+                    HStack(spacing: Theme.Space.s) {
+                        BlockButton("Volver a medir", systemImage: "arrow.clockwise", compact: true) {
+                            model.actions?.refreshResources()
+                        }
+                        if usage.disk.contains(where: { $0.id == "telegram" }) {
+                            BlockButton("Limpiar archivos de Telegram", systemImage: "trash", compact: true) {
+                                model.actions?.cleanTelegramFiles()
+                            }
+                            .help(tr("Borra lo descargado que no se haya usado en 14 días. Telegram lo vuelve a bajar si hace falta."))
+                        }
+                        Spacer(minLength: 0)
+                        BlockButton("Mostrar en Finder", systemImage: "folder", compact: true) {
+                            model.actions?.revealDataFolder()
+                        }
+                    }
+                }
+                if let inside = usage.vmInside {
+                    Panel {
+                        PanelLabel("Dentro de la máquina Linux")
+                        vmRows(inside)
+                        HStack(alignment: .center, spacing: Theme.Space.m) {
+                            Text(tr("Lo que se borra dentro se devuelve al Mac al arrancar la máquina, o ahora con este botón."))
+                                .font(Theme.caption).foregroundStyle(Theme.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: Theme.Space.s)
+                            BlockButton("Liberar espacio en el Mac", systemImage: "arrow.down.right.and.arrow.up.left", compact: true) {
+                                model.actions?.freeComputerSpace()
+                            }
+                        }
+                    }
+                } else if usage.vmMemory != nil {
+                    InlineNote("Enciende la máquina Linux para ver qué ocupa por dentro: modelos del detector, Python, archivos del agente…",
+                               systemImage: "info.circle")
+                }
+            } else {
+                Panel {
+                    Text(tr("Midiendo…")).font(Theme.body).foregroundStyle(Theme.secondary)
+                }
+            }
+        }
+    }
+
+    private func memoryTiles(_ usage: ResourceUsage) -> [Tile] {
+        var tiles = [Tile(title: tr("Memoria de SaySo"), value: Self.memory(usage.appMemory),
+                          detail: tr("la app, ahora mismo"), color: Theme.chartAI)]
+        if let vm = usage.vmMemory {
+            if let used = usage.vmMemoryUsed {
+                tiles.append(Tile(title: tr("Memoria de la máquina Linux"), value: Self.memory(used),
+                                  detail: tr("en uso de %@ asignados", Self.memory(vm)), color: Theme.chartVoice))
+            } else {
+                tiles.append(Tile(title: tr("Memoria de la máquina Linux"), value: Self.memory(vm),
+                                  detail: usage.vmRunning ? tr("asignada; en marcha") : tr("asignada; apagada, no usa nada"),
+                                  color: Theme.chartVoice))
+            }
+        }
+        tiles.append(Tile(title: tr("Disco"), value: Self.bytes(usage.totalDisk), detail: tr("todo lo de SaySo"),
+                          color: Theme.secondary))
+        return tiles
+    }
+
+    /// Lo de dentro de la máquina, con «Borrar» en los modelos del detector que no se usan.
+    private func vmRows(_ items: [ResourceUsage.Item]) -> some View {
+        let top = max(items.map(\.bytes).max() ?? 1, 1)
+        return VStack(alignment: .leading, spacing: Theme.Space.s + 2) {
+            ForEach(items) { item in
+                let unusedModel = item.id.hasPrefix(ResourceUsage.guardModelPrefix) && item.detail == tr("detector de inyecciones, sin usar")
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
+                        Text(item.id.hasPrefix(ResourceUsage.guardModelPrefix) ? item.title : tr(item.title))
+                            .font(Theme.text(12.5, weight: .medium))
+                            .foregroundStyle(Theme.ink)
+                            .lineLimit(1).truncationMode(.middle)
+                        if let detail = item.detail {
+                            Text(verbatim: detail).font(Theme.caption).foregroundStyle(Theme.secondary).lineLimit(1)
+                        }
+                        Spacer(minLength: Theme.Space.s)
+                        if unusedModel {
+                            BlockButton("Borrar", systemImage: "trash", compact: true) {
+                                model.actions?.removeGuardModel(folder: String(item.id.dropFirst(ResourceUsage.guardModelPrefix.count)))
+                            }
+                        }
+                        Text(verbatim: Self.bytes(item.bytes))
+                            .font(Theme.mono(12, weight: .semibold))
+                            .foregroundStyle(Theme.ink)
+                    }
+                    BlockProgress(value: Double(item.bytes) / Double(top), label: item.title, tint: Theme.chartVoice)
+                        .accessibilityHidden(true)
+                }
+            }
+        }
+    }
+
+    private func diskRows(_ usage: ResourceUsage) -> some View {
+        let top = max(usage.disk.map(\.bytes).max() ?? 1, 1)
+        return VStack(alignment: .leading, spacing: Theme.Space.s + 2) {
+            ForEach(usage.disk) { item in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
+                        Text(tr(item.title))
+                            .font(Theme.text(12.5, weight: .medium))
+                            .foregroundStyle(Theme.ink)
+                        if let detail = item.detail {
+                            Text(verbatim: detail)
+                                .font(Theme.caption)
+                                .foregroundStyle(Theme.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        }
+                        Spacer(minLength: Theme.Space.s)
+                        Text(verbatim: Self.bytes(item.bytes))
+                            .font(Theme.mono(12, weight: .semibold))
+                            .foregroundStyle(Theme.ink)
+                    }
+                    BlockProgress(value: Double(item.bytes) / Double(top), label: tr(item.title), tint: Theme.chartAI)
+                        .accessibilityHidden(true)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(tr(item.title)))
+                .accessibilityValue(Text(verbatim: Self.bytes(item.bytes)))
             }
         }
     }
@@ -111,6 +384,7 @@ struct StatsScreen: View {
         case .requests: return day.totals.requests
         case .dictations: return day.totals.dictations
         case .words: return day.totals.words
+        case .tokens: return day.totals.tokens
         }
     }
 
@@ -119,6 +393,7 @@ struct StatsScreen: View {
         case .requests: return "Solicitudes por día"
         case .dictations: return "Dictados por día"
         case .words: return "Palabras por día"
+        case .tokens: return "Tokens por día"
         }
     }
 
@@ -143,10 +418,10 @@ struct StatsScreen: View {
                 PanelLabel(metricTitle)
                 Spacer(minLength: Theme.Space.s)
                 BlockSegmented("Qué se dibuja en el gráfico", selection: $metric,
-                               options: [(Metric.requests, "Solicitudes"), (.dictations, "Dictados"), (.words, "Palabras")],
+                               options: [(Metric.requests, "Solicitudes"), (.tokens, "Tokens"), (.dictations, "Dictados"), (.words, "Palabras")],
                                compact: true)
             }
-            DayBars(days: days, color: metric == .requests ? Theme.chartAI : Theme.chartVoice, value: value,
+            DayBars(days: days, color: metric == .requests || metric == .tokens ? Theme.chartAI : Theme.chartVoice, value: value,
                     title: tr(metricTitle), summary: chartSummary)
             Text(verbatim: chartSummary)
                 .font(Theme.caption)

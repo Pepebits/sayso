@@ -176,6 +176,8 @@ public actor TaskScheduler {
     private let deliver: @Sendable (ScheduledTask, String) async -> Void
     private let now: @Sendable () -> Date
     private var running = false
+    /// Tareas en marcha ahora: «Ejecutar ahora» y el reloj no ejecutan la misma dos veces a la vez.
+    private var executing: Set<Int64> = []
 
     public init(tasks: TaskStoring, makeLoop: @escaping LoopProvider,
                 deliver: @escaping @Sendable (ScheduledTask, String) async -> Void,
@@ -192,7 +194,10 @@ public actor TaskScheduler {
         running = true
         defer { running = false }
         guard let all = try? tasks.tasks() else { return }
-        for var task in all where task.enabled {
+        for listed in all where listed.enabled {
+            // Mientras se ejecuta otra (minutos), esta puede haberse borrado, desactivado o cambiado:
+            // se vuelve a leer justo antes.
+            guard var task = (try? tasks.tasks())?.first(where: { $0.id == listed.id }), task.enabled else { continue }
             guard let due = task.nextRun else {
                 task.nextRun = task.schedule.next(after: now())
                 if task.nextRun == nil { task.enabled = false }
@@ -207,7 +212,9 @@ public actor TaskScheduler {
     static func prompt(for task: ScheduledTask) -> String {
         var memory = " Antes de hacerlo, mira la memoria del usuario: si alguna de sus instrucciones cambia cómo " +
             "hacer este encargo, aplícala aunque el encargo diga otra cosa o en ejecuciones anteriores lo hicieras distinto." +
-            " Cada ejecución empieza de cero: haz el encargo entero con tus herramientas, sin dar nada por hecho."
+            " Cada ejecución empieza de cero: haz el encargo entero con tus herramientas, sin dar nada por hecho." +
+            " Si para no repetirte necesitas llevar la cuenta de lo ya hecho, apúntalo en el archivo " +
+            "~/sayso/registro/tarea-\(task.id ?? 0).txt de tu ordenador Linux y léelo al empezar; no lo guardes en la memoria."
         // Solo lo último que salió, para no repetirlo; el historial completo no se manda.
         if let last = task.lastResult?.trimmingCharacters(in: .whitespacesAndNewlines), !last.isEmpty, last != "-",
            let when = task.lastRun {
@@ -239,6 +246,11 @@ public actor TaskScheduler {
     }
 
     private func execute(_ task: ScheduledTask, reschedule: Bool = true) async {
+        if let id = task.id {
+            guard !executing.contains(id) else { return }
+            executing.insert(id)
+        }
+        defer { if let id = task.id { executing.remove(id) } }
         var task = task
         // El encargo menciona la ejecución anterior: se toma antes de apuntar esta.
         let previous = task
@@ -251,15 +263,18 @@ public actor TaskScheduler {
         task.lastRun = started
         try? tasks.updateTask(task)
 
-        let text: String
+        var text: String
+        var failed = false
         do {
             let loop = try await makeLoop()
             let id = task.id ?? 0
             text = try await loop.respond(to: TaskScheduler.prompt(for: previous), chatID: "tarea-\(id)", origin: "tarea:\(id)",
                                           recipients: task.recipients, recipientsPreapproved: task.sendWithoutAsking,
                                           useHistory: false)
+            failed = AgentLoop.isIncomplete(text)
         } catch {
             text = "No se pudo ejecutar la tarea: \(error.localizedDescription)"
+            failed = true
         }
         // Otra parte de la app puede haberla cambiado o borrado mientras se ejecutaba.
         if var current = try? tasks.tasks().first(where: { $0.id == task.id }) {
@@ -267,6 +282,14 @@ public actor TaskScheduler {
             current.lastRun = started
             try? tasks.updateTask(current)
         }
-        await deliver(task, text)
+        guard !task.recipients.isEmpty else { return await deliver(task, text) }
+        // Para otras personas sale desde la cuenta del usuario: un error, una respuesta a medias o
+        // un aviso interno no se les manda nunca; le llega solo al usuario por su bot.
+        if failed {
+            var ownerOnly = task
+            ownerOnly.recipients = []
+            return await deliver(ownerOnly, tr("No se ha enviado nada a %@: %@", task.recipients.names, text))
+        }
+        await deliver(task, AgentLoop.stripWarning(text).trimmingCharacters(in: .whitespacesAndNewlines))
     }
 }

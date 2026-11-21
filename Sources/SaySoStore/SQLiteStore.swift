@@ -132,6 +132,16 @@ public final class SQLiteStore: SaySoStoring, TaskStoring {
                 ALTER TABLE usage ADD COLUMN seconds DOUBLE NOT NULL DEFAULT 0;
                 """)
         }
+        m.registerMigration("v8-tokens") { db in
+            try db.execute(sql: """
+                CREATE TABLE tokens (
+                    day TEXT NOT NULL, model TEXT NOT NULL,
+                    input INTEGER NOT NULL DEFAULT 0, output INTEGER NOT NULL DEFAULT 0,
+                    requests INTEGER NOT NULL DEFAULT 0, estimated INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (day, model)
+                )
+                """)
+        }
         return m
     }
 
@@ -219,6 +229,23 @@ public final class SQLiteStore: SaySoStoring, TaskStoring {
         }
     }
 
+    @discardableResult
+    public func trim(keepActivity: Int, keepTurns: Int) throws -> (activity: Int, turns: Int) {
+        let removed = try db.write { db -> (Int, Int) in
+            try db.execute(sql: """
+                DELETE FROM activity WHERE rowid NOT IN (SELECT rowid FROM activity ORDER BY date DESC LIMIT ?)
+                """, arguments: [max(0, keepActivity)])
+            let activity = db.changesCount
+            try db.execute(sql: """
+                DELETE FROM turns WHERE rowid NOT IN (SELECT rowid FROM turns ORDER BY date DESC LIMIT ?)
+                """, arguments: [max(0, keepTurns)])
+            return (activity, db.changesCount)
+        }
+        // Borrar no encoge el archivo: si se ha ido mucho, se compacta.
+        if removed.0 + removed.1 > 2_000 { try db.vacuum() }
+        return removed
+    }
+
     public func lastUse(of action: ActionID) throws -> Date? {
         try db.read { db in
             try Double.fetchOne(db, sql: "SELECT MAX(date) FROM activity WHERE action = ?",
@@ -287,6 +314,14 @@ public final class SQLiteStore: SaySoStoring, TaskStoring {
     }
 
     // MARK: - Ajustes
+
+    public func allSettings() throws -> [String: String] {
+        try db.read { db in
+            var out: [String: String] = [:]
+            for row in try Row.fetchAll(db, sql: "SELECT key, value FROM settings") { out[row["key"]] = row["value"] }
+            return out
+        }
+    }
 
     public func setting(_ key: String) throws -> String? {
         try db.read { db in
@@ -359,6 +394,35 @@ public final class SQLiteStore: SaySoStoring, TaskStoring {
         }
     }
 
+    public func recordTokens(model: String, input: Int, output: Int, estimated: Bool, on day: Date) throws {
+        try db.write { db in
+            try db.execute(sql: """
+                INSERT INTO tokens (day, model, input, output, requests, estimated) VALUES (?, ?, ?, ?, 1, ?)
+                ON CONFLICT(day, model) DO UPDATE SET input = input + excluded.input, output = output + excluded.output,
+                    requests = requests + 1, estimated = MAX(estimated, excluded.estimated)
+                """, arguments: [Self.dayKey(day), String(model.prefix(120)), max(input, 0), max(output, 0), estimated ? 1 : 0])
+        }
+    }
+
+    public func tokenSpend(now: Date, excluding models: Set<String>) throws -> TokenSpend {
+        let today = Self.dayKey(now)
+        let month = String(today.prefix(7))
+        return try db.read { db in
+            var spend = TokenSpend()
+            let rows = try Row.fetchAll(db, sql: "SELECT day, model, input + output AS total FROM tokens WHERE day >= ?",
+                                        arguments: [month + "-01"])
+            for row in rows {
+                let model: String = row["model"]
+                guard !models.contains(model) else { continue }
+                let day: String = row["day"]
+                let total: Int = row["total"]
+                if day.hasPrefix(month) { spend.month += total }
+                if day == today { spend.today += total }
+            }
+            return spend
+        }
+    }
+
     public func recordDictation(words: Int, seconds: Double, on day: Date) throws {
         try db.write { db in
             try db.execute(sql: """
@@ -390,6 +454,18 @@ public final class SQLiteStore: SaySoStoring, TaskStoring {
             for row in try Row.fetchAll(db, sql: "SELECT * FROM usage WHERE day >= ?", arguments: [Self.dayKey(first)]) {
                 byDay[row["day"]] = totals(row)
             }
+            var tokenBuckets: [TokenBucket] = []
+            for row in try Row.fetchAll(db, sql: "SELECT * FROM tokens WHERE day >= ?", arguments: [Self.dayKey(first)]) {
+                let key: String = row["day"]
+                guard let day = Self.date(fromDayKey: key) else { continue }
+                let bucket = TokenBucket(day: day, model: row["model"], input: row["input"], output: row["output"],
+                                         requests: row["requests"], estimated: (row["estimated"] as Int) != 0)
+                tokenBuckets.append(bucket)
+                var day0 = byDay[key] ?? UsageTotals()
+                day0.inputTokens += bucket.input
+                day0.outputTokens += bucket.output
+                byDay[key] = day0
+            }
             let all = try Row.fetchOne(db, sql: """
                 SELECT SUM(requests) AS requests, SUM(dictations) AS dictations, SUM(words) AS words,
                        SUM(seconds) AS seconds, MIN(day) AS firstDay FROM usage
@@ -404,10 +480,15 @@ public final class SQLiteStore: SaySoStoring, TaskStoring {
                           let outcome = ActivityOutcome(rawValue: row["outcome"]) else { return nil }
                     return ActionBucket(day: day, action: ActionID(row["action"] as String), outcome: outcome, count: row["n"])
                 }
+            var allTime = all.map(totals) ?? UsageTotals()
+            if let sums = try Row.fetchOne(db, sql: "SELECT SUM(input) AS i, SUM(output) AS o FROM tokens") {
+                allTime.inputTokens = (sums["i"] as Int?) ?? 0
+                allTime.outputTokens = (sums["o"] as Int?) ?? 0
+            }
             return UsageStats(days: window.map { DayUsage(day: $0, totals: byDay[Self.dayKey($0)] ?? UsageTotals()) },
-                              allTime: all.map(totals) ?? UsageTotals(),
+                              allTime: allTime,
                               firstDay: firstKey.flatMap(Self.date(fromDayKey:)),
-                              actions: buckets)
+                              actions: buckets, tokens: tokenBuckets)
         }
     }
 

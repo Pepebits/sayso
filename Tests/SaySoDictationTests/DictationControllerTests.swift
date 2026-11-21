@@ -6,6 +6,7 @@ import XCTest
 
 final class FakeHotkey: HotkeySource {
     var onAction: ((HotkeyStateMachine.Action) -> Void)?
+    var onEscape: (() -> Void)?
     var side: OptionKeySide = .any
     var shortcut: DictationShortcut = .option
     var activeSide: OptionKeyPhysicalSide? = .left
@@ -19,7 +20,10 @@ final class FakeHotkey: HotkeySource {
     }
 
     func stop() { stopped += 1 }
+    var resets = 0
+    func resetGesture() { resets += 1 }
     func send(_ action: HotkeyStateMachine.Action) { onAction?(action) }
+    func escape() { onEscape?() }
 }
 
 final class FakeRecorder: AudioRecording {
@@ -57,14 +61,16 @@ final class FakeTranscriber: Transcriber, @unchecked Sendable {
     private let lock = NSLock()
     private var _calls: [(count: Int, language: String?)] = []
     var calls: [(count: Int, language: String?)] { lock.withLock { _calls } }
+    private var _vocabulary: [[String]] = []
+    var vocabularies: [[String]] { lock.withLock { _vocabulary } }
 
     init(text: String, error: Error? = nil) {
         self.text = text
         self.error = error
     }
 
-    func transcribe(samples: [Float], sampleRate: Double, language: String?) async throws -> String {
-        lock.withLock { _calls.append((samples.count, language)) }
+    func transcribe(samples: [Float], sampleRate: Double, language: String?, vocabulary: [String]) async throws -> String {
+        lock.withLock { _calls.append((samples.count, language)); _vocabulary.append(vocabulary) }
         if let error { throw error }
         return text
     }
@@ -199,6 +205,72 @@ final class DictationControllerTests: XCTestCase {
         hotkey.send(.startListening)
         XCTAssertEqual(phases.last, .failed("No hay agente con el que hablar: añade una cuenta de IA en Modelo."))
         XCTAssertEqual(recorder.startCount, 0, "no se graba nada que no vaya a ninguna parte")
+    }
+
+    func testWithoutAnAgentTheKeySaysWhy() async throws {
+        let stopped = makeController()
+        stopped.agentAvailable = { false }
+        stopped.agentUnavailableReason = { "El agente está detenido. Reanúdalo en Inicio." }
+        try stopped.start()
+        hotkey.send(.startListening)
+        XCTAssertEqual(phases.last, .failed("El agente está detenido. Reanúdalo en Inicio."))
+    }
+
+    func testEscapeCancelsAWaitingAgentRequest() async throws {
+        let controller = makeController()
+        let finished = expectation(description: "la petición se cancela")
+        controller.agentHandler = { _ in
+            do { try await Task.sleep(nanoseconds: 10_000_000_000) } catch { finished.fulfill(); throw error }
+            return "tarde"
+        }
+        var cancelled = 0
+        controller.onAgentCancelled = { cancelled += 1 }
+        try controller.start()
+        hotkey.send(.startListening)
+        hotkey.send(.stopAndTranscribe)
+        await waitFor { if case .agentThinking = self.phases.last { return true }; return false }
+        hotkey.escape()
+        XCTAssertEqual(phases.last, .idle)
+        XCTAssertEqual(cancelled, 1)
+        await fulfillment(of: [finished], timeout: 2)
+        // El dictado queda libre al momento.
+        hotkey.send(.startListening)
+        XCTAssertEqual(phases.last, .agentListening(level: 0, handsFree: false))
+        hotkey.send(.cancel)
+        // Esc sin nada en curso no hace nada.
+        hotkey.escape()
+        XCTAssertEqual(cancelled, 1)
+    }
+
+    func testEscapeClosesTheReply() async throws {
+        let controller = makeController()
+        controller.agentHandler = { _ in "Las cinco." }
+        var cancelled = 0
+        controller.onAgentCancelled = { cancelled += 1 }
+        try controller.start()
+        hotkey.send(.startListening)
+        hotkey.send(.stopAndTranscribe)
+        await waitFor { self.phases.last == .agentReply("Las cinco.") }
+        hotkey.escape()
+        XCTAssertEqual(phases.last, .idle)
+        XCTAssertEqual(cancelled, 1, "calla la voz")
+    }
+
+    func testAgentRequestHasATimeLimit() async throws {
+        var timing = DictationController.Timing()
+        timing.agentTimeout = 0.1
+        timing.failureDisplay = 0.05
+        let controller = DictationController(
+            settings: DictationSettings(), corrector: nil, hotkey: hotkey, recorder: recorder,
+            makeTranscriber: { _ in FakeTranscriber(text: "hola") }, timing: timing,
+            onPhase: { [unowned self] in self.phases.append($0) }, onTranscriberStatus: { _ in })
+        controller.agentHandler = { _ in try await Task.sleep(nanoseconds: 10_000_000_000); return "tarde" }
+        current = controller
+        try controller.start()
+        hotkey.send(.startListening)
+        hotkey.send(.stopAndTranscribe)
+        await waitFor { self.phases.contains { if case .failed = $0 { return true }; return false } }
+        XCTAssertTrue(phases.contains(.failed(AgentTimeout().localizedDescription)))
     }
 
     func testLiveTranscriptWhileSpeaking() async throws {
@@ -523,13 +595,15 @@ final class DictationControllerTests: XCTestCase {
         hotkey.send(.startListening)
         XCTAssertEqual(controller.phase, .failed("Falta el permiso de Micrófono."))
         XCTAssertEqual(recorder.startCount, 0)
+        XCTAssertEqual(hotkey.resets, 1, "el atajo no se queda en manos libres")
     }
 
     func testRecorderErrorFails() {
         recorder.startError = AudioRecorderError.noInput
         let controller = makeController()
-        hotkey.send(.startListening)
+        hotkey.send(.enterHandsFree)
         XCTAssertEqual(controller.phase, .failed("No hay ningún micrófono disponible."))
+        XCTAssertEqual(hotkey.resets, 1, "la siguiente pulsación vuelve a empezar")
     }
 
     func testIgnoresNewRecordingWhileTranscribing() async {

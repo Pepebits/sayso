@@ -15,6 +15,7 @@ struct MemoryScreen: View {
     @State private var editKind: MemoryNote.Kind = .fact
     @State private var filter: Filter = .all
     @State private var query = ""
+    @State private var forgetting: Int64?
 
     private var trimmed: String { draft.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -214,8 +215,11 @@ struct MemoryScreen: View {
                         .buttonStyle(.plain)
                         .help(tr("Editar"))
                         .accessibilityLabel(tr("Editar nota: %@", note.text))
-                        BlockButton("Olvidar", kind: .destructive, compact: true) { model.actions?.forgetNote(id: id) }
+                        BlockButton("Olvidar", kind: .destructive, compact: true) { forgetting = id }
                             .accessibilityLabel(tr("Olvidar nota: %@", note.text))
+                            .confirmRemoval(isPresented: Binding(get: { forgetting == id }, set: { if !$0 { forgetting = nil } }),
+                                            title: tr("¿Olvidar esta nota?"), message: String(note.text.prefix(200)),
+                                            button: tr("Olvidar")) { model.actions?.forgetNote(id: id) }
                     }
                 }
             }
@@ -272,7 +276,8 @@ struct MemoryScreen: View {
     // MARK: Contexto
 
     private func contextTitle(_ context: ConversationContext) -> String {
-        context.chatID == "voz" ? "Conversación por voz" : "Conversación por el bot"
+        // La voz y el bot comparten conversación: una sola tarjeta.
+        context.chatID == "voz" ? "Conversación con el agente" : "Conversación por el bot"
     }
 
     private func tokens(_ usage: ContextUsage) -> String {

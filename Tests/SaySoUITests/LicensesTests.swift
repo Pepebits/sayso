@@ -15,10 +15,12 @@ final class LicensesTests: XCTestCase {
     func testListsEveryComponentWithItsLicence() throws {
         let components = try notices().components
         XCTAssertEqual(components.map(\.license), [
-            "MIT License", "MIT License", "MIT License", "Boost Software License 1.0", "zlib License", "Apache License 2.0",
+            "MIT License", "MIT License", "MIT License", "MIT License", "Boost Software License 1.0", "zlib License",
+            "Apache License 2.0",
         ])
         XCTAssertTrue(components[0].name.hasPrefix("GRDB.swift "))
         XCTAssertTrue(components[1].name.hasPrefix("WhisperKit"))
+        XCTAssertTrue(components[3].name.hasPrefix("Sparkle "))
         XCTAssertEqual(components.suffix(3).map(\.name), ["TDLib", "zlib", "OpenSSL"])
         XCTAssertTrue(components.allSatisfy { $0.url.hasPrefix("https://") })
     }

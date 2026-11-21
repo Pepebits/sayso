@@ -6,6 +6,7 @@ struct ModelScreen: View {
     let model: AppModel
     /// Plantilla con la que se abre la hoja; `nil` si está cerrada.
     @State private var adding: ProviderPreset?
+    @State private var removing: UUID?
 
     private var accountsTag: String {
         switch model.accounts.count {
@@ -113,6 +114,16 @@ struct ModelScreen: View {
                 BlockToggle(isOn: Binding(get: { model.autoSpeed }, set: { model.actions?.setAutoSpeed($0) }),
                             label: "Velocidad automática")
             }
+            CardDivider()
+            SettingRow(title: "Ve imágenes",
+                       detail: active.vision == nil
+                           ? (active.defaultVision ? "Este proveedor ve imágenes: el agente puede mirar fotos de Telegram y de la máquina Linux."
+                              : "No consta que este modelo vea imágenes. Actívalo si sabes que sí (por ejemplo, un modelo local con visión).")
+                           : "Cambiado a mano. Si el modelo no las ve, el proveedor devolverá un error al mandarle una foto.") {
+                BlockToggle(isOn: Binding(get: { active.seesImages },
+                                          set: { model.actions?.setAccountVision(id: active.id, $0) }),
+                            label: "Ve imágenes")
+            }
         }
     }
 
@@ -182,8 +193,12 @@ struct ModelScreen: View {
                         .accessibilityLabel(tr("Usar %@", account.name))
                 }
                 Spacer(minLength: 0)
-                BlockButton("Quitar", kind: .destructive, compact: true) { model.actions?.removeAccount(id: account.id) }
+                BlockButton("Quitar", kind: .destructive, compact: true) { removing = account.id }
                     .accessibilityLabel(tr("Quitar %@", account.name))
+                    .confirmRemoval(isPresented: Binding(get: { removing == account.id }, set: { if !$0 { removing = nil } }),
+                                    title: tr("¿Quitar la cuenta «%@»?", account.name),
+                                    message: tr("Su clave se borra del Llavero. Para volver a usarla tendrás que pegarla otra vez."),
+                                    button: tr("Quitar")) { model.actions?.removeAccount(id: account.id) }
             }
             .padding(.horizontal, Theme.Space.m)
             .padding(.vertical, Theme.Space.s)
@@ -208,6 +223,9 @@ struct AddAccountSheet: View {
     @State private var fullModel: String
     @State private var fastModel: String
     @State private var apiKey = ""
+    /// Permiso explícito para enviar datos a un proveedor de fuera del Mac (lo exige la App Store y
+    /// el usuario debe saberlo en cualquier caso).
+    @State private var consented = false
 
     init(initial: ProviderPreset = ProviderPreset.all[0], onAdd: @escaping (ProviderAccount, String?) -> Void) {
         self.onAdd = onAdd
@@ -224,8 +242,17 @@ struct AddAccountSheet: View {
         return url
     }
 
+    /// El modelo corre en este Mac o en la red local: los datos no salen a un tercero.
+    static func isLocal(_ url: URL) -> Bool {
+        let host = url.host?.lowercased() ?? ""
+        return ["localhost", "127.0.0.1", "::1", "[::1]"].contains(host) || host.hasSuffix(".local")
+    }
+
+    private var needsConsent: Bool { parsedURL.map { !Self.isLocal($0) } ?? false }
+
     private var canAdd: Bool {
-        parsedURL != nil
+        (!needsConsent || consented)
+            && parsedURL != nil
             && !name.trimmingCharacters(in: .whitespaces).isEmpty
             && !fullModel.trimmingCharacters(in: .whitespaces).isEmpty
             && (!preset.needsKey || !apiKey.isEmpty)
@@ -264,6 +291,23 @@ struct AddAccountSheet: View {
                          text: $apiKey, secure: true, mono: true,
                          hint: "Se guarda en el Llavero de este Mac.")
 
+            if needsConsent, let host = parsedURL?.host {
+                VStack(alignment: .leading, spacing: Theme.Space.s) {
+                    Text(tr("Qué se envía a %@", host))
+                        .font(Theme.text(12, weight: .semibold))
+                        .foregroundStyle(Theme.ink)
+                    Text(tr("Para responder, SaySo envía a este servicio lo que le pides y lo que el agente lee para hacerlo: tus mensajes, notas de memoria y, si se lo pides, mensajes de Telegram, el calendario, recordatorios o páginas web. Lo trata según sus condiciones. Pepebits no tiene servidores y no lo ve."))
+                        .font(Theme.text(12))
+                        .foregroundStyle(Theme.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Toggle(tr("Acepto que SaySo envíe estos datos a %@", host), isOn: $consented)
+                        .toggleStyle(.checkbox)
+                        .font(Theme.text(12))
+                }
+                .padding(Theme.Space.m)
+                .overlay(RoundedRectangle(cornerRadius: Theme.radius).strokeBorder(Theme.controlBorder, lineWidth: 1))
+            }
+
             HStack {
                 Spacer()
                 Button("Cancelar") { dismiss() }
@@ -278,6 +322,8 @@ struct AddAccountSheet: View {
         .padding(Theme.Space.xl)
         .frame(width: 480)
         .background(Theme.paper)
+        // Aceptar un servicio no vale para otro.
+        .onChange(of: parsedURL?.host) { consented = false }
     }
 
     private func apply(_ p: ProviderPreset) {

@@ -5,12 +5,23 @@ import SaySoCore
 // `MacScriptRunning`, que ya pasa por el motor de permisos.
 
 public enum MacTools {
-    /// Las seis herramientas del Mac.
+    /// Las herramientas del Mac.
     public static func all(runner: MacScriptRunning) -> [AgentTool] {
         [
             MacNotificationTool(runner: runner), MacVolumeTool(runner: runner), MacReminderTool(runner: runner),
-            MacNoteTool(runner: runner), MacCalendarTool(runner: runner), MacOpenURLTool(runner: runner),
-        ]
+            MacRemindersTool(runner: runner), MacChangeReminderTool(runner: runner),
+            MacCalendarTool(runner: runner), MacCalendarEventTool(runner: runner),
+            MacOpenURLTool(runner: runner),
+        ] + notes(runner: runner)
+    }
+
+    /// Notas de Apple no tiene API: solo se llega con AppleScript, que la tienda no permite.
+    private static func notes(runner: MacScriptRunning) -> [AgentTool] {
+        #if APPSTORE
+        []
+        #else
+        [MacNoteTool(runner: runner), MacNotesTool(runner: runner)]
+        #endif
     }
 
     /// Fecha ISO 8601 con o sin zona; sin zona se toma la local.
@@ -85,6 +96,47 @@ public struct MacReminderTool: AgentTool {
     }
 }
 
+public struct MacRemindersTool: AgentTool {
+    let runner: MacScriptRunning
+    public init(runner: MacScriptRunning) { self.runner = runner }
+    public var name: String { "mac_reminders" }
+    public var description: String {
+        "Lee los recordatorios de la app Recordatorios del Mac: pendientes por defecto, o también los hechos. " +
+            "Cada uno lleva su id, que es el que pide mac_reminder_update para completarlo o borrarlo."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema(["include_completed": ["type": "boolean", "description": "También los ya hechos (no por defecto)"]])
+    }
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        try await runner.run(.reminders(includeCompleted: input["include_completed"]?.boolValue ?? false), origin: context.origin)
+    }
+}
+
+public struct MacChangeReminderTool: AgentTool {
+    let runner: MacScriptRunning
+    public init(runner: MacScriptRunning) { self.runner = runner }
+    public var name: String { "mac_reminder_update" }
+    public var description: String {
+        "Marca como hecho (complete), vuelve a dejar pendiente (uncomplete) o borra (delete) un recordatorio del Mac. " +
+            "Necesita su id: léelo antes con mac_reminders. Pon en «title» su texto, para la confirmación."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "id": .property("string", "El id que da mac_reminders"),
+            "title": .property("string", "El texto del recordatorio"),
+            "action": ["type": "string", "enum": ["complete", "uncomplete", "delete"]],
+        ], required: ["id", "title", "action"])
+    }
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let id = try input.requiredString("id", maxLength: 200).trimmingCharacters(in: .whitespaces)
+        let title = try input.requiredString("title", maxLength: 500)
+        guard let change = input["action"]?.stringValue.flatMap(ReminderChange.init(rawValue:)) else {
+            throw ToolInputError("«action» tiene que ser complete, uncomplete o delete.")
+        }
+        return try await runner.run(.changeReminder(id: id, title: title, change: change), origin: context.origin)
+    }
+}
+
 public struct MacNoteTool: AgentTool {
     let runner: MacScriptRunning
     public init(runner: MacScriptRunning) { self.runner = runner }
@@ -101,6 +153,37 @@ public struct MacNoteTool: AgentTool {
     }
 }
 
+public struct MacNotesTool: AgentTool {
+    let runner: MacScriptRunning
+    public init(runner: MacScriptRunning) { self.runner = runner }
+    public var name: String { "mac_notes" }
+    public var description: String {
+        "Busca en la app Notas del Mac (action «search» con «query»: notas cuyo título o texto lo contiene, con su id) " +
+            "y lee una nota entera (action «read» con el «id» que da la búsqueda)."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "action": ["type": "string", "enum": ["search", "read"]],
+            "query": .property("string", "Para search: texto a buscar"),
+            "id": .property("string", "Para read: el id de la nota"),
+        ], required: ["action"])
+    }
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        switch input["action"]?.stringValue {
+        case "search":
+            let query = try input.requiredString("query", maxLength: 200).trimmingCharacters(in: .whitespaces)
+            guard query.count >= 2 else { throw ToolInputError("«query» necesita al menos dos caracteres.") }
+            return try await runner.run(.searchNotes(query: query), origin: context.origin)
+        case "read":
+            let id = try input.requiredString("id", maxLength: 300).trimmingCharacters(in: .whitespaces)
+            guard id.hasPrefix("x-coredata://") else { throw ToolInputError("«id» es el que da mac_notes con action search.") }
+            return try await runner.run(.readNote(id: id), origin: context.origin)
+        default:
+            throw ToolInputError("«action» tiene que ser search o read.")
+        }
+    }
+}
+
 public struct MacCalendarTool: AgentTool {
     let runner: MacScriptRunning
     let now: @Sendable () -> Date
@@ -113,7 +196,8 @@ public struct MacCalendarTool: AgentTool {
         "Lee los eventos del calendario del Mac de cualquier día o rango: hoy (sin parámetros), un día concreto " +
             "(«date») o varios días seguidos («days», hasta 62). Para «mañana» o «el viernes» calcula la fecha con " +
             "la de hoy. Para «mi próximo evento», pide desde hoy con days=30 y quédate con el primero que aún no " +
-            "haya pasado. También vale para días anteriores."
+            "haya pasado. También vale para días anteriores. Cada evento lleva su id, que es el que piden " +
+            "mover y borrar en mac_calendar_event."
     }
     public var inputSchema: JSONValue {
         .objectSchema([
@@ -134,6 +218,65 @@ public struct MacCalendarTool: AgentTool {
             throw ToolInputError("«days» va de 1 a \(MacScriptRunnerLimits.maxCalendarDays).")
         }
         return try await runner.run(.calendar(start: start, days: days), origin: context.origin)
+    }
+}
+
+public struct MacCalendarEventTool: AgentTool {
+    let runner: MacScriptRunning
+    public init(runner: MacScriptRunning) { self.runner = runner }
+    public var name: String { "mac_calendar_event" }
+    public var description: String {
+        "Cambia el calendario del Mac: «create» crea un evento (title, start, end; all_day para todo el día; " +
+            "location y calendar opcionales); «move» le cambia la hora a uno (id, start, end); «delete» lo borra (id). " +
+            "Los id salen de mac_calendar. Fechas en ISO 8601 con la hora local, p. ej. 2026-11-22T10:00. Si el " +
+            "evento se repite, solo cambia esa vez."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "action": ["type": "string", "enum": ["create", "move", "delete"]],
+            "id": .property("string", "Para move y delete: el id que da mac_calendar"),
+            "title": .property("string", "Para create"),
+            "start": .property("string", "Inicio, ISO 8601"),
+            "end": .property("string", "Fin, ISO 8601 (por defecto, una hora después del inicio)"),
+            "all_day": ["type": "boolean", "description": "Evento de todo el día"],
+            "location": .property("string", "Lugar (opcional)"),
+            "calendar": .property("string", "Nombre del calendario (opcional)"),
+        ], required: ["action"])
+    }
+
+    func dates(_ input: JSONValue) throws -> (Date, Date) {
+        guard let raw = try input.optionalString("start", maxLength: 64), let start = MacTools.parseDate(raw) else {
+            throw ToolInputError("Falta «start» como fecha ISO 8601, p. ej. 2026-11-22T10:00.")
+        }
+        var end = start.addingTimeInterval(3600)
+        if let raw = try input.optionalString("end", maxLength: 64) {
+            guard let parsed = MacTools.parseDate(raw) else { throw ToolInputError("«end» no es una fecha ISO 8601 válida.") }
+            end = parsed
+        }
+        guard end > start else { throw ToolInputError("«end» tiene que ser después de «start».") }
+        return (start, end)
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        switch input["action"]?.stringValue {
+        case "create":
+            let title = try input.requiredString("title", maxLength: 300)
+            let allDay = input["all_day"]?.boolValue ?? false
+            let (start, end) = try dates(input)
+            let draft = CalendarEventDraft(title: title, start: start, end: end, allDay: allDay,
+                                           location: try input.optionalString("location", maxLength: 300),
+                                           calendar: try input.optionalString("calendar", maxLength: 100))
+            return try await runner.run(.createEvent(draft), origin: context.origin)
+        case "move":
+            let id = try input.requiredString("id", maxLength: 300)
+            let (start, end) = try dates(input)
+            return try await runner.run(.moveEvent(id: id, title: "", start: start, end: end), origin: context.origin)
+        case "delete":
+            let id = try input.requiredString("id", maxLength: 300)
+            return try await runner.run(.deleteEvent(id: id, title: ""), origin: context.origin)
+        default:
+            throw ToolInputError("«action» tiene que ser create, move o delete.")
+        }
     }
 }
 

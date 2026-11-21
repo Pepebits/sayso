@@ -1,0 +1,57 @@
+/* Páginas públicas de SaySo (privacidad y soporte). Paleta y tipos de Pepebits. */
+:root {
+  --ink: #1c1b1b;
+  --paper: #fcf9f8;
+  --secondary: #595756;
+  --line: #e4dfdd;
+  --red: #ff3e3e;
+  --link: #1c1b1b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #fcf9f8;
+    --paper: #1c1b1b;
+    --secondary: #b5b1af;
+    --line: #3a3838;
+    --link: #fcf9f8;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 17px/1.6 "Inter", system-ui, -apple-system, sans-serif;
+}
+.wrap { max-width: 720px; margin: 0 auto; padding: 0 20px; }
+header.top {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 28px 0; border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; }
+.brand img { width: 32px; height: 32px; }
+.brand span { font: 800 22px/1 "Hanken Grotesk", system-ui, sans-serif; letter-spacing: -0.5px; }
+nav.lang a { color: var(--secondary); font-size: 14px; text-decoration: none; }
+nav.lang a[aria-current="true"] { color: var(--ink); font-weight: 600; }
+nav.lang a + a::before { content: "·"; margin: 0 8px; color: var(--secondary); }
+main { padding: 40px 0 56px; }
+h1 { font: 800 40px/1.1 "Hanken Grotesk", system-ui, sans-serif; letter-spacing: -1px; margin: 0 0 8px; }
+h1::after { content: ""; display: inline-block; width: 10px; height: 10px; background: var(--red); margin-left: 6px; }
+h2 { font: 700 22px/1.25 "Hanken Grotesk", system-ui, sans-serif; margin: 40px 0 8px; }
+.meta { color: var(--secondary); font-size: 14px; margin: 0 0 24px; }
+.lead { font-size: 19px; }
+a { color: var(--link); text-underline-offset: 3px; }
+ul { padding-left: 22px; }
+li { margin: 6px 0; }
+code { font: 14px "SF Mono", ui-monospace, Menlo, monospace; background: color-mix(in srgb, var(--ink) 7%, transparent); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+.box { border: 1px solid var(--line); border-radius: 8px; padding: 16px 20px; margin: 24px 0; }
+.box p { margin: 0; }
+footer.site {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 20px 0 32px; border-top: 1px solid var(--line); color: var(--secondary); font-size: 14px;
+}
+footer.site a { display: inline-flex; align-items: center; gap: 8px; color: var(--secondary); text-decoration: none; }
+footer.site a:hover, footer.site a:focus-visible { color: var(--ink); text-decoration: underline; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+@media (max-width: 480px) { h1 { font-size: 32px; } }

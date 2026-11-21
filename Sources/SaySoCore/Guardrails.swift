@@ -32,27 +32,90 @@ public struct GuardContext: Sendable, Hashable {
 public enum GuardPolicy {
     /// Acciones que salen del Mac o cambian algo del usuario: las que una inyección querría provocar.
     public static let outwardActions: Set<ActionID> = [
-        TelegramAction.sendMessages, TelegramAction.deleteMessages, "telegram.sendFile",
+        TelegramAction.sendMessages, TelegramAction.deleteMessages, "telegram.sendFile", TelegramAction.guestReply,
         TelegramAction.forward, TelegramAction.edit, TelegramAction.react,
-        MacScript.openURL.action, MacScript.note.action, MacScript.reminder.action,
-        TaskAction.schedule, TaskAction.cancel,
+        TelegramAction.pin, TelegramAction.contacts, TelegramAction.groups, TelegramAction.vote, TelegramAction.watch,
+        MacScript.openURL.action, MacScript.note.action, MacScript.reminder.action, MacScript.changeReminder.action, MacScript.changeCalendar.action,
+        TaskAction.schedule, TaskAction.cancel, ComputerAction.useSecrets,
     ]
 
-    public static func isOutward(_ action: ActionID) -> Bool { outwardActions.contains(action) }
+    /// Orígenes de SaySo misma, no del agente: arrancar el detector o un plugin, el escritorio, la
+    /// consola que escribe el usuario. Los pone el código, nunca el modelo, y no tienen que ver con
+    /// el encargo: si el revisor los mirara, frenaría al propio detector («lanzar un servidor de
+    /// clasificación no forma parte del encargo»).
+    public static let systemOrigins: Set<String> = ["proteccion", "plugins", "escritorio", "consola", "selftest"]
+
+    public static func isSystemOrigin(_ origin: String?) -> Bool {
+        origin.map(systemOrigins.contains) ?? false
+    }
+
+    /// Además de la lista: los comandos y archivos de la máquina Linux (tiene internet: un `curl` puede
+    /// sacar datos) y cualquier plugin. Solo cuestan una revisión cuando el turno ha leído contenido ajeno.
+    public static func isOutward(_ action: ActionID) -> Bool {
+        outwardActions.contains(action) || action == ComputerAction.run || action == ComputerAction.writeFile
+            || action.rawValue.hasPrefix("plugin.")
+    }
+
+    /// Si la acción pasa por el revisor en un turno con contenido ajeno: las hacia fuera, salvo los
+    /// comandos de la máquina Linux que solo miran (un `ls` no saca nada a ningún sitio).
+    public static func needsReview(_ request: ActionRequest) -> Bool {
+        guard isOutward(request.action) else { return false }
+        if request.action == ComputerAction.run, let command = request.parameters["Comando"], isReadOnlyCommand(command) {
+            return false
+        }
+        return true
+    }
+
+    /// Programas que solo leen o listan, sin red ni cambios.
+    static let readOnlyPrograms: Set<String> = [
+        "ls", "find", "file", "stat", "du", "df", "wc", "head", "tail", "cat", "grep", "pwd", "echo",
+        "md5sum", "sha256sum", "cd", "tree", "basename", "dirname", "date", "uname", "whoami", "identify", "true",
+    ]
+
+    /// Un comando hecho solo de programas que leen. Conservador: sustituciones (`$(…)`, comillas
+    /// invertidas), `-exec`, `xargs` o redirecciones que no sean a /dev/null lo descartan, y cualquier
+    /// programa fuera de la lista también.
+    public static func isReadOnlyCommand(_ command: String) -> Bool {
+        var text = command
+        for harmless in ["2>/dev/null", "2> /dev/null", ">/dev/null", "> /dev/null", "2>&1"] {
+            text = text.replacingOccurrences(of: harmless, with: " ")
+        }
+        for risky in ["`", "$(", "<(", ">(", ">", "<", "-exec", "-ok", "-delete", "-fprint", "-fls", "xargs"] where text.contains(risky) {
+            return false
+        }
+        let segments = text.components(separatedBy: CharacterSet(charactersIn: ";|&\n"))
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        guard !segments.isEmpty else { return false }
+        return segments.allSatisfy { segment in
+            let program = String(segment.split(separator: " ", maxSplits: 1).first ?? "")
+            return readOnlyPrograms.contains(program)
+        }
+    }
 
     /// Si una herramienta trae contenido que no escribió el usuario, su nombre para el aviso.
     public static func thirdPartySource(tool: String, input: String) -> String? {
         switch tool {
         case "web_search": return "una búsqueda web"
-        case "telegram_read_messages", "telegram_search_messages", "telegram_list_chats", "telegram_transcribe":
+        case "telegram_read_messages", "telegram_search_messages", "telegram_list_chats", "telegram_transcribe",
+             "telegram_profile", "telegram_stories", "telegram_view_image", "telegram_saved_messages",
+             "telegram_find_chat", "telegram_scheduled":
             return "mensajes de Telegram de otras personas"
+        case "mac_calendar", "mac_notes", "mac_reminders":
+            // Invitaciones, notas y listas compartidas: las puede haber escrito otra persona.
+            return "datos del Mac que pueden venir de otras personas"
+        case "computer_read_file", "view_image", "computer_jobs":
+            return "archivos de la máquina Linux"
         case "computer_run":
-            // Un comando que descarga algo de internet trae contenido ajeno en su salida.
+            // Un comando que descarga algo de internet, o que lee lo descargado, trae contenido ajeno.
             let lower = input.lowercased()
-            return ["curl", "wget", "http://", "https://", "git clone", "pip download"].contains(where: lower.contains)
+            return ["curl", "wget", "http://", "https://", "git clone", "pip download", "telegram", "download",
+                    "descarga", "python", "node ", "requests", "fetch"].contains(where: lower.contains)
                 ? "una descarga de internet" : nil
         default:
             if tool.hasPrefix("fetch__") || tool.hasPrefix("browser__") { return "una página web" }
+            // Cualquier otro plugin (GitHub, Linear…): sus datos los escriben terceros.
+            if tool.contains("__") { return "un plugin" }
             return nil
         }
     }

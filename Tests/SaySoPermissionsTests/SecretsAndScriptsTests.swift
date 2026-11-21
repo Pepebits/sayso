@@ -138,4 +138,47 @@ final class MacScriptRunnerTests: XCTestCase {
         XCTAssertEqual(MacScriptCall.calendar(start: friday, days: 3).script, .calendarToday,
                        "misma acción que antes: la regla de permisos guardada sigue valiendo")
     }
+
+    func testEventListCarriesTheIDsForMovingAndDeleting() {
+        let cal = Calendar.current
+        let day = cal.date(from: DateComponents(year: 2026, month: 11, day: 24))!
+        let ten = cal.date(byAdding: .hour, value: 10, to: day)!
+        let text = MacScriptRunner.format(events: [("Dentista", ten, ten.addingTimeInterval(1800), false, nil)], start: day,
+                                          days: 1, now: day, ids: ["EV-1"])
+        XCTAssertTrue(text.hasSuffix("Dentista · id EV-1"), text)
+        let ask = MacScriptRunner.request(for: .deleteEvent(id: "EV-1", title: "Dentista"), origin: nil)
+        XCTAssertEqual(ask.action, MacScript.changeCalendar.action)
+        XCTAssertTrue(ask.summary.contains("Dentista"))
+        XCTAssertThrowsError(try MacScriptRunner.validated(.moveEvent(id: "x", title: "", start: ten, end: ten)))
+    }
+
+    func testNotificationsCanBeSilentOrWithSound() {
+        XCTAssertEqual(MacScriptCall.notification(title: "a", body: "b"), .notification(title: "a", body: "b", sound: false),
+                       "sin indicarlo, en silencio, como antes")
+        XCTAssertEqual(MacScriptCall.notification(title: "a", body: "b", sound: true).script, .notification)
+        XCTAssertEqual(AlertStyle(rawValue: "silent"), .silent)
+        XCTAssertEqual(AlertStyle.allCases, [.sound, .silent, .none])
+    }
+
+    func testNotesSearchIsFormattedWithIDs() {
+        let raw = "x-coredata://A/ICNote/p1\tClave del wifi\t2026-11-20T10:00:00\nbasura\n"
+        XCTAssertEqual(MacScriptRunner.format(notes: raw, query: "wifi"), "id x-coredata://A/ICNote/p1 · Clave del wifi · 2026-11-20")
+        XCTAssertEqual(MacScriptRunner.format(notes: "", query: "wifi"), "No hay notas con «wifi».")
+        XCTAssertEqual(MacScriptCall.searchNotes(query: "x").script, .readNotes)
+    }
+
+    func testRemindersListCarriesTheIDsForLaterChanges() {
+        let due = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 24, hour: 9))!
+        let text = MacScriptRunner.format(reminders: [
+            .init(id: "B", title: "Comprar pilas", due: nil, list: "Casa", done: false),
+            .init(id: "A", title: "Dentista", due: due, list: "Recordatorios", done: false),
+        ])
+        let lines = text.split(separator: "\n")
+        XCTAssertTrue(lines[0].hasPrefix("id A · Dentista · "), "los que tienen fecha, primero")
+        XCTAssertEqual(lines[1], "id B · Comprar pilas · lista «Casa»")
+        XCTAssertEqual(MacScriptRunner.format(reminders: []), "No hay recordatorios.")
+        let ask = MacScriptRunner.request(for: .changeReminder(id: "A", title: "Dentista", change: .delete), origin: nil)
+        XCTAssertEqual(ask.action, MacScript.changeReminder.action)
+        XCTAssertTrue(ask.summary.contains("Dentista"))
+    }
 }

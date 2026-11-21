@@ -43,7 +43,7 @@ struct PermissionGuideSheet: View {
                     HStack(spacing: Theme.Space.m) {
                         StateLine(text: "Todo concedido", on: true)
                         Spacer(minLength: Theme.Space.s)
-                        Text(tr("Mantén ⌥ y habla para probarlo."))
+                        Text(tr("Mantén %@ y habla para probarlo.", model.dictation.shortcut.symbol))
                             .font(Theme.caption)
                             .foregroundStyle(Theme.secondary)
                     }

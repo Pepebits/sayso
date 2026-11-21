@@ -14,6 +14,17 @@ final class PreviewActions: AppActions {
     func setAgentRunning(_ running: Bool) { model.agentRunning = running }
     func setOpenAtLogin(_ enabled: Bool) { model.openAtLogin = enabled }
     func setKeepAwake(_ enabled: Bool) { model.keepAwake = enabled }
+    func setSpeakAlerts(_ enabled: Bool) { model.speakAlerts = enabled }
+    func setAlertStyle(_ style: AlertStyle) { model.alertStyle = style }
+    func exportBackup() {}
+    func checkForUpdates() {}
+    func setTokenLimits(_ limits: TokenLimits) { model.tokenLimits = limits }
+    func setApproveFromBot(_ enabled: Bool) { model.approveFromBot = enabled }
+    func setTasksPaused(_ paused: Bool) { model.tasksPaused = paused }
+    func createDiagnostics() {}
+    func openIssues() {}
+    func setAutomaticUpdates(_ enabled: Bool) { model.updates = .ready(automatic: enabled, lastCheck: nil) }
+    func importBackup() {}
     func updateDictation(_ settings: DictationSettings) { model.dictation = settings }
     func requestSystemPermission(_ kind: SystemPermissionKind) { model.systemPermissions[kind] = true }
     func addAccount(_ account: ProviderAccount, apiKey: String?) {
@@ -22,6 +33,9 @@ final class PreviewActions: AppActions {
     }
     func removeAccount(id: UUID) { model.accounts.removeAll { $0.id == id } }
     func selectAccount(id: UUID) { model.activeAccountID = id }
+    func setAccountVision(id: UUID, _ enabled: Bool) {
+        if let i = model.accounts.firstIndex(where: { $0.id == id }) { model.accounts[i].vision = enabled }
+    }
     func setAutoSpeed(_ enabled: Bool) { model.autoSpeed = enabled }
     func startComputer() { model.computerState = .running }
     func stopComputer() { model.computerState = .stopped }
@@ -101,6 +115,12 @@ final class PreviewActions: AppActions {
     }
     func forgetNote(id: Int64) { model.notes.removeAll { $0.id == id } }
     func newConversation(chatID: String) { model.contexts.removeAll { $0.chatID == chatID } }
+    func refreshResources() {}
+    func deleteWatch(id: String) { model.watches.removeAll { $0.id == id } }
+    func cleanTelegramFiles() {}
+    func freeComputerSpace() {}
+    func setComputerResources(_ resources: ComputerResources) { model.computerResources = resources }
+    func removeGuardModel(folder: String) {}
     func clearLog() { model.logEntries = [] }
     func relaunch() {}
     func setGuardReview(_ enabled: Bool) { model.guardReview = enabled }
@@ -185,9 +205,11 @@ enum PreviewData {
             let seed = (ago * 37 + 11) % 23
             let weekend = calendar.isDateInWeekend(day)
             let dictations = seed % 7 == 0 ? 0 : (weekend ? seed / 4 : 6 + seed)
-            let totals = UsageTotals(requests: seed % 7 == 0 ? 0 : (weekend ? 8 + seed : 40 + seed * 4),
+            let requests = seed % 7 == 0 ? 0 : (weekend ? 8 + seed : 40 + seed * 4)
+            let totals = UsageTotals(requests: requests,
                                      dictations: dictations, words: dictations * (18 + seed % 9),
-                                     seconds: Double(dictations * (9 + seed % 6)))
+                                     seconds: Double(dictations * (9 + seed % 6)),
+                                     inputTokens: requests * 5_800, outputTokens: requests * 240)
             all = all + totals
             return DayUsage(day: day, totals: totals)
         }
@@ -195,13 +217,18 @@ enum PreviewData {
             ActionBucket(day: calendar.date(byAdding: .day, value: -ago, to: today) ?? today,
                          action: action, outcome: outcome, count: count)
         }
+        let tokens = days.flatMap { day -> [TokenBucket] in
+            let r = day.totals.requests
+            return [TokenBucket(day: day.day, model: "qwen3:32b", input: r * 4_600, output: r * 190, requests: r * 3 / 4, estimated: true),
+                    TokenBucket(day: day.day, model: "qwen3:4b", input: r * 1_200, output: r * 50, requests: r / 4, estimated: true)]
+        }
         return UsageStats(days: days, allTime: all, firstDay: days.first?.day, actions: [
             bucket(1, TelegramAction.readMessages, .allowed, 41), bucket(3, TelegramAction.sendMessages, .allowed, 17),
             bucket(4, TelegramAction.deleteMessages, .denied, 3), bucket(2, ComputerAction.run, .allowed, 96),
             bucket(9, ComputerAction.writeFile, .allowed, 22), bucket(12, ComputerAction.run, .failed, 5),
             bucket(5, MacScript.calendarToday.action, .allowed, 14), bucket(20, MacScript.volume.action, .allowed, 6),
             bucket(40, MacScript.note.action, .denied, 2), bucket(6, ActionID("plugin.context7"), .allowed, 9),
-        ])
+        ], tokens: tokens)
     }
 
     /// Todo conectado y con datos en cada pantalla, para revisar el diseño completo.
@@ -212,6 +239,20 @@ enum PreviewData {
         m.transcriberStatus = "Listo"
         m.requestsWeek = [40, 62, 31, 88, 70, 95, 122]
         m.stats = sampleStats()
+        m.dictation.vocabulary = ["Pepebits", "SaySo", "TestFlight", "Anna"]
+        m.dictation.replacements = [TextReplacement(from: "arroba", to: "@"),
+                                    TextReplacement(from: "mi firma", to: "Un saludo, Ana")]
+        m.tokenLimits = TokenLimits(daily: 1_000_000, monthly: 20_000_000)
+        m.tokenSpend = TokenSpend(today: 412_000, month: 8_700_000)
+        m.resources = ResourceUsage(disk: [
+            .init(id: "vm", title: "Máquina Linux", bytes: 6_400_000_000, detail: "disco de 17,2 GB como mucho"),
+            .init(id: "models", title: "Modelos de dictado", bytes: 490_000_000),
+            .init(id: "telegram", title: "Telegram", bytes: 6_200_000, detail: "fotos, audios y archivos descargados, y la base de datos de TDLib"),
+            .init(id: "database", title: "Base de datos", bytes: 340_000, detail: "memoria, conversaciones, tareas y actividad"),
+            .init(id: "logs", title: "Registros", bytes: 160_000),
+        ], appMemory: 182_000_000, vmMemory: 4_294_967_296, vmRunning: true, measuredAt: Date().addingTimeInterval(-60))
+        m.watches = [MessageWatch(id: "a1b2c3d4", chatID: 2, chatTitle: "Equipo diseño", instruction: "Resúmeme lo que se decida"),
+                     MessageWatch(id: "e5f6a7b8", chatID: 1, chatTitle: "Anna", keyword: "cena")]
         m.contexts = [
             ConversationContext(chatID: "voz", turnsInWindow: 14, windowLimit: 30,
                                 lastActivity: Date().addingTimeInterval(-300),

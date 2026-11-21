@@ -1,0 +1,54 @@
+<h1>Política de privacidad</h1>
+<p class="meta">En vigor desde el 22 de noviembre de 2026</p>
+
+<p class="lead">SaySo funciona en tu Mac. Pepebits no tiene servidores: no recibimos, guardamos ni vemos tus datos. No hay analítica, publicidad ni rastreo.</p>
+
+<div class="box"><p>SaySo solo envía datos a los servicios que tú conectas (tu proveedor de IA, Telegram y los plugins que añadas), y solo para hacer lo que le pides.</p></div>
+
+<h2>Qué se guarda en tu Mac</h2>
+<ul>
+  <li><strong>Base de datos local:</strong> tus conversaciones con el agente, las notas de memoria, las tareas programadas, el registro de actividad y los ajustes.</li>
+  <li><strong>Llavero de macOS:</strong> las claves de tus cuentas de IA, el token de tu bot de Telegram y los secretos que guardes para el agente.</li>
+  <li><strong>Sesión de Telegram:</strong> si conectas tu cuenta, los datos de sesión de Telegram, cifrados.</li>
+  <li><strong>Máquina Linux:</strong> el disco de la máquina virtual donde trabaja el agente, aislada de tus archivos.</li>
+  <li><strong>Modelos de voz:</strong> los modelos de transcripción que descargas.</li>
+</ul>
+<p>Todo está en la carpeta de datos de SaySo (en la versión de la App Store, dentro de su contenedor). Nada de esto se copia a ningún servidor de Pepebits.</p>
+
+<h2>Tu voz</h2>
+<p>Lo que dictas se transcribe en el Mac con Whisper o con el reconocimiento de voz de Apple. Con el de Apple, si tu Mac no puede hacerlo en el dispositivo, macOS puede enviar el audio a Apple según sus condiciones. El audio no se guarda.</p>
+
+<h2>Qué sale de tu Mac, y a quién</h2>
+<ul>
+  <li><strong>Tu proveedor de IA</strong> (Anthropic, OpenAI, DeepSeek, OpenRouter, Grok u otro que configures): lo que le pides, la conversación reciente, tus notas de memoria y lo que el agente lea para responderte (mensajes, eventos del calendario, recordatorios, páginas web, imágenes que envíes). Antes de añadir una cuenta, SaySo te lo explica y te pide permiso. Con un modelo local (como Ollama), no sale nada.</li>
+  <li><strong>Telegram</strong>: los mensajes entre tú y tu bot. Si conectas tu propia cuenta, el agente lee y envía mensajes en tus chats solo cuando se lo pides, con las reglas de permiso que tú decides.</li>
+  <li><strong>Búsqueda web</strong>: las consultas que hace el agente van a DuckDuckGo o, si guardas una clave, a Brave Search o Tavily.</li>
+  <li><strong>Plugins</strong> que añadas (GitHub, Linear, Context7…): lo que el agente les pida para hacer tu encargo.</li>
+  <li><strong>Descargas</strong>: la imagen de Debian (cloud.debian.org) y los modelos de voz y de protección (Hugging Face, PyTorch) se descargan cuando los instalas.</li>
+  <li><strong>Actualizaciones</strong>: la versión descargada desde la web comprueba si hay versiones nuevas en GitHub. La de la App Store se actualiza con la App Store.</li>
+</ul>
+<p>Cada uno de estos servicios trata los datos según su propia política de privacidad.</p>
+
+<h2>Permisos de macOS</h2>
+<ul>
+  <li><strong>Micrófono</strong>: para oírte cuando usas el atajo o dictas.</li>
+  <li><strong>Supervisión de entrada</strong>: para detectar el atajo del dictado. SaySo no guarda lo que escribes.</li>
+  <li><strong>Calendarios y Recordatorios</strong>: solo si dejas que el agente los use.</li>
+  <li><strong>Reconocimiento de voz</strong>: solo con el motor de Apple.</li>
+</ul>
+
+<h2>Tú decides</h2>
+<ul>
+  <li>Cada acción del agente fuera de su máquina Linux pasa por reglas que tú eliges: permitir, preguntar o nunca.</li>
+  <li>Puedes ver el registro de actividad, olvidar notas de memoria, empezar una conversación nueva y borrar tus cuentas cuando quieras.</li>
+  <li>Para borrarlo todo: en la versión descargada desde la web, Ajustes → Borrar SaySo de este Mac. En la de la App Store, borra la app y su carpeta en <code>~/Library/Containers/com.pepebits.sayso</code>.</li>
+</ul>
+
+<h2>Informes de errores</h2>
+<p>SaySo no envía informes automáticamente. Si preparas uno desde Ajustes, se guarda en un archivo que tú decides si nos mandas.</p>
+
+<h2>Cambios</h2>
+<p>Si esta política cambia, se publicará en esta página con su nueva fecha. Las versiones anteriores están en el <a href="https://github.com/Pepebits/sayso/commits/main/site/pages/privacidad.html">historial del repositorio</a>.</p>
+
+<h2>Contacto</h2>
+<p>Para cualquier pregunta sobre privacidad: <a href="mailto:contacto@pepebits.com">contacto@pepebits.com</a>.</p>

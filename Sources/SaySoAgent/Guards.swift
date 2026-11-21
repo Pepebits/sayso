@@ -18,7 +18,12 @@ struct FastModelCall: Sendable {
         let provider = self.provider
         let nanos = UInt64(max(0.5, timeout) * 1_000_000_000)
         return try await withThrowingTaskGroup(of: String.self) { group in
-            group.addTask { try await provider.complete(request).text }
+            let store = self.store
+            group.addTask {
+                let response = try await provider.complete(request)
+                TokenMeter.record(request, response, store: store)
+                return response.text
+            }
             group.addTask {
                 try await Task.sleep(nanoseconds: nanos)
                 throw ProviderError.timeout
@@ -217,6 +222,17 @@ public actor PromptGuardDetector: InjectionDetecting {
     }
 
     public func looksLikeInjection(_ text: String) async throws -> Bool {
+        // La máquina Linux se apaga sola cuando no se usa: la conexión guardada puede estar muerta
+        // (errno 32). Entonces se vuelve a probar una vez con el detector arrancado de nuevo.
+        let reused = stream != nil
+        do {
+            return try await ask(text)
+        } catch where reused {
+            return try await ask(text)
+        }
+    }
+
+    private func ask(_ text: String) async throws -> Bool {
         let stream = try await ready()
         var payload = try JSONSerialization.data(withJSONObject: ["text": text])
         payload.append(0x0A)

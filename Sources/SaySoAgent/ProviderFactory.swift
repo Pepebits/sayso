@@ -17,7 +17,8 @@ public enum ProviderFactory {
                                      fastModel: account.fastModel, transport: transport)
         case .openAICompatible:
             return OpenAICompatibleProvider(baseURL: account.baseURL, apiKey: key, fullModel: account.fullModel,
-                                            fastModel: account.fastModel, transport: transport)
+                                            fastModel: account.fastModel, transport: transport,
+                                            supportsImages: account.seesImages)
         }
     }
 }

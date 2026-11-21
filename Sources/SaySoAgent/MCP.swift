@@ -137,6 +137,9 @@ public actor MCPStdioConnection: MCPConnection {
     private let stream: ProcessStream
     private var nextID = 1
     private var closed = false
+    /// La última petición en curso. Todas leen del mismo flujo: dos a la vez se quitaban las
+    /// respuestas y una esperaba 180 s para nada. Cada una espera a que termine la anterior.
+    private var tail: Task<Void, Never>?
 
     public init(stream: ProcessStream) { self.stream = stream }
 
@@ -146,8 +149,10 @@ public actor MCPStdioConnection: MCPConnection {
         nextID += 1
         let stream = self.stream
         let line = try MCPMessage.request(id: id, method: method, params: params).encoded() + Data([0x0A])
+        let previous = tail
         // E/S bloqueante: fuera del actor para no retener un hilo del sistema cooperativo.
-        return try await Task.detached {
+        let work = Task.detached { () throws -> JSONValue in
+            await previous?.value
             try stream.write(line)
             let deadline = Date().addingTimeInterval(180)
             while Date() < deadline {
@@ -162,7 +167,9 @@ public actor MCPStdioConnection: MCPConnection {
                 }
             }
             throw MCPError.invalidResponse("no llegó la respuesta a «\(method)»")
-        }.value
+        }
+        tail = Task { _ = try? await work.value }
+        return try await work.value
     }
 
     public func notify(_ method: String, params: JSONValue?) async throws {

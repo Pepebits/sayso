@@ -6,6 +6,10 @@ public struct ConfirmationView: View {
     let request: ActionRequest
     let descriptor: ActionDescriptor?
     let onResult: (ConfirmationResult) -> Void
+    /// Los botones de permitir se activan con un poco de retraso: un Return o un clic que iban a
+    /// otra app no aprueban nada.
+    @State private var armed = false
+    static let armDelay: UInt64 = 800_000_000
 
     public init(request: ActionRequest, descriptor: ActionDescriptor?,
                 onResult: @escaping (ConfirmationResult) -> Void) {
@@ -26,8 +30,11 @@ public struct ConfirmationView: View {
         }
     }
 
+    /// Lo que dijo el revisor, si la pregunta la fuerza la protección.
+    private var guardReason: String? { request.parameters[GuardPolicy.reasonKey] }
+
     private var sortedParameters: [(key: String, value: String)] {
-        request.parameters.sorted { $0.key < $1.key }
+        request.parameters.filter { $0.key != GuardPolicy.reasonKey }.sorted { $0.key < $1.key }
     }
 
     public var body: some View {
@@ -49,6 +56,25 @@ public struct ConfirmationView: View {
                 Bit(size: 9)
             }
 
+            if let guardReason {
+                HStack(alignment: .top, spacing: Theme.Space.s) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(Theme.destructive)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(tr("Revisa esto con calma")).font(Theme.bodyStrong).foregroundStyle(Theme.ink)
+                        Text(guardReason).font(Theme.caption).foregroundStyle(Theme.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                    }
+                }
+                .padding(Theme.Space.m)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.surface)
+                .overlay(RoundedRectangle(cornerRadius: Theme.radius).strokeBorder(Theme.destructive, lineWidth: 1.5))
+                .accessibilityElement(children: .combine)
+            }
+
             Text(request.summary)
                 .font(Theme.text(14, weight: .medium))
                 .foregroundStyle(Theme.ink)
@@ -66,7 +92,7 @@ public struct ConfirmationView: View {
                                     Text(tr(item.key))
                                         .font(Theme.mono(11))
                                         .foregroundStyle(Theme.secondary)
-                                    Text(tr(item.value.isEmpty ? "(vacío)" : item.value))
+                                    Text(item.value.isEmpty ? tr("(vacío)") : item.value)
                                         .font(Theme.mono(12.5))
                                         .foregroundStyle(item.value.isEmpty ? Theme.tertiary : Theme.ink)
                                         .textSelection(.enabled)
@@ -106,16 +132,27 @@ public struct ConfirmationView: View {
                     .buttonStyle(BlockButtonStyle(.destructive))
                     .keyboardShortcut(.cancelAction)
                 Spacer(minLength: Theme.Space.s)
-                Button("Permitir siempre") { onResult(.allowAlways) }
-                    .buttonStyle(BlockButtonStyle(.secondary))
-                    .help("Cambia la regla de esta acción a Permitir")
+                // Con la protección de por medio, «siempre» no cambiaría nada: solo se ofrece una vez.
+                // Ni con la protección de por medio ni con secretos: «siempre» valdría para cualquier
+                // comando con cualquier clave. Esa regla solo se cambia a propósito, en Secretos.
+                if guardReason == nil, request.action != ComputerAction.useSecrets {
+                    Button("Permitir siempre") { onResult(.allowAlways) }
+                        .buttonStyle(BlockButtonStyle(.secondary))
+                        .help("Cambia la regla de esta acción a Permitir")
+                        .disabled(!armed)
+                }
+                // Sin atajo de teclado: un Return pensado para otra ventana no debe aprobar nada.
                 Button("Permitir una vez") { onResult(.allowOnce) }
                     .buttonStyle(BlockButtonStyle(.primary))
-                    .keyboardShortcut(.defaultAction)
+                    .disabled(!armed)
             }
         }
         .padding(Theme.Space.xl)
         .frame(width: 460)
         .background(Theme.paper)
+        .task {
+            try? await Task.sleep(nanoseconds: Self.armDelay)
+            armed = true
+        }
     }
 }

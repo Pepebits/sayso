@@ -109,20 +109,43 @@ final class Speaker: NSObject, AVSpeechSynthesizerDelegate {
 }
 
 /// Diálogo «Preguntar» del motor de permisos. Siempre en el Mac.
-final class ConfirmationWindowPresenter: ConfirmationPresenter {
+/// Pregunta un permiso por otra vía (el bot) a la vez que la ventana del Mac.
+protocol RemoteConfirming: Sendable {
+    /// `nil`: no se pudo preguntar, caducó o se contestó en el Mac.
+    func ask(id: String, request: ActionRequest, descriptor: ActionDescriptor?) async -> ConfirmationResult?
+    /// La pregunta se contestó en el Mac.
+    func withdraw(id: String, allowed: Bool) async
+}
+
+final class ConfirmationWindowPresenter: ConfirmationPresenter, @unchecked Sendable {
+    /// Tras este tiempo sin respuesta, la pregunta se da por denegada.
+    static let timeout: TimeInterval = 600
+    private let lock = NSLock()
+    private var _remote: RemoteConfirming?
+    /// Si está puesto, la pregunta sale también por el bot y vale la primera respuesta.
+    var remote: RemoteConfirming? {
+        get { lock.withLock { _remote } }
+        set { lock.withLock { _remote = newValue } }
+    }
+
     func confirm(_ request: ActionRequest, descriptor: ActionDescriptor?) async -> ConfirmationResult {
-        await withCheckedContinuation { continuation in
+        let remote = self.remote
+        let id = UUID().uuidString.prefix(8).lowercased()
+        return await withCheckedContinuation { continuation in
             Task { @MainActor in
                 var window: NSWindow?
                 var answered = false
-                let finish: (ConfirmationResult) -> Void = { result in
+                let finish: (ConfirmationResult, Bool) -> Void = { result, fromMac in
                     guard !answered else { return }
                     answered = true
                     window?.orderOut(nil)
                     window = nil
                     continuation.resume(returning: result)
+                    if fromMac, let remote {
+                        Task { await remote.withdraw(id: String(id), allowed: result != .deny) }
+                    }
                 }
-                let view = ConfirmationView(request: request, descriptor: descriptor, onResult: finish)
+                let view = ConfirmationView(request: request, descriptor: descriptor, onResult: { finish($0, true) })
                 let host = NSHostingController(rootView: view.appLanguage())
                 let win = NSWindow(contentViewController: host)
                 win.title = tr("SaySo necesita tu permiso")
@@ -133,6 +156,19 @@ final class ConfirmationWindowPresenter: ConfirmationPresenter {
                 window = win
                 NSApp.activate(ignoringOtherApps: true)
                 win.makeKeyAndOrderFront(nil)
+                if let remote {
+                    Task {
+                        if let result = await remote.ask(id: String(id), request: request, descriptor: descriptor) {
+                            await MainActor.run { finish(result, false) }
+                        }
+                    }
+                }
+                // Sin respuesta en un rato, se deniega: si no, el chat del bot o las tareas se quedan
+                // esperando para siempre detrás de esta pregunta.
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: UInt64(Self.timeout * 1_000_000_000))
+                    finish(.deny, false)
+                }
             }
         }
     }

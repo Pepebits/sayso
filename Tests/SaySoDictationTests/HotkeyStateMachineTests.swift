@@ -1,3 +1,4 @@
+import Carbon.HIToolbox
 import CoreGraphics
 import SaySoCore
 @testable import SaySoDictation
@@ -336,5 +337,17 @@ final class HotkeyStateMachineTests: XCTestCase {
         XCTAssertEqual(again.effectiveVoiceMode, .agent)
         XCTAssertEqual(again.target(leftKey: true), .agent)
         XCTAssertEqual(again.monitoredSide, .any)
+    }
+}
+
+/// La combinación del atajo en el formato de Carbon (versión de la tienda).
+final class CarbonHotKeyTests: XCTestCase {
+    func testModifiersMapToCarbon() {
+        let combo = DictationShortcut(kind: .combo, keyCode: 49, modifiers: [.control, .option], keyLabel: "Espacio")
+        XCTAssertEqual(HotkeyMonitor.carbonModifiers(combo), UInt32(controlKey | optionKey))
+        let f5 = DictationShortcut(kind: .combo, keyCode: 96, keyLabel: "F5")
+        XCTAssertEqual(HotkeyMonitor.carbonModifiers(f5), 0)
+        let fn = DictationShortcut(kind: .combo, keyCode: 49, modifiers: ShortcutModifiers(rawValue: DictationShortcut.fnFlag))
+        XCTAssertNil(HotkeyMonitor.carbonModifiers(fn), "Carbon no admite fn")
     }
 }

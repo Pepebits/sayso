@@ -54,6 +54,13 @@ public struct TGMessage: Decodable, Sendable, Hashable {
     public var guestQueryId: String?
     /// Tamaños de una foto, de menor a mayor.
     public var photo: [TGPhotoSize]?
+    /// De dónde viene un mensaje reenviado; `nil` si lo escribió quien lo manda.
+    public var forwardOrigin: TGForwardOrigin?
+}
+
+/// Origen de un mensaje reenviado. Solo importa que lo sea: el texto es de otra persona.
+public struct TGForwardOrigin: Decodable, Sendable, Hashable {
+    public var type: String?
 }
 
 public struct TGPhotoSize: Decodable, Sendable, Hashable {
@@ -174,15 +181,61 @@ public struct TelegramBotClient: Sendable {
 
     /// Envía texto troceado a 4096 caracteres; el teclado va en el último trozo.
     @discardableResult
-    public func sendMessage(chatID: Int64, text: String, buttons: [[TGInlineButton]]? = nil) async throws -> [TGMessage] {
+    /// `retries`: cuántas veces repetir cada trozo ante un fallo pasajero (429, 5xx, red). Para las
+    /// respuestas del agente, que si no se perderían sin aviso; se reintenta trozo a trozo para no
+    /// repetir lo que ya llegó.
+    public func sendMessage(chatID: Int64, text: String, buttons: [[TGInlineButton]]? = nil,
+                            retries: Int = 0) async throws -> [TGMessage] {
         let chunks = Self.chunk(text)
         var sent: [TGMessage] = []
         for (i, chunk) in chunks.enumerated() {
             var body: [String: JSONValue] = ["chat_id": .number(Double(chatID)), "text": .string(chunk)]
             if let buttons, i == chunks.count - 1 { body["reply_markup"] = Self.keyboard(buttons) }
-            sent.append(try await call("sendMessage", body))
+            sent.append(try await retrying(retries) { try await call("sendMessage", body) })
         }
         return sent
+    }
+
+    /// Escala de las esperas entre reintentos; los tests la ponen a 0.
+    public var retryScale: Double = 1
+
+    private func retrying<T>(_ retries: Int, _ body: () async throws -> T) async throws -> T {
+        let delays: [Double] = [1, 3, 8]
+        var attempt = 0
+        while true {
+            do { return try await body() } catch {
+                guard attempt < min(retries, delays.count), let wait = Self.retryWait(error, default: delays[attempt]) else { throw error }
+                if wait * retryScale > 0 { try await Task.sleep(nanoseconds: UInt64(wait * retryScale * 1_000_000_000)) }
+                attempt += 1
+            }
+        }
+    }
+
+    /// Cuánto esperar antes de repetir, o `nil` si el fallo no es pasajero.
+    static func retryWait(_ error: Error, default delay: Double) -> Double? {
+        switch error {
+        case let TelegramError.rateLimited(after) where after <= 60: return Double(after)
+        case let TelegramError.api(code, _) where code >= 500: return delay
+        case is URLError: return delay
+        default: return nil
+        }
+    }
+
+    /// Menú de comandos del bot (el botón «/» de Telegram), solo en chats privados.
+    public func setMyCommands(_ commands: [(command: String, description: String)]) async throws {
+        let list = commands.map { JSONValue.object(["command": .string($0.command), "description": .string(String($0.description.prefix(256)))]) }
+        let _: JSONValue = try await call("setMyCommands", ["commands": .array(list),
+                                                             "scope": .object(["type": .string("all_private_chats")])])
+    }
+
+    public func editMessageText(chatID: Int64, messageID: Int64, text: String) async throws {
+        let _: TGMessage = try await call("editMessageText", ["chat_id": .number(Double(chatID)),
+                                                              "message_id": .number(Double(messageID)),
+                                                              "text": .string(String(text.prefix(4096)))])
+    }
+
+    public func deleteMessage(chatID: Int64, messageID: Int64) async throws {
+        let _: Bool = try await call("deleteMessage", ["chat_id": .number(Double(chatID)), "message_id": .number(Double(messageID))])
     }
 
     public func sendChatAction(chatID: Int64, action: String = "typing") async throws {
@@ -282,6 +335,25 @@ public struct TelegramBotClient: Sendable {
             throw TelegramError.api(code: response.statusCode, description: "descarga fallida")
         }
         return data
+    }
+
+    // MARK: Widgets (Bot API 10.4)
+
+    /// Un mensaje con un widget HTML. En producción, solo en chats privados con el bot.
+    public func sendWidget(chatID: Int64, html: String, height: Int? = nil, chatData: String? = nil,
+                           caption: String? = nil) async throws -> TGMessage {
+        var body: [String: JSONValue] = ["chat_id": .number(Double(chatID)), "html": .string(html)]
+        if let height { body["height"] = .number(Double(height)) }
+        if let chatData, !chatData.isEmpty { body["chat_data"] = .string(chatData) }
+        if let caption, !caption.isEmpty { body["caption"] = .string(String(caption.prefix(1024))) }
+        return try await call("sendWidget", body)
+    }
+
+    /// Cambia los datos de un widget ya enviado (lo que lee con `TelegramWidget.chatData`).
+    public func editMessageWidgetData(chatID: Int64, messageID: Int64, chatData: String) async throws {
+        let _: Bool = try await call("editMessageWidgetData", ["chat_id": .number(Double(chatID)),
+                                                               "message_id": .number(Double(messageID)),
+                                                               "chat_data": .string(chatData)])
     }
 
     // MARK: Interno

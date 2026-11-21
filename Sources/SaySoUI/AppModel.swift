@@ -22,6 +22,18 @@ public final class AppModel {
     /// Uso de los últimos 90 días y totales, para la pantalla Estadísticas.
     public var stats = UsageStats()
     public var keepAwake = false
+    /// Los avisos y las notificaciones de SaySo también se leen en voz alta.
+    public var speakAlerts = true
+    /// Cómo se avisa en el Mac: con sonido, en silencio o sin notificación.
+    public var alertStyle: AlertStyle = .sound
+    /// Tope de tokens de los modelos de pago.
+    public var tokenLimits = TokenLimits()
+    /// Gastado hoy y este mes con modelos de pago.
+    public var tokenSpend = TokenSpend()
+    /// Versión instalada, p. ej. «0.4.0 (8)».
+    public var appVersion = ""
+    /// Estado de las actualizaciones automáticas (Sparkle).
+    public var updates = UpdateState.unavailable
     /// El agente deja de atender mientras el Mac está bloqueado.
     public var pauseWhenLocked = false
     /// Protección: revisar acciones tras leer contenido ajeno, y qué detector de inyecciones se usa.
@@ -61,8 +73,14 @@ public final class AppModel {
     public var autoSpeed = true
 
     // Ordenador
+    /// Lo que ocupa SaySo en disco y memoria; `nil` hasta que se mide.
+    public var resources: ResourceUsage?
     public var computerState: ComputerState = .notInstalled { didSet { logComputer(from: oldValue) } }
     public var computerStats: ComputerStats?
+    /// Núcleos, memoria y disco de la máquina Linux para el siguiente arranque.
+    public var computerResources = ComputerResources()
+    /// Tamaño actual del disco de la máquina, en GB (no se puede bajar de ahí).
+    public var computerDiskGB = 16
     public var computerActivity: [ActivityEntry] = []
     public var desktopState: DesktopState = .notInstalled { didSet { logDesktop(from: oldValue) } }
     /// Comandos lanzados a mano desde la pantalla, del más antiguo al más reciente.
@@ -78,10 +96,16 @@ public final class AppModel {
 
     // Tareas programadas
     public var tasks: [ScheduledTask] = []
+    /// Avisos por mensajes de Telegram.
+    public var watches: [MessageWatch] = []
 
     // Permisos · Telegram
     public var telegramEnabled = true
     public var telegramFullAccess = false
+    /// Las preguntas de permiso salen también por el bot.
+    public var approveFromBot = false
+    /// Tareas programadas y avisos en pausa.
+    public var tasksPaused = false
     public var rules: [ActionID: PermissionRule] = [:]
     public var telegramActivity: [ActivityEntry] = []
     /// Entradas totales de cada ámbito del registro de actividad («telegram», «mac», «vm», «plugin»),
@@ -149,6 +173,22 @@ public protocol AppActions: AnyObject {
     func setAgentRunning(_ running: Bool)
     func setOpenAtLogin(_ enabled: Bool)
     func setKeepAwake(_ enabled: Bool)
+    func setSpeakAlerts(_ enabled: Bool)
+    func setAlertStyle(_ style: AlertStyle)
+    /// Busca una versión nueva ahora, con la ventana de Sparkle.
+    func checkForUpdates()
+    func setAutomaticUpdates(_ enabled: Bool)
+    func setTokenLimits(_ limits: TokenLimits)
+    func setApproveFromBot(_ enabled: Bool)
+    func setTasksPaused(_ paused: Bool)
+    /// Guarda un informe de errores sin datos personales y lo abre para revisarlo.
+    func createDiagnostics()
+    /// Abre la página para crear un issue en GitHub.
+    func openIssues()
+    /// Guarda la configuración en un archivo (sin secretos ni conversaciones).
+    func exportBackup()
+    /// Recupera la configuración de un archivo de copia.
+    func importBackup()
     func setPauseWhenLocked(_ enabled: Bool)
     func setGuardReview(_ enabled: Bool)
     func setGuardDetector(_ choice: GuardSettings.Detector)
@@ -187,6 +227,8 @@ public protocol AppActions: AnyObject {
     func removeAccount(id: UUID)
     func selectAccount(id: UUID)
     func setAutoSpeed(_ enabled: Bool)
+    /// Dice si el modelo de una cuenta ve imágenes (fotos de Telegram, imágenes de la máquina Linux).
+    func setAccountVision(id: UUID, _ enabled: Bool)
 
     // Ordenador
     /// Descarga la imagen si falta y arranca la máquina.
@@ -222,6 +264,7 @@ public protocol AppActions: AnyObject {
     func searchRecipients(_ query: String) async -> [TaskRecipient]
     func setTaskEnabled(_ enabled: Bool, id: Int64)
     func deleteTask(id: Int64)
+    func deleteWatch(id: String)
     func runTaskNow(id: Int64)
 
     // Telegram
@@ -256,6 +299,16 @@ public protocol AppActions: AnyObject {
     func forgetNote(id: Int64)
     /// Borra el historial de una conversación del agente para empezar de cero.
     func newConversation(chatID: String)
+    /// Vuelve a medir lo que ocupa SaySo (sección Recursos de Estadísticas).
+    func refreshResources()
+    /// Borra los archivos descargados de Telegram que no se estén usando.
+    func cleanTelegramFiles()
+    /// Devuelve al Mac el espacio que se ha borrado dentro de la máquina Linux (`fstrim`).
+    func freeComputerSpace()
+    /// Guarda los recursos de la máquina Linux; se aplican al siguiente arranque.
+    func setComputerResources(_ resources: ComputerResources)
+    /// Borra de la máquina Linux un modelo del detector que no está en uso (`folder`: «org--nombre»).
+    func removeGuardModel(folder: String)
 
     // Registros
     /// Borra el registro de la app, también el archivo.
@@ -275,4 +328,11 @@ public struct ConversationLine: Identifiable, Hashable, Sendable {
         self.fromUser = fromUser
         self.text = text
     }
+}
+
+/// Actualizaciones de la app.
+public enum UpdateState: Equatable, Sendable {
+    /// Compilación de desarrollo o sin clave pública: no se actualiza sola.
+    case unavailable
+    case ready(automatic: Bool, lastCheck: Date?)
 }

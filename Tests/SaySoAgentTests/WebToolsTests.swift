@@ -284,3 +284,45 @@ final class WebToolsTests: XCTestCase {
         XCTAssertTrue(body.contains("name=\"document\"; filename=\"mi foto.png\""))
     }
 }
+
+final class WidgetTests: XCTestCase {
+    func testWidgetsAreSentAndUpdatedThroughTheBot() async throws {
+        let outbox = WidgetOutbox()
+        let sent = Locked<[(String, Int?, String?)]>([])
+        let updates = Locked<[(Int64, String)]>([])
+        outbox.set(send: { html, height, data, _ in sent.update { $0.append((html, height, data)) }; return 77 },
+                   update: { id, data in updates.update { $0.append((id, data)) } })
+        let broker = FakeBroker(allow: true)
+        let html = "<div id=v></div><script>const W=window.TelegramWidget;v.textContent=W.chatData</script>"
+        let out = try await SendWidgetTool(outbox: outbox, broker: broker)
+            .call(input: ["html": .string(html), "data": "{\"n\":1}", "height": 120], context: ToolContext())
+        XCTAssertTrue(out.contains("77"))
+        XCTAssertEqual(sent.get().first?.1, 120)
+        XCTAssertEqual(broker.requests.get().first?.action, SendWidgetTool.action)
+        _ = try await UpdateWidgetTool(outbox: outbox, broker: broker).call(input: ["message_id": 77, "data": "{\"n\":2}"],
+                                                                           context: ToolContext())
+        XCTAssertEqual(updates.get().first?.0, 77)
+    }
+
+    func testWidgetLimitsAreCheckedBeforeSending() async throws {
+        let outbox = WidgetOutbox()
+        outbox.set(send: { _, _, _, _ in XCTFail("no debía enviarse"); return 0 }, update: { _, _ in })
+        let tool = SendWidgetTool(outbox: outbox, broker: FakeBroker(allow: true))
+        let huge = String(repeating: "<p>x</p>", count: 5_000)
+        do { _ = try await tool.call(input: ["html": .string(huge)], context: ToolContext()); XCTFail() } catch is ToolInputError {}
+        // Poco repetitivo: no cabe comprimido en 4 KB.
+        let noisy = (0..<1200).map { _ in String(UUID().uuidString.prefix(8)) }.joined(separator: " ")
+        do { _ = try await tool.call(input: ["html": .string(noisy)], context: ToolContext()); XCTFail() } catch is ToolInputError {}
+        do { _ = try await tool.call(input: ["html": "<p>hola</p>", "data": .string(String(repeating: "x", count: 2000))],
+                                     context: ToolContext()); XCTFail() } catch is ToolInputError {}
+        // Sin bot no hay widgets.
+        let none = SendWidgetTool(outbox: WidgetOutbox(), broker: FakeBroker(allow: true))
+        do { _ = try await none.call(input: ["html": "<p>hola</p>"], context: ToolContext()); XCTFail() } catch is ToolInputError {}
+    }
+
+    func testRenderedFilesKeepTheirName() {
+        XCTAssertEqual(RenderHTMLTool.outputPath(for: "informe.html", format: .png), "informe.png")
+        XCTAssertEqual(RenderHTMLTool.outputPath(for: "docs/escena.htm", format: .pdf), "docs/escena.pdf")
+    }
+}
+

@@ -6,6 +6,8 @@ public enum ContentBlock: Sendable, Hashable {
     case text(String)
     case toolUse(id: String, name: String, input: JSONValue)
     case toolResult(toolUseID: String, content: String, isError: Bool)
+    /// Una imagen para modelos que las ven (JPEG o PNG).
+    case image(mediaType: String, data: Data)
 }
 
 public struct ModelMessage: Sendable, Hashable {
@@ -97,6 +99,12 @@ public protocol ModelProvider: Sendable {
     /// Modelo rápido, para corrección y respuestas triviales.
     var fastModel: String { get }
     func complete(_ request: ModelRequest) async throws -> ModelResponse
+    /// El modelo puede ver imágenes.
+    var supportsImages: Bool { get }
+}
+
+public extension ModelProvider {
+    var supportsImages: Bool { false }
 }
 
 public enum ProviderError: Error, LocalizedError, Sendable, Equatable {
@@ -108,7 +116,7 @@ public enum ProviderError: Error, LocalizedError, Sendable, Equatable {
     public var errorDescription: String? {
         switch self {
         case let .missingKey(name):
-            return tr("Falta la clave de API (%@). Añádela en Ajustes → Cuentas.", "\(name)")
+            return tr("Falta la clave de API (%@). Añádela en SaySo → Modelo.", "\(name)")
         case let .http(status, message):
             let base: String
             switch status {
@@ -144,7 +152,64 @@ public enum ProviderError: Error, LocalizedError, Sendable, Equatable {
     }
 }
 
+/// Reintentos de una petición al modelo ante fallos pasajeros: saturación (429, 529), errores del
+/// servidor y cortes de red. Solo se repite la petición al modelo, nunca una herramienta: no se hace
+/// nada dos veces.
+public enum ModelRetry {
+    /// Esperas antes de cada reintento, en segundos (con un poco de azar para no ir a la vez).
+    static let delays: [Double] = [1, 3, 8]
+    /// Si el proveedor pide esperar más que esto, no compensa: se falla y se avisa.
+    static let maxRetryAfter: Double = 30
+    /// Escala de las esperas; los tests la ponen a 0.
+    nonisolated(unsafe) static var scale: Double = 1
+
+    static func isRetryable(status: Int) -> Bool {
+        [408, 409, 425, 429, 500, 502, 503, 504, 529].contains(status)
+    }
+
+    static func isRetryable(_ error: Error) -> Bool {
+        guard let error = error as? URLError else { return false }
+        return [.networkConnectionLost, .notConnectedToInternet, .cannotConnectToHost,
+                .cannotFindHost, .dnsLookupFailed, .secureConnectionFailed].contains(error.code)
+    }
+
+    /// Segundos que pide la cabecera `retry-after` (solo la forma en segundos).
+    static func retryAfter(_ response: HTTPURLResponse) -> Double? {
+        (response.value(forHTTPHeaderField: "retry-after")).flatMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+    }
+
+    static func wait(_ seconds: Double) async throws {
+        guard seconds * scale > 0 else { return }
+        try await Task.sleep(nanoseconds: UInt64(seconds * scale * 1_000_000_000))
+    }
+}
+
 extension HTTPTransport {
+    /// `sendJSON` con reintentos ante fallos pasajeros (para las peticiones al modelo).
+    func sendModelJSON(_ request: URLRequest) async throws -> JSONValue {
+        var attempt = 0
+        while true {
+            let delay = attempt < ModelRetry.delays.count ? ModelRetry.delays[attempt] : nil
+            do {
+                let (data, response) = try await send(request)
+                if (200..<300).contains(response.statusCode) {
+                    do { return try JSONValue.parse(data) } catch {
+                        throw ProviderError.invalidResponse("JSON no válido")
+                    }
+                }
+                let error = ProviderError.from(status: response.statusCode, body: data)
+                guard let delay, ModelRetry.isRetryable(status: response.statusCode) else { throw error }
+                let asked = ModelRetry.retryAfter(response)
+                if let asked, asked > ModelRetry.maxRetryAfter { throw error }
+                try await ModelRetry.wait(max(asked ?? 0, delay * Double.random(in: 0.8...1.2)))
+            } catch let error as URLError where ModelRetry.isRetryable(error) {
+                guard let delay else { throw error }
+                try await ModelRetry.wait(delay * Double.random(in: 0.8...1.2))
+            }
+            attempt += 1
+        }
+    }
+
     /// Envía y devuelve el JSON, o lanza `ProviderError` si el código no es 2xx.
     func sendJSON(_ request: URLRequest) async throws -> JSONValue {
         let (data, response) = try await send(request)
@@ -154,5 +219,24 @@ extension HTTPTransport {
         do { return try JSONValue.parse(data) } catch {
             throw ProviderError.invalidResponse("JSON no válido")
         }
+    }
+}
+
+
+/// Apunta los tokens de cada petición: los que dice el proveedor o, si no los da, una estimación
+/// por caracteres (unos 3,5 por token).
+public enum TokenMeter {
+    public static func record(_ request: ModelRequest, _ response: ModelResponse, store: SaySoStoring?, on day: Date = Date()) {
+        guard let store else { return }
+        let estimated = response.inputTokens == nil || response.outputTokens == nil
+        let input = response.inputTokens ?? estimate(request)
+        let output = response.outputTokens ?? Int(Double(response.text.count) / 3.5)
+        try? store.recordTokens(model: request.model, input: input, output: output, estimated: estimated, on: day)
+    }
+
+    static func estimate(_ request: ModelRequest) -> Int {
+        let messages = request.messages.reduce(0) { $0 + String(describing: $1.content).count }
+        let tools = request.tools.reduce(0) { $0 + String(describing: $1).count }
+        return Int(Double(request.system.count + messages + tools) / 3.5)
     }
 }

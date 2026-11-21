@@ -236,7 +236,7 @@ public struct SendFileTool: AgentTool {
             "llega al usuario; con «chat» (nombre, @alias o identificador) se envía a esa persona o grupo " +
             "desde la cuenta del usuario, igual que telegram_send_message. El tipo sale de la extensión: " +
             "jpg/png/webp foto, mp4/mov vídeo, gif animación, mp3/m4a/wav audio, ogg nota de voz y el resto " +
-            "documento; con «as» puedes forzarlo. Tamaño máximo 8 MB. Para mandar algo de internet, " +
+            "documento; con «as» puedes forzarlo. Varias fotos para el usuario: una llamada por foto. Tamaño máximo 8 MB. Para mandar algo de internet, " +
             "descárgalo antes al ordenador y comprueba con «file» que es lo que dice ser. Un archivo por " +
             "llamada. Si el usuario pidió enviarlo a otra persona y no puedes, dilo: nunca se lo mandes a " +
             "él en su lugar."
@@ -353,6 +353,40 @@ public final class GuestAttachment: @unchecked Sendable {
 }
 
 /// `attach_photo(path)`: en modo invitado, la respuesta va con esta foto del ordenador Linux.
+/// Modo invitado: descarga una imagen de internet a una carpeta aparte de la máquina Linux. El
+/// invitado no tiene comandos ni lectura de archivos: lo que hay en ~/sayso es del usuario.
+public struct GuestDownloadTool: AgentTool {
+    public static let folder = "~/.sayso-guest"
+    let computer: AgentComputer
+
+    public init(computer: AgentComputer) {
+        self.computer = computer
+    }
+
+    public var name: String { "download_image" }
+    public var description: String {
+        "Descarga una imagen (jpg, png o webp, hasta 8 MB) desde una URL http o https para adjuntarla con attach_photo. Devuelve la ruta y el tipo de archivo."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema(["url": .property("string", "URL de la imagen")], required: ["url"])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let raw = try input.requiredString("url", maxLength: 2000)
+        guard let url = URL(string: raw), ["http", "https"].contains(url.scheme?.lowercased() ?? "") else {
+            throw ToolInputError("Solo URL http o https.")
+        }
+        let ext = ["jpg", "jpeg", "png", "webp"].contains(url.pathExtension.lowercased()) ? url.pathExtension.lowercased() : "jpg"
+        let name = UUID().uuidString.prefix(8).lowercased() + "." + ext
+        // La URL y el nombre van por el entorno, nunca dentro del comando.
+        let result = try await computer.run(
+            #"mkdir -p "$HOME/.sayso-guest" && curl -fsSL --max-time 60 --max-filesize 8388608 -o "$HOME/.sayso-guest/$NAME" "$URL" && file -b "$HOME/.sayso-guest/$NAME""#,
+            cwd: nil, timeout: 90, env: ["URL": url.absoluteString, "NAME": String(name)], origin: context.origin)
+        guard result.exitCode == 0 else { throw ToolInputError("No se pudo descargar la imagen.") }
+        return "Descargada en \(Self.folder)/\(name): \(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines))"
+    }
+}
+
 public struct GuestPhotoTool: AgentTool {
     let computer: AgentComputer
     let attachment: GuestAttachment
@@ -364,8 +398,8 @@ public struct GuestPhotoTool: AgentTool {
 
     public var name: String { "attach_photo" }
     public var description: String {
-        "Adjunta a tu respuesta una foto de tu ordenador Linux (jpg, png o webp, hasta 8 MB). Tu texto final irá " +
-            "como pie de foto. Descárgala antes con computer_run y comprueba con «file» que es una imagen. Solo una."
+        "Adjunta a tu respuesta una foto descargada con download_image (jpg, png o webp, hasta 8 MB). Tu texto final irá " +
+            "como pie de foto. Solo una."
     }
     public var inputSchema: JSONValue {
         .objectSchema(["path": .property("string", "Ruta de la imagen, p. ej. ~/sayso/foto.jpg")], required: ["path"])
@@ -375,11 +409,158 @@ public struct GuestPhotoTool: AgentTool {
         let path = try input.requiredString("path", maxLength: 1000)
         let filename = (path as NSString).lastPathComponent
         guard SendFileTool.isPhoto(filename) else { throw ToolInputError("Solo fotos: jpg, png o webp.") }
+        // Solo lo descargado en este modo: nada de los archivos del usuario.
+        guard !filename.isEmpty, !filename.hasPrefix("."), !filename.contains("/"),
+              path == "\(GuestDownloadTool.folder)/\(filename)" || path.hasSuffix("/.sayso-guest/\(filename)") else {
+            throw ToolInputError("Solo se pueden adjuntar imágenes descargadas con download_image.")
+        }
         let data = try await computer.readData(path, origin: context.origin)
         guard !data.isEmpty, data.count <= SendFileTool.maxBytes else {
             throw ToolInputError("La imagen está vacía o pasa de 8 MB.")
         }
         attachment.photo = (data, filename)
         return "Foto adjuntada. Termina con el texto que la acompaña (corto)."
+    }
+}
+
+
+// MARK: - Widgets HTML por el bot
+
+/// Por dónde salen los widgets hacia el chat del usuario con su bot. Lo conecta la app cuando hay bot.
+public final class WidgetOutbox: @unchecked Sendable {
+    public typealias Send = @Sendable (_ html: String, _ height: Int?, _ data: String?, _ caption: String?) async throws -> Int64
+    public typealias Update = @Sendable (_ messageID: Int64, _ data: String) async throws -> Void
+    private let lock = NSLock()
+    private var handlers: (send: Send, update: Update)?
+
+    public init() {}
+
+    public func set(send: Send?, update: Update?) {
+        lock.lock()
+        handlers = send.flatMap { s in update.map { (s, $0) } }
+        lock.unlock()
+    }
+
+    public var current: (send: Send, update: Update)? { lock.lock(); defer { lock.unlock() }; return handlers }
+}
+
+public enum WidgetLimits {
+    static let maxBytes = 32_768
+    static let maxCompressed = 4_096
+    static let maxData = 1_024
+
+    /// Comprimido con zlib. Telegram mide con el nivel máximo; el de Apple comprime algo menos, así
+    /// que se deja margen y el resto lo dice Telegram.
+    static func compressedSize(_ html: String) -> Int {
+        ((try? (Data(html.utf8) as NSData).compressed(using: .zlib)) as Data?)?.count ?? html.utf8.count
+    }
+}
+
+/// `telegram_send_widget`: un widget HTML interactivo en el chat del usuario con su bot.
+public struct SendWidgetTool: AgentTool {
+    public static let action: ActionID = "telegram.sendWidget"
+    let outbox: WidgetOutbox
+    let broker: PermissionBrokering
+    let computer: AgentComputer?
+    public init(outbox: WidgetOutbox, broker: PermissionBrokering, computer: AgentComputer? = nil) {
+        self.outbox = outbox
+        self.broker = broker
+        self.computer = computer
+    }
+    public var name: String { "telegram_send_widget" }
+    public var description: String {
+        """
+        Manda al usuario, por su bot, un widget: una pequeña página HTML viva dentro del mensaje (un panel, \
+        un gráfico, una tabla, una calculadora, un juego). Reglas de Telegram: un solo documento con el CSS \
+        y el JavaScript dentro; sin red (ni fetch, ni scripts, fuentes o imágenes externas; imágenes solo en \
+        data:); sin WebGL ni 3D; canvas 2D y SVG sí; sin inputs ni selects (usa botones); fuentes del \
+        sistema; como mucho 600 px de alto, sin desplazamiento (usa pestañas o páginas). Máximo 32 KB y unos \
+        4 KB comprimido: escribe compacto. Los datos van aparte en «data» (hasta 1 KB, mejor JSON) y el \
+        widget los lee con window.TelegramWidget.chatData; escucha TelegramWidget.onEvent('chatDataChanged', …) \
+        para redibujar cuando cambien con telegram_update_widget. Usa light-dark() o TelegramWidget.themeParams \
+        para que se vea bien en modo claro y oscuro. Para un documento largo o en 3D usa render_html.
+        """
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "html": .property("string", "El HTML completo (o usa «path»)"),
+            "path": .property("string", "Opcional: un .html de tu ordenador Linux en vez de «html»"),
+            "data": .property("string", "Datos para el widget (chatData), hasta 1 KB"),
+            "height": ["type": "integer", "minimum": 50, "maximum": 600, "description": "Alto fijo; sin él se ajusta al contenido"],
+            "caption": .property("string", "Texto bajo el widget (opcional)"),
+        ])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        var html = try input.optionalString("html", maxLength: WidgetLimits.maxBytes * 2) ?? ""
+        if html.isEmpty, let path = try input.optionalString("path", maxLength: 1000) {
+            guard let computer else { throw ToolInputError("Sin ordenador Linux no hay archivos: pasa el HTML en «html».") }
+            html = try await computer.readFile(path, origin: context.origin)
+        }
+        guard !html.isEmpty else { throw ToolInputError("Falta «html» (o «path»).") }
+        guard html.utf8.count <= WidgetLimits.maxBytes else {
+            throw ToolInputError("El HTML ocupa \(html.utf8.count) bytes y Telegram admite 32768. Simplifícalo.")
+        }
+        let compressed = WidgetLimits.compressedSize(html)
+        guard compressed <= WidgetLimits.maxCompressed * 5 / 4 else {
+            throw ToolInputError("Comprimido ocupa unos \(compressed) bytes y Telegram admite 4096. Quita repeticiones, " +
+                                 "acorta nombres y genera con JavaScript lo que se repite.")
+        }
+        let data = try input.optionalString("data", maxLength: 4096)
+        if let data, data.utf8.count > WidgetLimits.maxData { throw ToolInputError("«data» pasa de 1 KB.") }
+        let height = input["height"]?.intValue
+        let caption = try input.optionalString("caption", maxLength: 1024)
+        guard let send = outbox.current?.send else {
+            throw ToolInputError("No hay bot de Telegram conectado: no se pueden enviar widgets.")
+        }
+        let page = html
+        let id: Int64
+        do {
+            id = try await broker.run(ActionRequest(
+                action: Self.action, summary: "Enviarte un widget" + (caption.map { ": \(String($0.prefix(120)))" } ?? ""),
+                parameters: ["Tamaño": "\(html.utf8.count / 1024) KB"], origin: context.origin)) {
+                try await send(page, height, data, caption)
+            }
+        } catch let TelegramError.api(_, description) where description.contains("WIDGET_NOT_ALLOWED") {
+            // Telegram los va activando por fases: hasta entonces, la misma página como imagen.
+            throw ToolInputError("Telegram aún no deja a este bot enviar widgets. Guarda el HTML en tu ordenador Linux, " +
+                                 "conviértelo en imagen con render_html y mándalo con send_file.")
+        }
+        return "Widget enviado (mensaje \(id)). Para cambiar sus datos: telegram_update_widget con message_id \(id)."
+    }
+}
+
+/// `telegram_update_widget`: cambia los datos de un widget ya enviado sin mandar otro mensaje.
+public struct UpdateWidgetTool: AgentTool {
+    let outbox: WidgetOutbox
+    let broker: PermissionBrokering
+    public init(outbox: WidgetOutbox, broker: PermissionBrokering) {
+        self.outbox = outbox
+        self.broker = broker
+    }
+    public var name: String { "telegram_update_widget" }
+    public var description: String {
+        "Cambia los datos (chatData) de un widget que ya mandaste con telegram_send_widget; el widget se redibuja " +
+            "si escucha 'chatDataChanged'. Sirve para paneles que se actualizan, por ejemplo desde una tarea programada."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "message_id": ["type": "integer", "description": "El que devolvió telegram_send_widget"],
+            "data": .property("string", "Datos nuevos, hasta 1 KB"),
+        ], required: ["message_id", "data"])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        guard let messageID = input["message_id"]?.intValue, messageID > 0 else { throw ToolInputError("Falta «message_id».") }
+        let data = try input.requiredString("data", maxLength: 4096)
+        guard data.utf8.count <= WidgetLimits.maxData else { throw ToolInputError("«data» pasa de 1 KB.") }
+        guard let update = outbox.current?.update else {
+            throw ToolInputError("No hay bot de Telegram conectado.")
+        }
+        try await broker.run(ActionRequest(action: SendWidgetTool.action, summary: "Actualizar el widget \(messageID)",
+                                           parameters: ["Mensaje": "\(messageID)"], origin: context.origin)) {
+            try await update(Int64(messageID), data)
+        }
+        return "Widget \(messageID) actualizado."
     }
 }

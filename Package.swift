@@ -3,12 +3,20 @@ import PackageDescription
 
 // SaySo — agente de IA para el Mac con dictado global.
 // Módulos: Core, Store, Permissions, Agent, Dictation, VM, TDLib, UI y App.
-let swift5: [SwiftSetting] = [.swiftLanguageMode(.v5)]
+// Versión para la Mac App Store: `SAYSO_APPSTORE=1` (lo pone scripts/make-appstore.sh). Va sin
+// Sparkle (la tienda actualiza) y con la marca APPSTORE, que deja fuera lo que el sandbox no permite.
+let appStore = Context.environment["SAYSO_APPSTORE"] == "1"
+let swift5: [SwiftSetting] = [.swiftLanguageMode(.v5)] + (appStore ? [.define("APPSTORE")] : [])
+let sparkle: [Package.Dependency] = appStore ? [] : [
+    // Actualizaciones de la app: comprueba un appcast firmado con EdDSA y la instala.
+    .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.6.0"),
+]
+let sparkleProduct: [Target.Dependency] = appStore ? [] : [.product(name: "Sparkle", package: "Sparkle")]
 
 let package = Package(
     name: "SaySo",
     defaultLocalization: "es",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v15)],
     products: [
         .executable(name: "SaySo", targets: ["SaySoApp"]),
     ],
@@ -18,7 +26,7 @@ let package = Package(
         // Binario oficial de TDLib empaquetado como xcframework. Versión fijada: cada etiqueta es una
         // compilación concreta de TDLib.
         .package(url: "https://github.com/Swiftgram/TDLibFramework.git", exact: "1.8.70-fe61d641"),
-    ],
+    ] + sparkle,
     targets: [
         // Contratos y modelos compartidos. Sin dependencias.
         .target(name: "SaySoCore", swiftSettings: swift5),
@@ -54,8 +62,10 @@ let package = Package(
             dependencies: [
                 "SaySoCore", "SaySoStore", "SaySoPermissions", "SaySoAgent", "SaySoDictation", "SaySoVM", "SaySoTDLib",
                 "SaySoUI",
-            ],
-            swiftSettings: swift5
+            ] + sparkleProduct,
+            swiftSettings: swift5,
+            // Sparkle es un framework dinámico: en la app va en Contents/Frameworks.
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
         ),
         .testTarget(name: "SaySoStoreTests", dependencies: ["SaySoStore"], swiftSettings: swift5),
         .testTarget(name: "SaySoPermissionsTests", dependencies: ["SaySoPermissions"], swiftSettings: swift5),

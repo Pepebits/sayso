@@ -4,10 +4,27 @@ import SaySoCore
 // Herramientas del ordenador Linux del agente. Delegan en `AgentComputer`,
 // que ya pasa por el motor de permisos y deja registro.
 
+/// Lo que hace falta para pasar claves de Secretos a los comandos: dónde están y quién da permiso.
+public struct ComputerSecrets: Sendable {
+    let vault: SecretVault
+    let store: SaySoStoring
+    let broker: PermissionBrokering
+
+    public init(vault: SecretVault, store: SaySoStoring, broker: PermissionBrokering) {
+        self.vault = vault
+        self.store = store
+        self.broker = broker
+    }
+}
+
 public enum ComputerTools {
-    public static func all(computer: AgentComputer) -> [AgentTool] {
-        [ComputerRunTool(computer: computer), ComputerReadFileTool(computer: computer),
-         ComputerWriteFileTool(computer: computer)]
+    /// Sin `secrets` (el modo invitado), los comandos no pueden usar claves.
+    /// `vision`: el modelo ve imágenes, así que puede mirar las de la máquina.
+    public static func all(computer: AgentComputer, secrets: ComputerSecrets? = nil, vision: Bool = false,
+                           jobs: SaySoStoring? = nil) -> [AgentTool] {
+        [ComputerRunTool(computer: computer, secrets: secrets), ComputerReadFileTool(computer: computer),
+         ComputerWriteFileTool(computer: computer)] + (vision ? [ViewImageTool(computer: computer)] : [])
+            + (jobs.map { [StartJobTool(computer: computer, store: $0), JobsTool(computer: computer, store: $0)] } ?? [])
     }
 
     /// Texto que recibe el modelo tras un comando.
@@ -24,30 +41,95 @@ public enum ComputerTools {
 
 public struct ComputerRunTool: AgentTool {
     let computer: AgentComputer
-    public init(computer: AgentComputer) { self.computer = computer }
+    var secrets: ComputerSecrets?
+    public init(computer: AgentComputer, secrets: ComputerSecrets? = nil) {
+        self.computer = computer
+        self.secrets = secrets
+    }
     public var name: String { "computer_run" }
     public var description: String {
-        """
+        var text = """
         Ejecuta un comando de bash en tu propio ordenador Linux (Debian, arm64), una máquina virtual aislada \
         del Mac del usuario. Tienes sudo y conexión a internet; puedes instalar paquetes con apt, clonar \
         repositorios y ejecutar código. El directorio de trabajo es ~/sayso y lo que dejes ahí se conserva. \
         Los archivos del Mac no están en esta máquina. Cada llamada es un shell nuevo y no interactivo.
         """
+        if secrets != nil {
+            text += """
+             Para usar una clave que el usuario guardó en Secretos (p. ej. GITHUB_TOKEN), pon su nombre en \
+            «secrets»: llega al comando como variable de entorno ($GITHUB_TOKEN). Tú nunca ves su valor; no \
+            la imprimas ni la escribas en archivos. Si no está guardada, pídela con request_secret.
+            """
+        }
+        return text
     }
     public var inputSchema: JSONValue {
-        .objectSchema([
+        var properties: [String: JSONValue] = [
             "command": .property("string", "Comando de bash"),
             "cwd": .property("string", "Directorio opcional; relativo a ~/sayso"),
             "timeout_seconds": ["type": "integer", "minimum": 1, "maximum": 1800,
                                 "description": "Límite en segundos (120 por defecto)"],
-        ], required: ["command"])
+        ]
+        if secrets != nil {
+            properties["secrets"] = ["type": "array", "items": ["type": "string"],
+                                     "description": "Nombres de claves de Secretos que el comando necesita (hasta 5)"]
+        }
+        return .objectSchema(properties, required: ["command"])
     }
+
+    /// Hasta este número de claves en un comando.
+    static let maxSecrets = 5
+    /// Lo que se ve en el diálogo de permiso: con secretos, el comando no puede ser más largo.
+    static let maxSecretCommand = 2000
+
     public func call(input: JSONValue, context: ToolContext) async throws -> String {
         let command = try input.requiredString("command", maxLength: 20000)
         let cwd = try input.optionalString("cwd", maxLength: 1000)
         let timeout = input["timeout_seconds"]?.intValue ?? 120
         guard (1...1800).contains(timeout) else { throw ToolInputError("«timeout_seconds» debe estar entre 1 y 1800.") }
-        let result = try await computer.run(command, cwd: cwd, timeout: TimeInterval(timeout), origin: context.origin)
+        let names = Array(Set((input["secrets"]?.arrayValue ?? []).compactMap(\.stringValue))).sorted()
+        guard !names.isEmpty else {
+            let result = try await computer.run(command, cwd: cwd, timeout: TimeInterval(timeout), origin: context.origin)
+            return ComputerTools.render(result)
+        }
+        guard let secrets else { throw ToolInputError("Aquí no se pueden usar secretos.") }
+        // Con secretos, el usuario tiene que poder leer el comando entero antes de permitirlo.
+        guard command.count <= Self.maxSecretCommand else {
+            throw ToolInputError("Con secretos, el comando no puede pasar de \(Self.maxSecretCommand) caracteres: el usuario lo revisa entero antes de permitirlo. Divídelo en pasos más cortos.")
+        }
+        guard names.count <= Self.maxSecrets else { throw ToolInputError("Como mucho \(Self.maxSecrets) secretos por comando.") }
+        var env: [String: String] = [:]
+        var missing: [String] = []
+        for name in names {
+            guard RequestSecretTool.isValidName(name) else {
+                throw ToolInputError("«\(name)» no es un nombre de secreto válido (MAYÚSCULAS_CON_GUIONES_BAJOS).")
+            }
+            if let value = try secrets.vault.value(for: KeychainName.workSecret(name)), !value.isEmpty {
+                env[name] = value
+            } else {
+                missing.append(name)
+            }
+        }
+        guard missing.isEmpty else {
+            return "Falta guardar en SaySo → Secretos: \(missing.joined(separator: ", ")). Pídelo con request_secret; " +
+                "el usuario no debe pegarlo en el chat."
+        }
+        let computer = self.computer
+        let origin = context.origin
+        let values = env
+        let result = try await secrets.broker.run(ActionRequest(
+            action: ComputerAction.useSecrets,
+            summary: "Usar \(names.joined(separator: ", ")) en un comando: \(String(command.prefix(300)))",
+            parameters: ["Secretos": names.joined(separator: ", "), "Comando": command],
+            origin: origin)) {
+            try await computer.run(command, cwd: cwd, timeout: TimeInterval(timeout), env: values, origin: origin)
+        }
+        // Que en Secretos se vea cuándo se usó cada una.
+        let now = Date()
+        for var meta in (try? secrets.store.secrets()) ?? [] where names.contains(meta.name) {
+            meta.lastUsed = now
+            try? secrets.store.upsertSecret(meta)
+        }
         return ComputerTools.render(result)
     }
 }
@@ -87,5 +169,107 @@ public struct ComputerWriteFileTool: AgentTool {
         guard content.utf8.count <= 2_000_000 else { throw ToolInputError("«content» supera 2 MB.") }
         try await computer.writeFile(path, content: content, origin: context.origin)
         return "Archivo escrito: \(path)"
+    }
+}
+
+
+// MARK: - Trabajos largos
+
+/// `computer_start_job`: lanza un comando largo y vuelve enseguida. La app avisa al terminar.
+public struct StartJobTool: AgentTool {
+    let computer: AgentComputer
+    let store: SaySoStoring
+    public init(computer: AgentComputer, store: SaySoStoring) {
+        self.computer = computer
+        self.store = store
+    }
+    public var name: String { "computer_start_job" }
+    public var description: String {
+        """
+        Lanza en tu ordenador Linux un comando que tarda (compilar, descargar, entrenar, un script largo) y \
+        vuelve enseguida, sin esperar. Sigue aunque termines de responder, la máquina no se apaga mientras \
+        tanto y al usuario le llega un aviso cuando acaba. Para comandos cortos usa computer_run. Mira cómo \
+        va con computer_jobs.
+        """
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "name": .property("string", "Nombre corto para el aviso («Compilar el proyecto»)"),
+            "command": .property("string", "Comando de bash"),
+            "cwd": .property("string", "Directorio; relativo a ~/sayso"),
+        ], required: ["name", "command"])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        let name = try input.requiredString("name", maxLength: 80)
+        let command = try input.requiredString("command", maxLength: 20_000)
+        let cwd = try input.optionalString("cwd", maxLength: 500) ?? ""
+        guard cwd.range(of: #"^[A-Za-z0-9._/ -]*$"#, options: .regularExpression) != nil, !cwd.contains("..") else {
+            throw ToolInputError("«cwd» solo admite una ruta sencilla dentro de ~/sayso.")
+        }
+        var jobs = BackgroundJob.load(store)
+        guard jobs.filter(\.isRunning).count < BackgroundJob.maxRunning else {
+            throw ToolInputError("Ya hay \(BackgroundJob.maxRunning) trabajos en marcha: espera a que acabe alguno o cancélalo con computer_jobs.")
+        }
+        let job = BackgroundJob(id: String(UUID().uuidString.prefix(8)).lowercased(), name: name, command: command,
+                                origin: context.origin)
+        let dir = "~/.sayso-jobs/\(job.id)"
+        try await computer.writeFile("\(dir)/run.sh", content: command + "\n", origin: context.origin)
+        let workdir = cwd.isEmpty ? "$HOME/sayso" : "$HOME/sayso/\(cwd)"
+        // setsid + nohup: sobrevive a que el agente termine; el pid es el del grupo, para poder cancelarlo.
+        let launch = "mkdir -p \"\(workdir)\" && cd \"\(workdir)\" && setsid nohup bash -c " +
+            "'bash \(job.folder)/run.sh > \(job.folder)/out.log 2>&1; echo $? > \(job.folder)/exit' " +
+            ">/dev/null 2>&1 < /dev/null & echo $! > \(job.folder)/pid"
+        let result = try await computer.run(launch, cwd: nil, timeout: 30, origin: context.origin)
+        guard result.exitCode == 0 else { return "No se pudo lanzar: " + ComputerTools.render(result) }
+        jobs.append(job)
+        BackgroundJob.save(jobs, store)
+        return "Trabajo «\(name)» lanzado (id \(job.id)). Se avisará al usuario cuando termine; no hace falta que esperes."
+    }
+}
+
+/// `computer_jobs`: cómo van los trabajos largos, su salida y cancelarlos.
+public struct JobsTool: AgentTool {
+    let computer: AgentComputer
+    let store: SaySoStoring
+    public var name: String { "computer_jobs" }
+    public var description: String {
+        "Trabajos largos lanzados con computer_start_job: «list» los enseña con su estado; «log» da las últimas " +
+            "líneas de la salida de uno («id»); «cancel» lo detiene."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "action": ["type": "string", "enum": ["list", "log", "cancel"]],
+            "id": .property("string", "Para log y cancel"),
+        ], required: ["action"])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        var jobs = BackgroundJob.load(store)
+        switch input["action"]?.stringValue {
+        case "list":
+            guard !jobs.isEmpty else { return "No hay trabajos." }
+            return jobs.reversed().map { job in
+                let state = job.isRunning ? "en marcha" : (job.exitCode.map { $0 == 0 ? "terminado bien" : "terminado con código \($0)" } ?? "interrumpido")
+                return "\(job.id) · \(job.name) · \(state)"
+            }.joined(separator: "\n")
+        case "log", "cancel":
+            let id = try input.requiredString("id", maxLength: 20)
+            guard let index = jobs.firstIndex(where: { $0.id == id }) else { throw ToolInputError("No hay ningún trabajo \(id).") }
+            let job = jobs[index]
+            if input["action"]?.stringValue == "log" {
+                let result = try await computer.run("tail -n 40 \(job.folder)/out.log 2>/dev/null", cwd: nil, timeout: 30,
+                                                    origin: context.origin)
+                let out = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+                return "«\(job.name)» (\(job.isRunning ? "en marcha" : "terminado")):\n" + (out.isEmpty ? "(sin salida todavía)" : out)
+            }
+            guard job.isRunning else { return "«\(job.name)» ya había terminado." }
+            _ = try await computer.run("kill -- -$(cat \(job.folder)/pid) 2>/dev/null; true", cwd: nil, timeout: 30, origin: context.origin)
+            jobs[index].finishedAt = Date()
+            BackgroundJob.save(jobs, store)
+            return "«\(job.name)» cancelado."
+        default:
+            throw ToolInputError("«action» tiene que ser list, log o cancel.")
+        }
     }
 }

@@ -91,6 +91,8 @@ public struct ProviderAccount: Identifiable, Hashable, Codable, Sendable {
     public var fastModel: String
     /// Nombre de la entrada del Llavero con la clave; `nil` en modelos locales.
     public var keychainKey: String?
+    /// El modelo ve imágenes. `nil`: se deduce del proveedor (`seesImages`).
+    public var vision: Bool?
 
     public init(id: UUID = UUID(), name: String, kind: ProviderKind, baseURL: URL,
                 fullModel: String, fastModel: String, keychainKey: String?) {
@@ -102,6 +104,16 @@ public struct ProviderAccount: Identifiable, Hashable, Codable, Sendable {
         self.fastModel = fastModel
         self.keychainKey = keychainKey
     }
+
+    /// Lo que se sabe sin preguntar: Claude, OpenAI, Grok y Gemini ven imágenes; DeepSeek y los
+    /// modelos locales, depende del modelo, así que se da por hecho que no.
+    public var defaultVision: Bool {
+        if kind == .anthropic { return true }
+        let host = baseURL.host?.lowercased() ?? ""
+        return ["api.openai.com", "api.x.ai", "generativelanguage.googleapis.com"].contains(host)
+    }
+
+    public var seesImages: Bool { vision ?? defaultVision }
 }
 
 /// Plantillas para «Añadir cuenta». Los nombres de modelo son editables por el usuario.
@@ -190,11 +202,18 @@ public struct DictationSettings: Hashable, Codable, Sendable {
     public var speakReplies: Bool
     /// Tecla o combinación que se mantiene para hablar.
     public var shortcut: DictationShortcut
+    /// Nombres y palabras que se escriben así: pista para el reconocimiento y para la corrección.
+    public var vocabulary: [String]
+    /// Sustituciones fijas que se aplican al texto dictado.
+    public var replacements: [TextReplacement]
 
     public init(enabled: Bool = true, side: OptionKeySide = .any, aiCorrection: Bool = false,
                 engine: TranscriberEngine = .whisper, language: String? = "es-ES",
-                voiceMode: VoiceMode = .agent, speakReplies: Bool = true, shortcut: DictationShortcut = .option) {
+                voiceMode: VoiceMode = .agent, speakReplies: Bool = true, shortcut: DictationShortcut = .option,
+                vocabulary: [String] = [], replacements: [TextReplacement] = []) {
         self.shortcut = shortcut
+        self.vocabulary = vocabulary
+        self.replacements = replacements
         self.enabled = enabled
         self.side = side
         self.aiCorrection = aiCorrection
@@ -205,7 +224,7 @@ public struct DictationSettings: Hashable, Codable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case enabled, side, aiCorrection, engine, language, voiceMode, speakReplies, shortcut
+        case enabled, side, aiCorrection, engine, language, voiceMode, speakReplies, shortcut, vocabulary, replacements
         /// Ajuste de una versión anterior (interruptor de «una tecla para cada cosa»).
         case voiceAgent
     }
@@ -219,6 +238,8 @@ public struct DictationSettings: Hashable, Codable, Sendable {
         engine = try c.decodeIfPresent(TranscriberEngine.self, forKey: .engine) ?? .whisper
         language = try c.decodeIfPresent(String.self, forKey: .language)
         speakReplies = try c.decodeIfPresent(Bool.self, forKey: .speakReplies) ?? true
+        vocabulary = try c.decodeIfPresent([String].self, forKey: .vocabulary) ?? []
+        replacements = try c.decodeIfPresent([TextReplacement].self, forKey: .replacements) ?? []
         shortcut = try c.decodeIfPresent(DictationShortcut.self, forKey: .shortcut) ?? .option
         if let mode = try c.decodeIfPresent(VoiceMode.self, forKey: .voiceMode) {
             voiceMode = mode
@@ -239,6 +260,8 @@ public struct DictationSettings: Hashable, Codable, Sendable {
         try c.encode(voiceMode, forKey: .voiceMode)
         try c.encode(speakReplies, forKey: .speakReplies)
         try c.encode(shortcut, forKey: .shortcut)
+        try c.encode(vocabulary, forKey: .vocabulary)
+        try c.encode(replacements, forKey: .replacements)
     }
 
     /// Teclas que hay que vigilar: con una tecla para cada cosa, las dos.
@@ -269,7 +292,14 @@ public enum DictationPhase: Hashable, Sendable {
 
 /// Convierte audio PCM mono en texto.
 public protocol Transcriber: Sendable {
-    func transcribe(samples: [Float], sampleRate: Double, language: String?) async throws -> String
+    /// `vocabulary`: nombres y palabras que conviene reconocer tal cual (pista, no obligación).
+    func transcribe(samples: [Float], sampleRate: Double, language: String?, vocabulary: [String]) async throws -> String
+}
+
+public extension Transcriber {
+    func transcribe(samples: [Float], sampleRate: Double, language: String?) async throws -> String {
+        try await transcribe(samples: samples, sampleRate: sampleRate, language: language, vocabulary: [])
+    }
 }
 
 /// «Corregir con IA»: gramática y puntuación, conservando el estilo.
@@ -334,6 +364,9 @@ public protocol SaySoStoring: Sendable {
     func activityCount(scope: String?) throws -> Int
     /// Borra la actividad y las conversaciones anteriores a `cutoff`. Devuelve cuántas filas de cada.
     @discardableResult func prune(olderThan cutoff: Date) throws -> (activity: Int, turns: Int)
+    /// Se queda con las `keepActivity` entradas de actividad y los `keepTurns` turnos más recientes,
+    /// sea cual sea el plazo elegido. Devuelve cuántas filas de cada se borraron.
+    @discardableResult func trim(keepActivity: Int, keepTurns: Int) throws -> (activity: Int, turns: Int)
 
     // Memoria
     func notes() throws -> [MemoryNote]
@@ -345,6 +378,8 @@ public protocol SaySoStoring: Sendable {
     // Ajustes clave-valor
     func setting(_ key: String) throws -> String?
     func setSetting(_ value: String?, for key: String) throws
+    /// Todos los ajustes guardados, para la copia de seguridad.
+    func allSettings() throws -> [String: String]
 
     // Metadatos de secretos
     func secrets() throws -> [SecretMeta]
@@ -354,6 +389,10 @@ public protocol SaySoStoring: Sendable {
     // Uso
     func incrementRequests(on day: Date) throws
     func requestCount(on day: Date) throws -> Int
+    /// Suma los tokens de una petición al modelo, por día y modelo. `estimated`: el proveedor no dio la cifra.
+    func recordTokens(model: String, input: Int, output: Int, estimated: Bool, on day: Date) throws
+    /// Tokens de hoy y del mes en curso, sin contar `models` (los locales).
+    func tokenSpend(now: Date, excluding models: Set<String>) throws -> TokenSpend
     /// Apunta un dictado que terminó en texto.
     func recordDictation(words: Int, seconds: Double, on day: Date) throws
     /// Uso de los últimos `days` días (hoy incluido) y totales desde el principio.
@@ -367,10 +406,14 @@ public protocol SaySoStoring: Sendable {
 
 public extension SaySoStoring {
     func recordDictation(words: Int, seconds: Double, on day: Date) throws {}
+    func recordTokens(model: String, input: Int, output: Int, estimated: Bool, on day: Date) throws {}
+    func tokenSpend(now: Date, excluding models: Set<String>) throws -> TokenSpend { TokenSpend() }
+    func allSettings() throws -> [String: String] { [:] }
     func activityCount(scope: String?) throws -> Int { try recentActivity(limit: .max, scope: scope).count }
     func setNoteKind(_ kind: MemoryNote.Kind, id: Int64) throws {}
     func updateNoteText(_ text: String, id: Int64) throws {}
     @discardableResult func prune(olderThan cutoff: Date) throws -> (activity: Int, turns: Int) { (0, 0) }
+    @discardableResult func trim(keepActivity: Int, keepTurns: Int) throws -> (activity: Int, turns: Int) { (0, 0) }
     func usageStats(days: Int, now: Date) throws -> UsageStats { UsageStats() }
 
     /// Lee un ajuste guardado como JSON.
@@ -426,6 +469,7 @@ public enum SettingsKey {
     public static let telegramFullAccess = "telegramFullAccess"
     /// Contexto enviado al modelo en la última petición de cada conversación.
     public static let contextUsage = "contextUsage"
+    public static let contextSummaries = "contextSummaries" // resumen de lo que ya no cabe, por conversación
     public static let telegramOwnerID = "telegramOwnerID"   // usuario emparejado con el bot
     public static let telegramBotName = "telegramBotName"
     /// Identificador numérico del bot: es también el del chat privado del usuario con él.
@@ -442,8 +486,23 @@ public enum KeychainName {
     public static func workSecret(_ name: String) -> String { "secret.\(name)" }
 }
 
+/// Qué versión de la app es: la del DMG (con Sparkle) o la de la Mac App Store (en sandbox).
+public enum BuildFlavor {
+    #if APPSTORE
+    public static let isAppStore = true
+    #else
+    public static let isAppStore = false
+    #endif
+}
+
 public enum AppPaths {
+    #if APPSTORE
+    /// En la tienda, el de la app: así una compilación de prueba con otro identificador no toca las
+    /// claves del Llavero de la versión normal.
+    public static let bundleID = Bundle.main.bundleIdentifier ?? "com.pepebits.sayso"
+    #else
     public static let bundleID = "com.pepebits.sayso"
+    #endif
 
     /// `~/Library/Application Support/SaySo/`, creada si no existe.
     public static func supportDirectory() throws -> URL {
@@ -480,6 +539,18 @@ public struct ContextUsage: Codable, Hashable, Sendable {
         self.notes = notes
         self.tools = tools
         self.model = model
+    }
+}
+
+/// Resumen de la parte de una conversación que ya no cabe en la petición.
+public struct ContextSummary: Codable, Hashable, Sendable {
+    public var text: String
+    /// Fecha del último turno resumido.
+    public var until: Date
+
+    public init(text: String, until: Date) {
+        self.text = text
+        self.until = until
     }
 }
 

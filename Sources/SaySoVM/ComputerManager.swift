@@ -9,7 +9,7 @@ import Virtualization
 @MainActor
 public final class ComputerManager: NSObject, VZVirtualMachineDelegate {
     public let files: VMFiles
-    public let config: VMConfig
+    public private(set) var config: VMConfig
     private let onState: (ComputerState) -> Void
 
     public private(set) var state: ComputerState {
@@ -20,6 +20,9 @@ public final class ComputerManager: NSObject, VZVirtualMachineDelegate {
     private var startTask: Task<Void, Error>?
     private let activity = ActivityClock()
     private var requestsInFlight = 0
+    /// Apagado en curso. Una orden que llega entonces espera a que termine y vuelve a arrancar:
+    /// si se mandara a la máquina que se apaga, moriría a medias.
+    private var stopping: Task<Void, Never>?
 
     /// Segundos desde la última orden del agente o del usuario; 0 mientras haya alguna en curso.
     /// Las lecturas de recursos de la pantalla no cuentan.
@@ -36,6 +39,12 @@ public final class ComputerManager: NSObject, VZVirtualMachineDelegate {
     }
 
     public var isInstalled: Bool { files.isInstalled }
+
+    /// Recursos para el siguiente arranque. El disco nunca se reduce.
+    public func update(config new: VMConfig) {
+        config = VMConfig(cpuCount: new.cpuCount, memoryBytes: new.memoryBytes,
+                          diskBytes: max(new.diskBytes, files.diskSize ?? 0))
+    }
 
     /// La máquina en marcha, para mostrar su pantalla (`VZVirtualMachineView`).
     public var virtualMachine: VZVirtualMachine? { machine }
@@ -76,15 +85,46 @@ public final class ComputerManager: NSObject, VZVirtualMachineDelegate {
         }
         state = .starting
         let files = self.files
+        let wanted = config.diskBytes
         try await Task.detached { try files.writeSeed() }.value
+        // Si se ha pedido más disco, se agranda el archivo; dentro se extiende al arrancar.
+        let grew = try await Task.detached { try files.growDisk(to: wanted) }.value
 
         let machine = VZVirtualMachine(configuration: try makeConfiguration())
         machine.delegate = self
         self.machine = machine
         try await machine.start()
         try await waitForGuest()
+        if grew { await growFilesystem() }
         activity.touch()
         state = .running
+        // Devuelve al Mac lo que se borró dentro en la sesión anterior. En segundo plano: no retrasa nada.
+        Task { [weak self] in _ = await self?.trim() }
+    }
+
+    /// `fstrim /`: avisa al disco de qué bloques están libres y el Mac los recupera (el disco es un
+    /// archivo disperso). Devuelve los bytes marcados como libres, o `nil` si no se pudo.
+    @discardableResult
+    public func trim() async -> UInt64? {
+        guard state == .running,
+              let output = (try? await send(.exec("sudo fstrim -v / 2>&1", timeout: 300), receiveTimeout: 330))?.commandResult?.stdout
+        else { return nil }
+        return Self.trimmedBytes(output)
+    }
+
+    /// «/: 25.3 GiB (27138314240 bytes) trimmed» → 27138314240.
+    nonisolated static func trimmedBytes(_ output: String) -> UInt64? {
+        guard let range = output.range(of: #"\((\d+) bytes\)"#, options: .regularExpression) else { return nil }
+        return UInt64(output[range].filter(\.isNumber))
+    }
+
+    /// Extiende la partición raíz y su sistema de archivos al tamaño del disco. cloud-init suele
+    /// hacerlo solo en cada arranque; esto lo asegura. Si ya ocupa todo el disco, no hace nada.
+    private func growFilesystem() async {
+        let command = "root=$(findmnt -no SOURCE /); disk=/dev/$(lsblk -no PKNAME \"$root\"); " +
+            "part=$(echo \"$root\" | grep -o '[0-9]*$'); sudo growpart \"$disk\" \"$part\" >/dev/null 2>&1; " +
+            "sudo resize2fs \"$root\" >/dev/null 2>&1; true"
+        _ = try? await send(.exec(command, timeout: 120), receiveTimeout: 150)
     }
 
     /// El primer arranque incluye cloud-init: puede tardar un par de minutos.
@@ -118,8 +158,26 @@ public final class ComputerManager: NSObject, VZVirtualMachineDelegate {
         state = .running
     }
 
+    /// Apaga si sigue sin uso pasado `limit`: se vuelve a mirar justo antes, porque entre la
+    /// primera comprobación y el apagado (cerrar los plugins) puede haber llegado una orden.
+    /// Devuelve si se ha apagado.
+    @discardableResult
+    public func shutdownIfIdle(limit: TimeInterval) async -> Bool {
+        guard state == .running, stopping == nil, idleTime > limit else { return false }
+        await shutdown()
+        return true
+    }
+
     /// Apagado ordenado: se lo pide al invitado y, si no obedece a tiempo, corta.
     public func shutdown(grace: TimeInterval = 15) async {
+        if let stopping { return await stopping.value }
+        let task = Task { await self.performShutdown(grace: grace) }
+        stopping = task
+        await task.value
+        stopping = nil
+    }
+
+    private func performShutdown(grace: TimeInterval) async {
         startTask?.cancel()
         guard let machine else {
             if !state.isBusy { state = files.isInstalled ? .stopped : .notInstalled }
@@ -155,6 +213,7 @@ public final class ComputerManager: NSObject, VZVirtualMachineDelegate {
 
     /// Envía una orden al agente invitado. Arranca la máquina si está instalada y parada.
     public func request(_ request: GuestRequest, receiveTimeout: TimeInterval = 150) async throws -> GuestResponse {
+        if let stopping { await stopping.value }
         if state != .running {
             guard files.isInstalled else { throw GuestError.notRunning }
             try await start()
@@ -172,6 +231,7 @@ public final class ComputerManager: NSObject, VZVirtualMachineDelegate {
 
     /// Arranca un proceso que sigue vivo en la máquina y devuelve su entrada y salida.
     public func openProcess(_ command: String, env: [String: String]) async throws -> ProcessStream {
+        if let stopping { await stopping.value }
         if state != .running {
             guard files.isInstalled else { throw GuestError.notRunning }
             try await start()
@@ -194,6 +254,31 @@ public final class ComputerManager: NSObject, VZVirtualMachineDelegate {
             }
             return VMProcessStream(connection: connection, activity: activity)
         }.value
+    }
+
+    /// Lo que ocupan unas rutas dentro de la máquina (`du -sb`), sin pasar por el registro del agente:
+    /// es una consulta de la app, no algo que haga el agente. Solo con la máquina en marcha.
+    public func diskUsage(_ paths: [String]) async -> [(path: String, bytes: UInt64)]? {
+        guard state == .running else { return nil }
+        let command = "du -sb " + paths.joined(separator: " ") + " 2>/dev/null; true"
+        guard let result = (try? await send(.exec(command, timeout: 60), receiveTimeout: 90))?.commandResult else { return nil }
+        return Self.parseDiskUsage(result.stdout)
+    }
+
+    static func parseDiskUsage(_ text: String) -> [(path: String, bytes: UInt64)] {
+        text.split(separator: "\n").compactMap { line in
+            let parts = line.split(separator: "\t", maxSplits: 1).map(String.init)
+            guard parts.count == 2, let bytes = UInt64(parts[0]) else { return nil }
+            return (parts[1], bytes)
+        }
+    }
+
+    /// Borra un modelo del detector descargado en la máquina. `folder` ya validado por quien llama.
+    public func removeGuardModel(folder: String) async throws {
+        guard folder.range(of: #"^[A-Za-z0-9._-]+--[A-Za-z0-9._-]+$"#, options: .regularExpression) != nil else {
+            throw GuestError.guest("Nombre de modelo no válido.")
+        }
+        _ = try await request(.exec("rm -rf \"$HOME/.sayso-guard/models/\(folder)\"", timeout: 60))
     }
 
     public func stats() async -> ComputerStats? {

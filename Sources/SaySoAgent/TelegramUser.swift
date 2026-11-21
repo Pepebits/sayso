@@ -67,6 +67,36 @@ public protocol TelegramUserAPI: Sendable {
     func markRead(chatID: Int64) async throws -> Int
     func download(chatID: Int64, messageID: Int64) async throws -> TGDownloadedMedia
     func delete(chatID: Int64, messageIDs: [Int64], forEveryone: Bool) async throws
+    // Envíos más completos (TelegramUserMore.swift). Como requisitos del protocolo y no solo en la
+    // extensión: si no, la llamada se resuelve con la versión por defecto y nunca llega a TDLib.
+    func send(chatID: Int64, text: String, at date: Date?) async throws
+    func sendAlbum(chatID: Int64, files: [TGOutgoingFile], caption: String?) async throws
+    func sendSpecial(chatID: Int64, content: TGSpecialContent) async throws
+    func scheduledMessages(chatID: Int64) async throws -> [TGUserMessage]
+    // Gestión de chats y de la cuenta
+    func pin(chatID: Int64, messageID: Int64, pinned: Bool, onlyForSelf: Bool) async throws
+    func setMuted(chatID: Int64, muted: Bool) async throws
+    func setArchived(chatID: Int64, archived: Bool) async throws
+    func profile(chatID: Int64) async throws -> String
+    func addContact(chatID: Int64, firstName: String, lastName: String) async throws
+    func setBlocked(chatID: Int64, blocked: Bool) async throws
+    func createGroup(title: String, memberChatIDs: [Int64]) async throws -> TGUserChat
+    func addMembers(chatID: Int64, memberChatIDs: [Int64]) async throws
+    func removeMember(chatID: Int64, memberChatID: Int64) async throws
+    func join(inviteLink: String) async throws -> TGUserChat?
+    func leave(chatID: Int64) async throws
+    func messageLink(chatID: Int64, messageID: Int64) async throws -> String
+    // Menos habitual
+    func vote(chatID: Int64, messageID: Int64, options: [Int]) async throws
+    func savedMessagesChat() async throws -> TGUserChat
+    func stories(chatID: Int64) async throws -> [TGStory]
+    // Stickers y carpetas
+    func stickerPacks() async throws -> [TGStickerPack]
+    func sendSticker(chatID: Int64, emoji: String, packID: String?) async throws -> String
+    func folders() async throws -> [TGFolder]
+    func folderChats(folderID: Int, limit: Int) async throws -> [TGUserChat]
+    func setInFolder(chatID: Int64, folderID: Int, included: Bool) async throws
+    func createFolder(name: String, chatIDs: [Int64]) async throws -> TGFolder
 }
 
 /// Exclusiones fijas en código, no configurables.
@@ -144,7 +174,8 @@ public enum TelegramUserTools {
     public static func all(api: TelegramUserAPI, broker: PermissionBrokering,
                            limiter: SendRateLimiter = SendRateLimiter(),
                            ownBotID: @escaping @Sendable () -> Int64? = { nil },
-                           computer: AgentComputer? = nil, transcribe: Transcribe? = nil) -> [AgentTool] {
+                           computer: AgentComputer? = nil, transcribe: Transcribe? = nil,
+                           vision: Bool = false) -> [AgentTool] {
         var tools: [AgentTool] = [
             ListChatsTool(api: api, broker: broker), FindChatTool(api: api, broker: broker),
             ReadMessagesTool(api: api, broker: broker),
@@ -155,7 +186,8 @@ public enum TelegramUserTools {
         ]
         if let computer { tools.append(DownloadMediaTool(api: api, broker: broker, computer: computer)) }
         if let transcribe { tools.append(TranscribeVoiceTool(api: api, broker: broker, transcribe: transcribe)) }
-        return tools
+        if vision { tools.append(ViewTelegramImageTool(api: api, broker: broker)) }
+        return tools + more(api: api, broker: broker, limiter: limiter, computer: computer)
     }
 
     static func messageID(_ input: JSONValue, key: String = "message_id") throws -> Int64 {
@@ -210,9 +242,73 @@ public enum TelegramUserTools {
         guard let raw = input["chat"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
             throw ToolInputError("Falta el parámetro «chat»: el nombre, el @alias o el identificador del chat.")
         }
-        let found = try await api.findChats(query: raw, limit: 10).filter { !TelegramUserFilter.isExcluded($0) }
-        guard !found.isEmpty else { throw UnknownChat(query: raw) }
-        if found.count == 1 || raw.hasPrefix("@") { return found[0] }
+        if isVague(raw) {
+            throw ToolInputError("«\(raw)» no es un destinatario: pregunta al usuario a quién, con su nombre o @alias.")
+        }
+        let (found, query) = try await findChats(raw, api: api)
+        let visible = found.filter { !TelegramUserFilter.isExcluded($0) }
+        guard !visible.isEmpty else { throw UnknownChat(query: raw) }
+        return try pick(visible, query: query)
+    }
+
+    /// Busca y, si no hay nada, prueba el texto como un alias dictado: «arroba Lucia Mora 4-2»
+    /// es @luciamora42. Devuelve también lo que se buscó al final.
+    static func findChats(_ query: String, api: TelegramUserAPI) async throws -> ([TGUserChat], String) {
+        let found = try await api.findChats(query: query, limit: 10)
+        guard found.isEmpty, let alias = spokenAlias(query), alias != query else { return (found, query) }
+        return (try await api.findChats(query: alias, limit: 10), alias)
+    }
+
+    /// Un alias de Telegram dicho en voz alta: sin «arroba», espacios, guiones ni puntos. Solo si lo
+    /// que queda vale como alias (5–32 letras, números o «_»).
+    static func spokenAlias(_ query: String) -> String? {
+        var text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        for prefix in ["arroba", "at"] where text.lowercased().hasPrefix(prefix + " ") {
+            text = String(text.dropFirst(prefix.count))
+        }
+        text = text.trimmingCharacters(in: .whitespaces)
+        if text.hasPrefix("@") { text.removeFirst() }
+        let collapsed = text.filter { !" -.".contains($0) }.lowercased()
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789_")
+        guard (5...32).contains(collapsed.count), collapsed.unicodeScalars.allSatisfy(allowed.contains),
+              collapsed.first?.isLetter == true else { return nil }
+        return "@" + collapsed
+    }
+
+    /// Palabras que no señalan a nadie: Telegram encuentra chats con ellas en el nombre, pero el
+    /// usuario no ha dicho a quién.
+    static let vagueTargets: Set<String> = [
+        "cualquiera", "cualquier", "cualquier chat", "cualquier persona", "alguien", "alguno", "alguna", "todos",
+        "todas", "todo el mundo", "nadie", "quien sea", "quien quieras", "el que sea", "la que sea", "uno", "una",
+        "calquera", "alguén", "todos eles", "anyone", "someone", "somebody", "everyone", "everybody", "any",
+    ]
+
+    static func isVague(_ raw: String) -> Bool {
+        let folded = raw.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+            .lowercased()
+        return vagueTargets.contains(folded)
+    }
+
+    /// El nombre del chat se parece a lo buscado: lo contiene, o comparte una palabra entera. Un
+    /// solo resultado que no se parece (Telegram busca también en otros campos) no basta.
+    static func resembles(_ chat: TGUserChat, _ query: String) -> Bool {
+        let fold = { (text: String) in
+            text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil).lowercased()
+        }
+        let name = fold(chat.displayName), wanted = fold(query)
+        if name.contains(wanted) { return true }
+        let words = { (text: String) in Set(text.split { !$0.isLetter && !$0.isNumber }.map(String.init).filter { $0.count > 1 }) }
+        return !words(name).isDisjoint(with: words(wanted))
+    }
+
+    private static func pick(_ found: [TGUserChat], query raw: String) throws -> TGUserChat {
+        if raw.hasPrefix("@") { return found[0] }
+        if found.count == 1 {
+            guard resembles(found[0], raw) else {
+                throw ToolInputError("El único chat que sale al buscar «\(raw)» es «\(found[0].displayName)» (id \(found[0].id)), y su nombre no se parece. Pregunta al usuario si es ese antes de usarlo.")
+            }
+            return found[0]
+        }
         // Coincidencia exacta de nombre, o una sola persona entre los resultados: no hay duda.
         let exact = found.filter { $0.title.compare(raw, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame }
         if exact.count == 1 { return exact[0] }
@@ -292,7 +388,7 @@ public struct FindChatTool: AgentTool {
         let api = self.api
         let found = try await broker.run(ActionRequest(action: TelegramAction.listChats, summary: "Buscar el chat «\(query)»",
                                                        origin: context.origin)) {
-            try await api.findChats(query: query, limit: 10)
+            try await TelegramUserTools.findChats(query, api: api).0
         }
         let visible = found.filter { !TelegramUserFilter.isExcluded($0) }
         guard !visible.isEmpty else {
@@ -330,7 +426,7 @@ public struct SearchMessagesTool: AgentTool {
     let api: TelegramUserAPI
     let broker: PermissionBrokering
     public var name: String { "telegram_search_messages" }
-    public var description: String { "Busca mensajes por texto en un chat de Telegram del usuario o, sin chat_id, en todos." }
+    public var description: String { "Busca mensajes por texto en un chat de Telegram del usuario o, sin «chat», en todos." }
     public var inputSchema: JSONValue {
         .objectSchema([
             "query": .property("string", "Texto a buscar"),
@@ -367,17 +463,19 @@ public struct SendMessageTool: AgentTool {
     var ownBotID: @Sendable () -> Int64? = { nil }
     public var name: String { "telegram_send_message" }
     public var description: String {
-        "Envía un mensaje de texto desde la cuenta de Telegram del usuario. En «chat» pon directamente el nombre de la persona o del grupo, o su @alias: la herramienta lo busca en sus contactos y chats. Nunca le pidas un identificador al usuario. Si hay varias coincidencias te las devuelve para que se las ofrezcas. El usuario confirma el envío en el Mac salvo que haya cambiado la regla. Redacta el texto final exacto."
+        "Envía un mensaje de texto desde la cuenta de Telegram del usuario. En «chat» pon directamente el nombre de la persona o del grupo, o su @alias: la herramienta lo busca en sus contactos y chats. Nunca le pidas un identificador al usuario. Si hay varias coincidencias te las devuelve para que se las ofrezcas. El usuario confirma el envío en el Mac salvo que haya cambiado la regla. Redacta el texto final exacto. Con «send_at» queda programado en Telegram y sale a esa hora aunque el Mac esté apagado."
     }
     public var inputSchema: JSONValue {
         .objectSchema([
             "chat": TelegramUserTools.chatProperty,
             "text": .property("string", "Texto exacto del mensaje"),
+            "send_at": ["type": "string", "description": "Opcional: fecha y hora de envío, como 2026-11-21T09:00 (hora del Mac)"],
         ], required: ["chat", "text"])
     }
 
     public func call(input: JSONValue, context: ToolContext) async throws -> String {
         let text = try input.requiredString("text", maxLength: 4096)
+        let sendAt = try input["send_at"]?.stringValue.map { try TelegramUserTools.futureDate($0) }
         let chat = try await TelegramUserTools.resolveChat(input, api: api)
         let id = chat.id
         guard id != ownBotID() else {
@@ -387,14 +485,18 @@ public struct SendMessageTool: AgentTool {
         }
         let api = self.api
         let limiter = self.limiter
+        let when = sendAt.map { " el \(TelegramUserTools.stamp($0))" } ?? ""
+        var parameters = ["Para": chat.title, "Mensaje": text]
+        if let sendAt { parameters["Cuándo"] = TelegramUserTools.stamp(sendAt) }
         try await broker.run(ActionRequest(
-            action: TelegramAction.sendMessages, summary: "Enviar a «\(chat.title)»: \(String(text.prefix(200)))",
-            parameters: ["Para": chat.title, "Mensaje": text], origin: context.origin)) {
+            action: TelegramAction.sendMessages,
+            summary: "\(sendAt == nil ? "Enviar" : "Programar") a «\(chat.title)»\(when): \(String(text.prefix(200)))",
+            parameters: parameters, origin: context.origin)) {
             // El tope cuenta envíos reales: se comprueba después de la confirmación.
             try await limiter.take()
-            try await api.send(chatID: id, text: text)
+            if let sendAt { try await api.send(chatID: id, text: text, at: sendAt) } else { try await api.send(chatID: id, text: text) }
         }
-        return "Mensaje enviado a «\(chat.title)»."
+        return sendAt == nil ? "Mensaje enviado a «\(chat.title)»." : "Mensaje programado para «\(chat.title)»\(when)."
     }
 }
 

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- La primera vez que se abre la versión de la tienda, macOS mueve los datos de la versión DMG
+     (base de datos, sesión de Telegram, máquina Linux y modelos de Whisper) a su contenedor del
+     sandbox. Solo se incluye con el identificador de verdad, com.pepebits.sayso: en la compilación
+     de pruebas se llevaría los datos de la app normal. -->
+<plist version="1.0">
+<dict>
+	<key>Move</key>
+	<array>
+		<string>${ApplicationSupport}/SaySo</string>
+	</array>
+</dict>
+</plist>

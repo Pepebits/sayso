@@ -7,14 +7,15 @@ speak: an AI agent answers on screen, writes in your Telegram chats, schedules t
 commands in a Linux machine of its own, away from your files. Anything that leaves your Mac
 goes through rules you set, and asks you first when you want it to.
 
-- 🎙️ **Dictation on your Mac**: hold ⌥, or a shortcut of your choice, and Whisper transcribes locally; or keep a spoken conversation going with the agent
-- 💬 **Telegram, two ways**: talk to the agent through your own bot, and if you want, let it read, search, reply, forward and send from your account, voice notes and media included
+- 🎙️ **Dictation on your Mac**: hold ⌥, or a shortcut of your choice, and Whisper transcribes locally; or keep a spoken conversation going with the agent. A personal dictionary keeps names and brands spelled your way
+- 💬 **Telegram, two ways**: talk to the agent through your own bot, and if you want, let it read, search, reply, forward and send from your account, voice notes and media included. Approve its actions from the bot when you are away from the Mac
 - 🐧 **Its own Linux machine**, isolated with Virtualization.framework, to run commands, install tools, browse the web and transcribe audio
-- ⏰ **Scheduled tasks** for you or for other people, with several recipients and an option to send without asking
+- ⏰ **Scheduled tasks** for you or for other people, with several recipients and an option to send without asking, plus alerts when someone writes
 - 🧠 **Memory you can edit**: notes marked as instructions or facts, applied in every conversation
 - 🧩 **Plugins** over MCP, plus add-ons that run inside the Linux machine
 - 🛡️ **Permissions and guardrails**: Allow, Ask or Never for each action, secrets kept in the Keychain and redacted before they reach the model, and a second check on outward actions after the agent has read someone else's content
-- 🔌 **Bring your own model**: Claude, OpenAI, OpenRouter, Grok, or a local one with Ollama or LM Studio
+- 🔌 **Bring your own model**: Claude, OpenAI, OpenRouter, Grok, or a local one with Ollama or LM Studio, with a daily and monthly token limit for paid ones
+- 🔄 **Updates itself**: new versions are checked once a day and installed when you say so
 - 🌍 In Spanish, English, Galician, French and Portuguese
 
 <p align="center">
@@ -24,13 +25,23 @@ goes through rules you set, and asks you first when you want it to.
 
 ## 🚀 Getting started
 
-You need **macOS 14 or later on Apple Silicon**, and an account with a model provider or a
+You need **macOS 15 or later on Apple Silicon**, and an account with a model provider or a
 local model.
 
 1. 📥 **Download** the latest `SaySo-x.y.z.dmg` from [Releases](https://github.com/Pepebits/sayso/releases). It is signed and notarized by Apple.
 2. 📂 **Install**: drag SaySo to Applications and open it. The welcome guide asks for the microphone and Input Monitoring, and takes you through the rest.
 3. 🔑 **Pick a model** under **Model**: paste an API key, which goes to the Keychain, or point it at Ollama or LM Studio.
 4. 🤖 **Optional, Telegram**: create a bot with [@BotFather](https://t.me/BotFather) and paste its token under **Telegram**. To let the agent work on your own chats, sign in with your account too, using an `api_id` and `api_hash` of your own from [my.telegram.org](https://my.telegram.org).
+
+With Homebrew, steps 1 and 2 are one command:
+
+```bash
+brew install --cask pepebits/sayso/sayso
+```
+
+The first time, add the tap and trust it (Homebrew 7 asks for this with taps outside Homebrew):
+`brew tap pepebits/sayso https://github.com/Pepebits/sayso && brew trust pepebits/sayso`.
+SaySo then updates itself: it checks for new versions once a day and asks before installing one.
 
 ## 🧭 How it works
 

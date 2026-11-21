@@ -6,6 +6,7 @@ struct TasksScreen: View {
     let model: AppModel
     @State private var draft = TaskDraft()
     @State private var editing: ScheduledTask?
+    @State private var deleting: Int64?
 
     /// «Próxima: en 2 horas», con la tarea activa que antes toca.
     private var nextTag: String? {
@@ -19,11 +20,30 @@ struct TasksScreen: View {
         return paused == 0 ? tr("%@ activas", "\(active)") : tr("%@ activas / %@ en pausa", "\(active)", "\(paused)")
     }
 
+    private func watchDetail(_ watch: MessageWatch) -> String {
+        var parts: [String] = []
+        if let keyword = watch.keyword { parts.append(tr("solo si contiene «%@»", keyword)) }
+        parts.append(watch.instruction.map { tr("el agente: %@", $0) } ?? tr("te avisa por el bot"))
+        if let last = watch.lastFired { parts.append(tr("último %@", RelativeDate.string(last))) }
+        return parts.joined(separator: " · ")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.xl) {
             ScreenHeader(icon: "clock", title: "Tareas",
                          subtitle: "Encargos que el agente hace solo y te envía por Telegram, a ti o a quien elijas.",
-                         tag: nextTag)
+                         tag: model.tasksPaused ? tr("En pausa") : nextTag)
+
+            if model.tasksPaused {
+                SettingsCard {
+                    SettingRow(icon: "pause.circle", title: "Tareas y avisos en pausa",
+                               detail: "No se ejecutan las tareas programadas ni los avisos por mensajes. Se pausan y se reanudan también desde el bot con /pause y /resume.") {
+                        BlockButton("Reanudar", systemImage: "play.fill", kind: .primary, compact: true) {
+                            model.actions?.setTasksPaused(false)
+                        }
+                    }
+                }
+            }
 
             VStack(alignment: .leading, spacing: Theme.Space.s) {
                 SectionBar("Nueva tarea")
@@ -49,6 +69,24 @@ struct TasksScreen: View {
                     .padding(.horizontal, 2)
             }
 
+            let ideas = TaskTemplate.unused(given: model.tasks)
+            if !ideas.isEmpty {
+                VStack(alignment: .leading, spacing: Theme.Space.s) {
+                    SectionBar("Ideas para empezar")
+                    SettingsCard {
+                        ForEach(Array(ideas.enumerated()), id: \.element.id) { index, idea in
+                            if index > 0 { CardDivider() }
+                            SettingRow(icon: idea.icon, title: idea.title,
+                                       detail: idea.schedule.summary() + " · " + tr(idea.instruction)) {
+                                BlockButton("Usar", compact: true) { draft = TaskDraft(idea.task) }
+                                    .accessibilityLabel(tr("Usar la idea: %@", tr(idea.title)))
+                            }
+                        }
+                    }
+                    InlineNote("«Usar» rellena el formulario de arriba; la revisas y la programas tú.", systemImage: "info.circle")
+                }
+            }
+
             VStack(alignment: .leading, spacing: Theme.Space.s) {
                 SectionBar("Programadas", note: countsNote)
                 if model.tasks.isEmpty {
@@ -60,6 +98,25 @@ struct TasksScreen: View {
                     VStack(spacing: Theme.Space.s + 2) {
                         ForEach(model.tasks) { taskCard($0) }
                     }
+                }
+            }
+
+            if !model.watches.isEmpty {
+                VStack(alignment: .leading, spacing: Theme.Space.s) {
+                    SectionBar("Avisos por mensajes", note: tr("%@ activos", "\(model.watches.count)"))
+                    SettingsCard {
+                        ForEach(Array(model.watches.enumerated()), id: \.element.id) { index, watch in
+                            if index > 0 { CardDivider() }
+                            SettingRow(icon: "bell", title: tr("Cuando escriban en «%@»", watch.chatTitle),
+                                       detail: watchDetail(watch)) {
+                                BlockButton("Quitar", kind: .destructive, compact: true) {
+                                    model.actions?.deleteWatch(id: watch.id)
+                                }
+                                .accessibilityLabel(tr("Quitar el aviso de «%@»", watch.chatTitle))
+                            }
+                        }
+                    }
+                    InlineNote("Se crean pidiéndoselo al agente: «avísame cuando me escriba…».", systemImage: "info.circle")
                 }
             }
 
@@ -218,10 +275,11 @@ struct TasksScreen: View {
                         BlockButton("Editar", systemImage: "pencil", compact: true) { editing = task }
                             .accessibilityLabel(tr("Editar tarea: %@", task.instruction))
                         Spacer(minLength: 0)
-                        BlockButton("Eliminar", kind: .destructive, compact: true) {
-                            model.actions?.deleteTask(id: id)
-                        }
+                        BlockButton("Eliminar", kind: .destructive, compact: true) { deleting = id }
                         .accessibilityLabel(tr("Eliminar tarea: %@", task.instruction))
+                        .confirmRemoval(isPresented: Binding(get: { deleting == id }, set: { if !$0 { deleting = nil } }),
+                                        title: tr("¿Eliminar esta tarea?"), message: String(task.instruction.prefix(200)),
+                                        button: tr("Eliminar")) { model.actions?.deleteTask(id: id) }
                     }
                 }
             }

@@ -75,6 +75,7 @@ struct ComputerScreen: View {
                         }
                     }
                     .fixedSize(horizontal: false, vertical: true)
+                    sizing
                 case .desktop:
                     desktop
                 case .activity:
@@ -216,6 +217,44 @@ struct ComputerScreen: View {
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - Tamaño de la máquina
+
+    /// Núcleos, memoria y disco para el siguiente arranque.
+    private var sizing: some View {
+        let current = model.computerResources
+        func set(_ change: (inout ComputerResources) -> Void) {
+            var next = current
+            change(&next)
+            model.actions?.setComputerResources(next)
+        }
+        return VStack(alignment: .leading, spacing: Theme.Space.s) {
+            SectionLabel("Tamaño de la máquina")
+            Panel {
+                SettingRow(icon: "cpu", title: "Núcleos", detail: "Para el agente; el Mac se queda siempre con dos.") {
+                    BlockSegmented("Núcleos de la máquina Linux",
+                                   selection: Binding(get: { current.cpuCount }, set: { v in set { $0.cpuCount = v } }),
+                                   options: ComputerResources.cpuOptions().map { ($0, "\($0)") }, compact: true)
+                }
+                CardDivider()
+                SettingRow(icon: "memorychip", title: "Memoria",
+                           detail: "Como mucho la mitad de la del Mac. Solo la usa mientras está en marcha.") {
+                    BlockSegmented("Memoria de la máquina Linux",
+                                   selection: Binding(get: { current.memoryGB }, set: { v in set { $0.memoryGB = v } }),
+                                   options: ComputerResources.memoryOptions().map { ($0, "\($0) GB") }, compact: true)
+                }
+                CardDivider()
+                SettingRow(icon: "internaldrive", title: "Disco",
+                           detail: "Solo ocupa en el Mac lo que se usa de verdad. Se puede ampliar, pero no reducir.") {
+                    BlockSegmented("Disco de la máquina Linux",
+                                   selection: Binding(get: { current.diskGB }, set: { v in set { $0.diskGB = v } }),
+                                   options: ComputerResources.diskOptions(current: model.computerDiskGB).map { ($0, "\($0) GB") },
+                                   compact: true)
+                }
+            }
+            InlineNote("Los cambios se aplican la próxima vez que arranque la máquina.", systemImage: "arrow.clockwise")
         }
     }
 

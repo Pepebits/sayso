@@ -12,3 +12,4 @@ tools/sandbox-probe/.build/
 xcuserdata/
 .env
 .env.*
+site/_out/

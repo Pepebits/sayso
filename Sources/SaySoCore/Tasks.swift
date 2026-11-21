@@ -167,3 +167,79 @@ public enum TaskAction {
         .init(id: cancel, title: "Cancelar tareas", defaultRule: .allow),
     ]
 }
+
+
+/// Un aviso por mensajes de Telegram: cuando llega algo a un chat (y, si se pide, con una palabra),
+/// avisa al usuario por el bot o sigue una instrucción con lo que ha llegado.
+public struct MessageWatch: Codable, Hashable, Sendable, Identifiable {
+    public var id: String
+    public var chatID: Int64
+    public var chatTitle: String
+    /// Solo los mensajes que la contienen (sin distinguir mayúsculas ni tildes).
+    public var keyword: String?
+    /// Qué hacer con lo nuevo («resúmelo», «si piden algo, dímelo»). Sin ella, solo se avisa.
+    public var instruction: String?
+    public var enabled: Bool
+    public var createdAt: Date
+    public var lastFired: Date?
+
+    public init(id: String = String(UUID().uuidString.prefix(8)).lowercased(), chatID: Int64, chatTitle: String,
+                keyword: String? = nil, instruction: String? = nil, enabled: Bool = true, createdAt: Date = Date(),
+                lastFired: Date? = nil) {
+        self.id = id
+        self.chatID = chatID
+        self.chatTitle = chatTitle
+        self.keyword = keyword
+        self.instruction = instruction
+        self.enabled = enabled
+        self.createdAt = createdAt
+        self.lastFired = lastFired
+    }
+
+    /// Si un mensaje de ese chat le interesa.
+    public func matches(chatID: Int64, text: String) -> Bool {
+        guard enabled, chatID == self.chatID else { return false }
+        guard let keyword, !keyword.isEmpty else { return true }
+        return text.range(of: keyword, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+    }
+
+    /// Avisos activos a la vez, como mucho.
+    public static let maxWatches = 20
+    /// Segundos que se juntan los mensajes antes de avisar, para no avisar de uno en uno.
+    public static let batchSeconds: TimeInterval = 60
+
+    public static func load(_ store: SaySoStoring) -> [MessageWatch] {
+        ((try? store.codableSetting(SettingsKey.messageWatches)) ?? nil) ?? []
+    }
+
+    public static func save(_ watches: [MessageWatch], _ store: SaySoStoring) {
+        try? store.setCodableSetting(watches, for: SettingsKey.messageWatches)
+    }
+}
+
+public extension SettingsKey {
+    static let messageWatches = "telegram.watches"
+    /// Leer en voz alta los avisos y las notificaciones de SaySo.
+    static let speakAlerts = "alerts.speak"
+    /// Cómo se avisa en el Mac (`AlertStyle`).
+    static let alertStyle = "alerts.style"
+    /// Tope de tokens (`TokenLimits` en JSON).
+    static let tokenLimits = "budget.tokens"
+    /// Último aviso o bloqueo por el tope, para no repetirlo: «warn-day-2026-11-21».
+    static let budgetNotified = "budget.notified"
+    /// «1»: las preguntas de permiso salen también por el bot, con botones.
+    static let approveFromBot = "telegram.approveFromBot"
+    /// «1»: tareas programadas y avisos por mensajes en pausa (/pause del bot).
+    static let tasksPaused = "tasks.paused"
+}
+
+
+/// Cómo avisa SaySo en el Mac de los avisos de mensajes y de los trabajos terminados.
+public enum AlertStyle: String, CaseIterable, Codable, Sendable {
+    /// Notificación con el sonido del sistema.
+    case sound
+    /// Solo la notificación, en silencio.
+    case silent
+    /// Nada en pantalla: el aviso sigue llegando al bot y queda en Registros.
+    case none
+}

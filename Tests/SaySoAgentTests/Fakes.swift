@@ -45,6 +45,10 @@ final class MemoryStore: SaySoStoring, @unchecked Sendable {
     func setNoteKind(_ kind: MemoryNote.Kind, id: Int64) throws {
         sync { if let i = memory.firstIndex(where: { $0.id == id }) { memory[i].kind = kind } }
     }
+    let tokenRecords = Locked<[(model: String, input: Int, output: Int, estimated: Bool)]>([])
+    func recordTokens(model: String, input: Int, output: Int, estimated: Bool, on day: Date) throws {
+        tokenRecords.update { $0.append((model, input, output, estimated)) }
+    }
     func setting(_ key: String) throws -> String? { sync { settings[key] } }
     func setSetting(_ value: String?, for key: String) throws { sync { settings[key] = value } }
     func secrets() throws -> [SecretMeta] { sync { secretList } }
@@ -85,6 +89,7 @@ final class FakeTransport: HTTPTransport, @unchecked Sendable {
 final class FakeProvider: ModelProvider, @unchecked Sendable {
     let fullModel = "full-model"
     let fastModel = "fast-model"
+    var supportsImages = false
     let requests = Locked<[ModelRequest]>([])
     private let responses: Locked<[ModelResponse]>
     private let fallback: ModelResponse?

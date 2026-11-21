@@ -8,6 +8,9 @@ struct PreferencesScreen: View {
     @State private var showingLicenses = false
     @State private var showingErase = false
     @State private var confirmingReset = false
+    @Environment(\.openURL) private var openURL
+
+    private func openPrivacyPolicy() { openURL(PublicPages.privacy(language: L10n.languageCode)) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.xl) {
@@ -38,6 +41,20 @@ struct PreferencesScreen: View {
                         BlockToggle(isOn: Binding(get: { model.keepAwake }, set: { model.actions?.setKeepAwake($0) }),
                                     label: "Mantener el Mac activo")
                     }
+                    CardDivider()
+                    SettingRow(icon: "bell.badge", title: "Avisos en el Mac",
+                               detail: "Los avisos de mensajes y de trabajos terminados. Al bot y a Registros llegan siempre.") {
+                        BlockSegmented("Cómo avisar en el Mac",
+                                       selection: Binding(get: { model.alertStyle }, set: { model.actions?.setAlertStyle($0) }),
+                                       options: [(AlertStyle.sound, "Con sonido"), (.silent, "Sin sonido"), (.none, "No avisar")],
+                                       compact: true)
+                    }
+                    CardDivider()
+                    SettingRow(icon: "speaker.wave.2", title: "Leer los avisos en voz alta",
+                               detail: "Los avisos de mensajes y de trabajos terminados, con la voz del Mac. Esperan si estás dictando o si SaySo está hablando.") {
+                        BlockToggle(isOn: Binding(get: { model.speakAlerts }, set: { model.actions?.setSpeakAlerts($0) }),
+                                    label: "Leer los avisos en voz alta")
+                    }
                 }
             }
 
@@ -50,6 +67,25 @@ struct PreferencesScreen: View {
                                detail: "Repasa permisos, cuenta de IA, bot y ordenador paso a paso.") {
                         BlockButton("Abrir", compact: true) { model.actions?.showOnboarding() }
                             .accessibilityLabel("Abrir la guía de inicio")
+                    }
+                    CardDivider()
+                    updatesRow
+                    CardDivider()
+                    SettingRow(icon: "ladybug", title: "Informe de errores",
+                               detail: "Versión, estado, avisos y errores de la última semana y cierres inesperados, con nombres y números ocultos. Se guarda en un archivo que revisas antes de adjuntarlo a un issue.") {
+                        HStack(spacing: Theme.Space.s) {
+                            BlockButton("Crear informe", compact: true) { model.actions?.createDiagnostics() }
+                            BlockButton("Abrir issues", compact: true) { model.actions?.openIssues() }
+                                .accessibilityLabel("Abrir los issues de SaySo en GitHub")
+                        }
+                    }
+                    CardDivider()
+                    SettingRow(icon: "externaldrive", title: "Copia de seguridad",
+                               detail: "Memoria, tareas, avisos, reglas, cuentas y ajustes en un archivo, para otro Mac o para guardarla. Sin claves ni conversaciones.") {
+                        HStack(spacing: Theme.Space.s) {
+                            BlockButton("Exportar", compact: true) { model.actions?.exportBackup() }
+                            BlockButton("Importar", compact: true) { model.actions?.importBackup() }
+                        }
                     }
                     CardDivider()
                     SettingRow(icon: "folder", title: "Carpeta de datos",
@@ -80,6 +116,12 @@ struct PreferencesScreen: View {
                                        compact: true)
                     }
                     CardDivider()
+                    SettingRow(icon: "hand.raised", title: "Política de privacidad",
+                               detail: "Qué guarda SaySo, qué envía y a quién. Pepebits no tiene servidores.") {
+                        BlockButton("Abrir", compact: true) { openPrivacyPolicy() }
+                            .accessibilityLabel("Abrir la política de privacidad")
+                    }
+                    CardDivider()
                     SettingRow(icon: "doc.text", title: "Licencias",
                                detail: "El software de terceros que incluye SaySo y sus licencias.") {
                         BlockButton("Ver", compact: true) { showingLicenses = true }
@@ -94,6 +136,9 @@ struct PreferencesScreen: View {
                 }
             }
 
+            // En la tienda no se puede: restablecer pasa por tccutil y borrar, por un shell que sigue
+            // al cerrar la app. Para desinstalar, la app se borra desde el Finder o Launchpad.
+            if !BuildFlavor.isAppStore {
             VStack(alignment: .leading, spacing: Theme.Space.s) {
                 SectionBar("Restablecer y borrar")
                 SettingsCard {
@@ -109,6 +154,7 @@ struct PreferencesScreen: View {
                             .accessibilityLabel("Borrar SaySo de este Mac")
                     }
                 }
+            }
             }
 
         }
@@ -189,6 +235,36 @@ struct PreferencesScreen: View {
         }
     }
 
+    private var updatesDetail: String {
+        switch model.updates {
+        case .unavailable:
+            return BuildFlavor.isAppStore
+                ? tr("Versión %@. Las actualizaciones llegan por la App Store.", model.appVersion)
+                : tr("Versión %@. Esta compilación no se actualiza sola.", model.appVersion)
+        case .ready(_, let lastCheck?):
+            return tr("Versión %@. Última comprobación: %@.", model.appVersion, RelativeDate.string(lastCheck))
+        case .ready(_, nil):
+            return tr("Versión %@. Las versiones nuevas se descargan de GitHub, firmadas por Pepebits.", model.appVersion)
+        }
+    }
+
+    @ViewBuilder private var updatesRow: some View {
+        SettingRow(icon: "arrow.down.app", title: "Actualizaciones", detail: updatesDetail) {
+            if case .ready = model.updates {
+                BlockButton("Buscar ahora", compact: true) { model.actions?.checkForUpdates() }
+                    .accessibilityLabel("Buscar actualizaciones ahora")
+            }
+        }
+        if case .ready(let automatic, _) = model.updates {
+            CardDivider(inset: Theme.Space.l)
+            SettingRow(title: "Buscar actualizaciones automáticamente",
+                       detail: "Una vez al día. Antes de instalar una versión nueva, SaySo te pregunta.") {
+                BlockToggle(isOn: Binding(get: { automatic }, set: { model.actions?.setAutomaticUpdates($0) }),
+                            label: "Buscar actualizaciones automáticamente")
+            }
+        }
+    }
+
     private var protectionSection: some View {
         VStack(alignment: .leading, spacing: Theme.Space.s) {
             SectionBar("Protección", note: tr("frente a instrucciones coladas en webs y mensajes"))
@@ -243,7 +319,11 @@ private struct LocalModelPicker: View {
     let localStatus: (text: String, kind: StatusTag.Kind)
     var navigate: (SettingsScreen) -> Void = { _ in }
     @State private var customRepo = ""
+    /// La lista de modelos, desplegada. Sin valor: plegada si ya hay uno instalado.
+    @State private var expanded: Bool?
     @Environment(\.openURL) private var openURL
+
+    private var isExpanded: Bool { expanded ?? (model.localDetector != .installed) }
 
     static func page(_ repo: String) -> URL { URL(string: "https://huggingface.co/\(repo)")! }
     static let tokens = URL(string: "https://huggingface.co/settings/tokens")!
@@ -258,10 +338,24 @@ private struct LocalModelPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.s) {
-            Text(tr("Modelo")).font(Theme.text(12, weight: .semibold)).foregroundStyle(Theme.ink)
-            VStack(spacing: Theme.Space.s) {
-                ForEach(LocalGuardModel.catalog) { candidate in card(candidate) }
-                customCard
+            HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
+                Text(tr("Modelo")).font(Theme.text(12, weight: .semibold)).foregroundStyle(Theme.ink)
+                if !isExpanded {
+                    Text(verbatim: selected.name).font(Theme.bodyStrong).foregroundStyle(Theme.ink).lineLimit(1)
+                    Text(verbatim: summary(selected)).font(Theme.mono(11)).foregroundStyle(Theme.secondary).lineLimit(1)
+                }
+                Spacer(minLength: Theme.Space.s)
+                BlockButton(isExpanded ? "Ocultar" : "Cambiar", systemImage: isExpanded ? "chevron.up" : "chevron.down",
+                            compact: true) {
+                    withAnimation(.easeInOut(duration: 0.15)) { expanded = !isExpanded }
+                }
+                .accessibilityLabel(isExpanded ? tr("Ocultar la lista de modelos") : tr("Mostrar la lista de modelos"))
+            }
+            if isExpanded {
+                VStack(spacing: Theme.Space.s) {
+                    ForEach(LocalGuardModel.catalog) { candidate in card(candidate) }
+                    customCard
+                }
             }
             HStack(spacing: Theme.Space.s) {
                 StatusTag(localStatus.text, kind: localStatus.kind)
@@ -293,6 +387,14 @@ private struct LocalModelPicker: View {
         .padding(Theme.Space.m)
         .background(Theme.paper)
         .overlay(RoundedRectangle(cornerRadius: Theme.radius).strokeBorder(Theme.border, lineWidth: 1))
+    }
+
+    /// «1,1 GB · Multilingüe»: lo que se ve con la lista plegada.
+    private func summary(_ m: LocalGuardModel) -> String {
+        var parts: [String] = []
+        if let size = m.sizeMB { parts.append(size >= 1000 ? String(format: "%.1f GB", Double(size) / 1000) : "\(size) MB") }
+        parts.append(tr(m.languages))
+        return parts.joined(separator: " · ")
     }
 
     /// Los tres pasos de un modelo de acceso restringido, cada uno con su botón.
@@ -420,5 +522,15 @@ private struct LocalModelPicker: View {
         let repo = customRepo.trimmingCharacters(in: .whitespaces)
         guard LocalGuardModel.isValidRepo(repo) else { return }
         model.actions?.setLocalModel(repo)
+    }
+}
+
+/// Páginas públicas de SaySo (site/ en el repositorio, publicado con GitHub Pages).
+enum PublicPages {
+    static let base = URL(string: "https://pepebits.github.io/sayso/")!
+
+    /// En español también para el gallego; en inglés para el resto.
+    static func privacy(language: String) -> URL {
+        base.appendingPathComponent(["es", "gl"].contains(language) ? "privacidad/" : "privacy/")
     }
 }

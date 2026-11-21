@@ -45,12 +45,35 @@ public actor TDLibSession: TelegramUserAPI {
     private var nextExtra = 1
     /// Mensajes con archivo que esperan a que Telegram confirme la subida.
     private var deliveries: [Int64: CheckedContinuation<Void, Error>] = [:]
+    /// Resultados de envío que llegaron antes de que nadie los esperase: la confirmación puede
+    /// procesarse antes de que `request` devuelva el mensaje en cola.
+    private var earlyDeliveries: [Int64: Error?] = [:]
     private var parametersSent = false
     private var pump: Task<Void, Never>?
     private var userNames: [Int64: String] = [:]
     private var chatCache: [Int64: TGUserChat] = [:]
     /// Alias por usuario o supergrupo; `""` si no tiene.
     private var aliases: [String: String] = [:]
+    /// Carpetas de chats: TDLib las manda en `updateChatFolders` y no tiene una petición para leerlas.
+    var chatFolders: [TGFolder] = []
+    /// Quien quiera enterarse de los mensajes que llegan (los avisos).
+    private var incoming: (@Sendable (TGUserMessage) -> Void)?
+
+    /// Chats a los que no se escribe nunca desde la cuenta: el del propio bot de SaySo. Lo que se
+    /// mandara ahí llegaría al agente como si lo hubiera escrito el usuario.
+    private var blockedTargets: @Sendable () -> Set<Int64> = { [] }
+    public func blockWrites(to targets: @escaping @Sendable () -> Set<Int64>) { blockedTargets = targets }
+
+    func checkTarget(_ chatID: Int64) throws {
+        if blockedTargets().contains(chatID) {
+            throw ToolInputError("Ese chat es la conversación del usuario con su bot de SaySo: desde su cuenta no se escribe ahí. " +
+                "Para que algo le llegue al usuario: un texto, ponlo en tu respuesta; una foto o un archivo, envíalo con " +
+                "send_file sin «chat» (uno por llamada, llega por el bot). No lo mandes a otro chat en su lugar.")
+        }
+    }
+
+    /// Avisa de cada mensaje nuevo que llega a la cuenta (no los enviados ni los programados).
+    public func onNewMessage(_ handler: (@Sendable (TGUserMessage) -> Void)?) { incoming = handler }
     public private(set) var state: TelegramUserState = .off {
         didSet { if state != oldValue { onState(state) } }
     }
@@ -89,8 +112,12 @@ public actor TDLibSession: TelegramUserAPI {
     /// librería aborta al destruirse y macOS apunta un cierre inesperado. Si no contesta en
     /// `timeout`, se sigue adelante.
     public func stopAndWait(timeout: TimeInterval = 3) async {
+        await sendAndWaitClosed("close", timeout: timeout)
+    }
+
+    private func sendAndWaitClosed(_ type: String, timeout: TimeInterval) async {
         guard pump != nil else { return }
-        transport.send(["@type": "close"])
+        transport.send(["@type": .string(type)])
         let timer = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
             guard !Task.isCancelled else { return }
@@ -100,9 +127,10 @@ public actor TDLibSession: TelegramUserAPI {
         timer.cancel()
     }
 
-    /// Cierra la sesión en Telegram y borra los datos locales de TDLib.
-    public func logOut() async {
-        _ = try? await request(["@type": "logOut"])
+    /// Cierra la sesión en Telegram y borra los datos locales de TDLib. Vuelve cuando TDLib ha
+    /// terminado (`authorizationStateClosed`): borrar su carpeta antes lo hacía cerrarse de golpe.
+    public func logOut(timeout: TimeInterval = 8) async {
+        await sendAndWaitClosed("logOut", timeout: timeout)
     }
 
     private func finish(_ final: TelegramUserState) {
@@ -138,6 +166,18 @@ public actor TDLibSession: TelegramUserAPI {
             if let id = message["old_message_id"]?.intValue {
                 finishDelivery(Int64(id), error: TDError(code: message["error"]?["code"]?.intValue ?? 0,
                                                          message: message["error"]?["message"]?.stringValue ?? "error"))
+            }
+        case "updateNewMessage":
+            guard let handler = incoming, let raw = message["message"],
+                  raw["is_outgoing"]?.boolValue != true, raw["scheduling_state"] == nil else { break }
+            Task { [weak self] in
+                guard let converted = await self?.convert([raw]).first else { return }
+                handler(converted)
+            }
+        case "updateChatFolders":
+            chatFolders = (message["chat_folders"]?.arrayValue ?? []).compactMap { info in
+                guard let id = info["id"]?.intValue else { return nil }
+                return TGFolder(id: id, name: info["name"]?["text"]?["text"]?.stringValue ?? "")
             }
         case "updateUser":
             if let user = message["user"], let id = user["id"]?.intValue { userNames[Int64(id)] = Self.name(of: user) }
@@ -286,7 +326,7 @@ public actor TDLibSession: TelegramUserAPI {
 
     // MARK: TelegramUserAPI
 
-    private func requireReady() throws {
+    func requireReady() throws {
         guard state.isReady else { throw TelegramUserError.notReady }
     }
 
@@ -505,12 +545,15 @@ public actor TDLibSession: TelegramUserAPI {
     }
 
     public func send(chatID: Int64, text: String) async throws {
+        try checkTarget(chatID)
         try requireReady()
-        _ = try await request([
+        let message = try await request([
             "@type": "sendMessage", "chat_id": .number(Double(chatID)),
             "input_message_content": ["@type": "inputMessageText",
                                       "text": ["@type": "formattedText", "text": .string(text)]],
         ])
+        // En cola no es enviado: un chat bloqueado o el modo lento lo rechazan después.
+        if let id = message["id"]?.intValue { try await waitForDelivery(messageID: Int64(id), timeout: 8) }
     }
 
     /// Carpeta de donde TDLib sube los archivos salientes. Se vacía de lo que tenga más de una hora.
@@ -553,6 +596,7 @@ public actor TDLibSession: TelegramUserAPI {
     }
 
     public func sendFile(chatID: Int64, data: Data, filename: String, caption: String?, kind: TGMediaKind) async throws {
+        try checkTarget(chatID)
         try requireReady()
         // TDLib sube desde un archivo local, y lo hace después de contestar: tiene que seguir ahí.
         let folder = try Self.outgoingFolder().appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -570,26 +614,40 @@ public actor TDLibSession: TelegramUserAPI {
 
     /// Espera a que Telegram confirme o rechace un mensaje en cola. Si pasa el tiempo sin noticia
     /// (una subida lenta), se da por bueno: sigue subiendo.
-    private func waitForDelivery(messageID: Int64, timeout: TimeInterval = 90) async throws {
+    func waitForDelivery(messageID: Int64, timeout: TimeInterval = 90) async throws {
+        if let early = earlyDeliveries.removeValue(forKey: messageID) {
+            if let early { throw early }
+            return
+        }
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             deliveries[messageID] = continuation
             Task { [weak self] in
                 try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                await self?.finishDelivery(messageID, error: nil)
+                await self?.expireDelivery(messageID)
             }
         }
     }
 
+    private func expireDelivery(_ messageID: Int64) {
+        deliveries.removeValue(forKey: messageID)?.resume()
+    }
+
     private func finishDelivery(_ messageID: Int64, error: Error?) {
-        guard let continuation = deliveries.removeValue(forKey: messageID) else { return }
+        guard let continuation = deliveries.removeValue(forKey: messageID) else {
+            // Solo interesan los recientes: los de mensajes que nadie espera no deben acumularse.
+            if earlyDeliveries.count > 50 { earlyDeliveries.removeAll() }
+            earlyDeliveries[messageID] = .some(error)
+            return
+        }
         if let error { continuation.resume(throwing: error) } else { continuation.resume() }
     }
 
-    private static func textContent(_ text: String) -> JSONValue {
+    static func textContent(_ text: String) -> JSONValue {
         ["@type": "inputMessageText", "text": ["@type": "formattedText", "text": .string(text)]]
     }
 
     public func reply(chatID: Int64, messageID: Int64, text: String) async throws {
+        try checkTarget(chatID)
         try requireReady()
         let message = try await request([
             "@type": "sendMessage", "chat_id": .number(Double(chatID)),
@@ -600,6 +658,7 @@ public actor TDLibSession: TelegramUserAPI {
     }
 
     public func forward(fromChatID: Int64, messageIDs: [Int64], toChatID: Int64) async throws {
+        try checkTarget(toChatID)
         try requireReady()
         _ = try await request([
             "@type": "forwardMessages", "chat_id": .number(Double(toChatID)), "from_chat_id": .number(Double(fromChatID)),
@@ -707,7 +766,7 @@ public actor TDLibSession: TelegramUserAPI {
 
     // MARK: Conversión
 
-    private func convert(_ raw: [JSONValue]) async -> [TGUserMessage] {
+    func convert(_ raw: [JSONValue]) async -> [TGUserMessage] {
         var out: [TGUserMessage] = []
         for message in raw {
             guard let id = message["id"]?.intValue, let chatID = message["chat_id"]?.intValue else { continue }
@@ -741,6 +800,7 @@ public actor TDLibSession: TelegramUserAPI {
         let content = message["content"]
         let type = content?["@type"]?.stringValue ?? ""
         if type == "messageText" { return content?["text"]?["text"]?.stringValue ?? "" }
+        if let detail = detail(of: content) { return detail }
         let label: String
         switch type {
         case "messagePhoto": label = "[foto]"
@@ -758,5 +818,38 @@ public actor TDLibSession: TelegramUserAPI {
         }
         let caption = content?["caption"]?["text"]?.stringValue ?? ""
         return caption.isEmpty ? label : "\(label) \(caption)"
+    }
+
+    /// Encuestas, ubicaciones, contactos y dados con lo que hace falta para usarlos: las respuestas
+    /// de una encuesta van numeradas desde 0, que es lo que pide telegram_vote.
+    static func detail(of content: JSONValue?) -> String? {
+        switch content?["@type"]?.stringValue {
+        case "messagePoll":
+            guard let poll = content?["poll"] else { return nil }
+            let question = poll["question"]?["text"]?.stringValue ?? ""
+            let options = (poll["options"]?.arrayValue ?? []).enumerated().map { index, option -> String in
+                var text = "\(index)) \(option["text"]?["text"]?.stringValue ?? "")"
+                if let votes = option["voter_count"]?.intValue, votes > 0 { text += " (\(votes))" }
+                if option["is_chosen"]?.boolValue == true { text += " ✓ tu voto" }
+                return text
+            }
+            let closed = poll["is_closed"]?.boolValue == true ? " (cerrada)" : ""
+            return "[encuesta\(closed)] \(question) · " + options.joined(separator: " · ")
+        case "messageLocation":
+            guard let lat = content?["location"]?["latitude"]?.doubleValue,
+                  let lon = content?["location"]?["longitude"]?.doubleValue else { return nil }
+            return String(format: "[ubicación] %.5f, %.5f", lat, lon)
+        case "messageContact":
+            let contact = content?["contact"]
+            let name = [contact?["first_name"]?.stringValue, contact?["last_name"]?.stringValue]
+                .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ")
+            return name.isEmpty ? nil : "[contacto] \(name)"
+        case "messageDice":
+            let emoji = content?["emoji"]?.stringValue ?? "🎲"
+            let value = content?["value"]?.intValue ?? 0
+            return value > 0 ? "[dado \(emoji) \(value)]" : "[dado \(emoji)]"
+        default:
+            return nil
+        }
     }
 }

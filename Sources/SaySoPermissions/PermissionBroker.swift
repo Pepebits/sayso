@@ -74,7 +74,8 @@ public final class PermissionBroker: PermissionBrokering, @unchecked Sendable {
         // Protección: una acción hacia fuera que se iba a permitir sola, en un turno que ha leído
         // contenido de terceros, pasa por el revisor; si algo no cuadra, se pregunta en el Mac.
         var forcedReason: String?
-        if rule == .allow, GuardPolicy.isOutward(action), let context = GuardContext.current {
+        if rule == .allow, GuardPolicy.needsReview(request), !GuardPolicy.isSystemOrigin(request.origin),
+           let context = GuardContext.current {
             forcedReason = await guardReason(request, context: context)
             if let forcedReason {
                 rule = .ask

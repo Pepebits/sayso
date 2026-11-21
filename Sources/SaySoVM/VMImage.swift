@@ -97,6 +97,20 @@ public struct VMFiles: Sendable {
         try fm.moveItem(at: extracted, to: disk)
     }
 
+    /// Tamaño del archivo del disco (el máximo de la máquina, no lo que ocupa).
+    public var diskSize: UInt64? {
+        (try? FileManager.default.attributesOfItem(atPath: disk.path)[.size] as? NSNumber)?.uint64Value
+    }
+
+    /// Agranda el disco hasta `bytes` si es más pequeño. Devuelve si ha crecido. Nunca lo reduce.
+    public func growDisk(to bytes: UInt64) throws -> Bool {
+        guard let current = diskSize, current < bytes else { return false }
+        let handle = try FileHandle(forWritingTo: disk)
+        defer { try? handle.close() }
+        try handle.truncate(atOffset: bytes)
+        return true
+    }
+
     /// Regenera la semilla de cloud-init con la versión actual del agente invitado.
     public func writeSeed() throws {
         let fm = FileManager.default

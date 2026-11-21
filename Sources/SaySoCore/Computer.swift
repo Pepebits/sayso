@@ -192,10 +192,100 @@ public enum ComputerAction {
     public static let run: ActionID = "vm.run"
     public static let readFile: ActionID = "vm.readFile"
     public static let writeFile: ActionID = "vm.writeFile"
+    /// Pasar a un comando una clave guardada en Secretos. Pregunta por defecto: con la clave en la
+    /// mano, un comando puede mandarla a cualquier sitio.
+    public static let useSecrets: ActionID = "vm.useSecrets"
 
     public static let descriptors: [ActionDescriptor] = [
         .init(id: run, title: "Ejecutar comandos", detail: "Dentro de la máquina Linux.", defaultRule: .allow),
         .init(id: readFile, title: "Leer archivos", detail: "Solo archivos de la máquina Linux.", defaultRule: .allow),
         .init(id: writeFile, title: "Escribir archivos", detail: "Solo archivos de la máquina Linux.", defaultRule: .allow),
+        .init(id: useSecrets, title: "Usar secretos en comandos",
+              detail: "Pasar una clave guardada en Secretos a un comando de la máquina Linux. El agente no ve su valor.",
+              defaultRule: .ask),
     ]
+}
+
+
+/// Lo que se le da a la máquina Linux: núcleos, memoria y disco. Se cambia en la pantalla Ordenador
+/// y se aplica al siguiente arranque. El disco solo puede crecer.
+public struct ComputerResources: Hashable, Sendable, Codable {
+    public var cpuCount: Int
+    public var memoryGB: Int
+    public var diskGB: Int
+
+    public init(cpuCount: Int = 2, memoryGB: Int = 4, diskGB: Int = 16) {
+        self.cpuCount = cpuCount
+        self.memoryGB = memoryGB
+        self.diskGB = diskGB
+    }
+
+    /// Núcleos que se pueden dar: dejando siempre dos al Mac.
+    public static func cpuOptions(cores: Int = ProcessInfo.processInfo.activeProcessorCount) -> [Int] {
+        [1, 2, 4, 6, 8].filter { $0 <= max(1, cores - 2) }
+    }
+
+    /// Memoria que se puede dar, en GB: como mucho la mitad de la del Mac.
+    public static func memoryOptions(physical: UInt64 = ProcessInfo.processInfo.physicalMemory) -> [Int] {
+        let half = Int(physical / (1 << 30)) / 2
+        return [2, 4, 6, 8, 12, 16, 24, 32].filter { $0 <= max(2, half) }
+    }
+
+    /// Tamaños de disco a partir del actual: no se puede encoger sin perder lo que hay dentro.
+    public static func diskOptions(current: Int) -> [Int] {
+        let sizes = [16, 32, 64, 128, 256]
+        return ([current] + sizes.filter { $0 > current }).sorted()
+    }
+}
+
+public extension SettingsKey {
+    /// `ComputerResources` en JSON.
+    static let computerResources = "computer.resources"
+}
+
+
+/// Un trabajo largo lanzado en la máquina Linux (una compilación, una descarga…). Sigue aunque el
+/// agente termine de responder; la app avisa cuando acaba.
+public struct BackgroundJob: Codable, Hashable, Sendable, Identifiable {
+    public var id: String
+    public var name: String
+    public var command: String
+    public var startedAt: Date
+    /// De dónde salió («telegram:123», «voz»…): por ahí se avisa al terminar.
+    public var origin: String?
+    public var finishedAt: Date?
+    /// `nil` si terminó sin código (la máquina se apagó o se canceló).
+    public var exitCode: Int?
+
+    public init(id: String, name: String, command: String, startedAt: Date = Date(), origin: String? = nil,
+                finishedAt: Date? = nil, exitCode: Int? = nil) {
+        self.id = id
+        self.name = name
+        self.command = command
+        self.startedAt = startedAt
+        self.origin = origin
+        self.finishedAt = finishedAt
+        self.exitCode = exitCode
+    }
+
+    public var isRunning: Bool { finishedAt == nil }
+    /// Carpeta del trabajo en la máquina: `run.sh`, `out.log`, `exit` y `pid`.
+    public var folder: String { "$HOME/.sayso-jobs/\(id)" }
+
+    /// Trabajos en marcha a la vez, como mucho.
+    public static let maxRunning = 3
+    /// Se recuerdan los últimos.
+    public static let keep = 30
+
+    public static func load(_ store: SaySoStoring) -> [BackgroundJob] {
+        ((try? store.codableSetting(SettingsKey.backgroundJobs)) ?? nil) ?? []
+    }
+
+    public static func save(_ jobs: [BackgroundJob], _ store: SaySoStoring) {
+        try? store.setCodableSetting(Array(jobs.suffix(keep)), for: SettingsKey.backgroundJobs)
+    }
+}
+
+public extension SettingsKey {
+    static let backgroundJobs = "computer.jobs"
 }

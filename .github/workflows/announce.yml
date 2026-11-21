@@ -37,7 +37,7 @@ jobs:
       dry_run: ${{ inputs.dry_run || false }}
       notes_source: changelog
       project_name: SaySo
-      install_title: 🍏 macOS 14+ · Apple Silicon
+      install_title: 🍏 macOS 15+ · Apple Silicon
       install_command: open https://github.com/Pepebits/sayso/releases/download/{tag}/SaySo-{version}.dmg
       buttons: >-
         [{"text": "⬇️ Download DMG", "url": "{repo_url}/releases/download/{tag}/SaySo-{version}.dmg"},

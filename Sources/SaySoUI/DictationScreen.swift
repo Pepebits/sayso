@@ -72,6 +72,9 @@ struct DictationScreen: View {
             transcriptionPanel
                 .disabled(!settings.enabled)
 
+            DictionaryPanel(model: model)
+                .disabled(!settings.enabled)
+
             VStack(alignment: .leading, spacing: Theme.Space.s) {
                 HStack(alignment: .center) {
                     SectionBar("Permisos de macOS", note: permissionsNote)

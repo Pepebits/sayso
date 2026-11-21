@@ -165,3 +165,184 @@ final class SpeedTests: XCTestCase {
         XCTAssertTrue(sent.system.contains("una sola pregunta"))
     }
 }
+
+final class ImageTests: XCTestCase {
+    /// Un PNG de 3000×2000 hecho al vuelo.
+    static func bigPNG() -> Data {
+        let ctx = CGContext(data: nil, width: 3000, height: 2000, bitsPerComponent: 8, bytesPerRow: 0,
+                            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        ctx.setFillColor(red: 0.2, green: 0.6, blue: 0.4, alpha: 1)
+        ctx.fill(CGRect(x: 0, y: 0, width: 3000, height: 2000))
+        let out = NSMutableData()
+        let dest = CGImageDestinationCreateWithData(out, "public.png" as CFString, 1, nil)!
+        CGImageDestinationAddImage(dest, ctx.makeImage()!, nil)
+        CGImageDestinationFinalize(dest)
+        return out as Data
+    }
+
+    func testImagesAreShrunkToJPEG() throws {
+        let image = try ModelImage.prepared(from: Self.bigPNG())
+        XCTAssertEqual(image.mediaType, "image/jpeg")
+        XCTAssertEqual(max(image.width, image.height), ModelImage.maxSide)
+        XCTAssertThrowsError(try ModelImage.prepared(from: Data("no soy una imagen".utf8)))
+    }
+
+    func testProvidersEncodeImages() {
+        let message = ModelMessage(role: .user, content: [.toolResult(toolUseID: "t1", content: "ok", isError: false),
+                                                          .image(mediaType: "image/jpeg", data: Data([1, 2, 3]))])
+        let anthropic = AnthropicProvider.encode(message)
+        XCTAssertEqual(anthropic["content"]?[1]?["source"]?["data"]?.stringValue, "AQID")
+        let openai = OpenAICompatibleProvider.encode(message)
+        XCTAssertEqual(openai.count, 2, "el resultado de la herramienta y, detrás, un mensaje del usuario con la imagen")
+        XCTAssertEqual(openai[1]["content"]?[0]?["image_url"]?["url"]?.stringValue, "data:image/jpeg;base64,AQID")
+    }
+
+    func testOnlyVisionAccountsSeeImages() {
+        let url = URL(string: "https://api.deepseek.com")!
+        XCTAssertFalse(ProviderAccount(name: "DeepSeek", kind: .openAICompatible, baseURL: url, fullModel: "m", fastModel: "m",
+                                       keychainKey: nil).seesImages)
+        XCTAssertTrue(ProviderAccount(name: "Claude", kind: .anthropic, baseURL: URL(string: "https://api.anthropic.com")!,
+                                      fullModel: "m", fastModel: "m", keychainKey: nil).seesImages)
+        var local = ProviderAccount(name: "Ollama", kind: .openAICompatible, baseURL: URL(string: "http://localhost:11434/v1")!,
+                                    fullModel: "llava", fastModel: "llava", keychainKey: nil)
+        local.vision = true
+        XCTAssertTrue(local.seesImages)
+    }
+
+    func testTheLoopAttachesImagesOnlyWhenTheModelSeesThem() async throws {
+        struct Looker: ImageProducingTool {
+            var name: String { "view_image" }
+            var description: String { "" }
+            var inputSchema: JSONValue { .objectSchema([:]) }
+            func callWithImages(input: JSONValue, context: ToolContext) async throws -> (String, [ModelImage]) {
+                ("Imagen adjunta.", [ModelImage(mediaType: "image/jpeg", data: Data([9]), width: 1, height: 1)])
+            }
+        }
+        for sees in [true, false] {
+            let provider = FakeProvider([.tool("view_image", [:]), .text("Un gato")])
+            provider.supportsImages = sees
+            _ = try await AgentLoop(provider: provider, tools: [Looker()], store: MemoryStore()).respond(to: "¿Qué hay?", chatID: "voz")
+            let second = provider.requests.get()[1].messages.last?.content ?? []
+            let hasImage = second.contains { if case .image = $0 { return true }; return false }
+            XCTAssertEqual(hasImage, sees)
+        }
+        // Una foto que manda el usuario va en su mensaje.
+        let provider = FakeProvider([.text("Es un gato")])
+        provider.supportsImages = true
+        _ = try await AgentLoop(provider: provider, tools: [], store: MemoryStore())
+            .respond(to: "¿Qué es?", chatID: "voz", images: [ModelImage(mediaType: "image/jpeg", data: Data([7]), width: 1, height: 1)])
+        XCTAssertTrue(provider.requests.get()[0].messages.last?.content.contains { if case .image = $0 { return true }; return false } ?? false)
+    }
+}
+
+final class ResourceTests: XCTestCase {
+    func testInsideTheLinuxMachineEachPartHasAName() {
+        let du: [(path: String, bytes: UInt64)] = [
+            ("/home/agent/.sayso-guard/models/protectai--deberta-v3-base-prompt-injection-v2", 740_000_000),
+            ("/home/agent/.sayso-guard/models/meta-llama--Llama-Prompt-Guard-2-22M", 290_000_000),
+            ("/home/agent/.sayso-guard/venv", 1_900_000_000),
+            ("/home/agent/sayso", 12_000_000),
+            ("/var/cache/apt", 0),
+        ]
+        let items = ResourceUsage.vmItems(du, used: 4_000_000_000,
+                                          activeModelFolder: "protectai--deberta-v3-base-prompt-injection-v2")
+        XCTAssertEqual(items.first?.id, "guard-python", "de mayor a menor")
+        XCTAssertEqual(items.first { $0.id == "system" }?.bytes, 4_000_000_000 - 740_000_000 - 290_000_000 - 1_900_000_000 - 12_000_000,
+                       "lo que no cae en ninguna parte es el sistema")
+        let active = items.first { $0.title == "protectai/deberta-v3-base-prompt-injection-v2" }
+        XCTAssertEqual(active?.detail, tr("detector de inyecciones, en uso"))
+        XCTAssertEqual(items.first { $0.title == "meta-llama/Llama-Prompt-Guard-2-22M" }?.detail, tr("detector de inyecciones, sin usar"))
+        XCTAssertNotNil(items.first { $0.id == "guard-python" })
+        XCTAssertNil(items.first { $0.id == "apt" }, "lo que no ocupa nada no sale")
+        XCTAssertTrue(ResourceUsage.vmQuery.contains("$HOME/.sayso-guard/models/*"))
+    }
+
+    func testAllocatedSizeOfAFolder() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("sayso-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try Data(repeating: 1, count: 100_000).write(to: dir.appendingPathComponent("a.bin"))
+        XCTAssertGreaterThanOrEqual(DiskMeasure.allocated(dir), 100_000)
+        XCTAssertGreaterThan(DiskMeasure.appMemory(), 0)
+    }
+}
+
+final class TokenMeterTests: XCTestCase {
+    func testTheLoopRecordsTokensPerModel() async throws {
+        let store = MemoryStore()
+        _ = try await AgentLoop(provider: FakeProvider([.text("Hola")]), tools: [], store: store).respond(to: "Hola", chatID: "voz")
+        XCTAssertEqual(store.tokenRecords.get().first?.model, "full-model")
+        XCTAssertEqual(store.tokenRecords.get().first?.estimated, true, "el proveedor falso no da cifras")
+    }
+}
+
+
+final class OpenAITokenFieldTests: XCTestCase {
+    func testOpenAIUsesMaxCompletionTokens() async throws {
+        let request = ModelRequest(model: "m", system: "", messages: [ModelMessage(role: .user, content: [.text("hola")])], maxTokens: 100)
+        let ok = #"{"choices":[{"message":{"content":"Hola"},"finish_reason":"stop"}]}"#
+        for (base, field, other) in [("https://api.openai.com/v1", "max_completion_tokens", "max_tokens"),
+                                     ("https://openrouter.ai/api/v1", "max_tokens", "max_completion_tokens")] {
+            let t = FakeTransport(json: ok)
+            let p = OpenAICompatibleProvider(baseURL: URL(string: base)!, apiKey: "k", fullModel: "m", fastModel: "f", transport: t)
+            _ = try await p.complete(request)
+            XCTAssertEqual(t.bodies().first?[field]?.intValue, 100)
+            XCTAssertNil(t.bodies().first?[other])
+        }
+    }
+}
+
+final class ModelRetryTests: XCTestCase {
+    override func setUp() { ModelRetry.scale = 0 }
+    override func tearDown() { ModelRetry.scale = 1 }
+
+    private let ok = #"{"content":[{"type":"text","text":"Hola"}],"stop_reason":"end_turn"}"#
+    private func request() -> ModelRequest {
+        ModelRequest(model: "m", system: "", messages: [ModelMessage(role: .user, content: [.text("hola")])], tools: [], maxTokens: 100)
+    }
+
+    func testOverloadedIsRetriedUntilItWorks() async throws {
+        let calls = Locked(0)
+        let ok = self.ok
+        let transport = FakeTransport { _ in
+            let n = calls.update { $0 += 1; return $0 }
+            return n < 3 ? (529, Data(#"{"error":{"message":"Overloaded"}}"#.utf8)) : (200, Data(ok.utf8))
+        }
+        let p = AnthropicProvider(apiKey: "k", fullModel: "m", fastModel: "f", transport: transport)
+        let response = try await p.complete(request())
+        XCTAssertEqual(response.text, "Hola")
+        XCTAssertEqual(transport.requests.get().count, 3)
+    }
+
+    func testNetworkDropIsRetried() async throws {
+        let calls = Locked(0)
+        let ok = self.ok
+        let transport = FakeTransport { _ in
+            if calls.update({ $0 += 1; return $0 }) == 1 { throw URLError(.networkConnectionLost) }
+            return (200, Data(ok.utf8))
+        }
+        let p = AnthropicProvider(apiKey: "k", fullModel: "m", fastModel: "f", transport: transport)
+        _ = try await p.complete(request())
+        XCTAssertEqual(transport.requests.get().count, 2)
+    }
+
+    func testGivesUpAfterThreeRetriesAndKeepsTheError() async {
+        let transport = FakeTransport(status: 503, json: #"{"error":{"message":"down"}}"#)
+        let p = OpenAICompatibleProvider(baseURL: URL(string: "https://api.example.com/v1")!, apiKey: "k",
+                                         fullModel: "m", fastModel: "f", transport: transport)
+        do {
+            _ = try await p.complete(request())
+            XCTFail("debería fallar")
+        } catch {
+            XCTAssertEqual(error as? ProviderError, .http(status: 503, message: "down"))
+        }
+        XCTAssertEqual(transport.requests.get().count, 4)
+    }
+
+    func testClientErrorsAreNotRetried() async {
+        let transport = FakeTransport(status: 400, json: #"{"error":{"message":"bad"}}"#)
+        let p = AnthropicProvider(apiKey: "k", fullModel: "m", fastModel: "f", transport: transport)
+        _ = try? await p.complete(request())
+        XCTAssertEqual(transport.requests.get().count, 1)
+    }
+}
