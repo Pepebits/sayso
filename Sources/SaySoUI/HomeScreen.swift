@@ -134,7 +134,8 @@ struct HomeScreen: View {
 
     private var modulesSummary: String {
         let ready = modules.filter(\.ok).count
-        let pending = modules.count - ready
+        // Plugins y tareas son extras: sin ellos el agente funciona igual.
+        let pending = modules.filter { !$0.ok && !$0.optional }.count
         return pending == 0 ? tr("%@ listos", "\(ready)") : tr("%@ listos / %@ por configurar", "\(ready)", "\(pending)")
     }
 
@@ -165,13 +166,13 @@ struct HomeScreen: View {
                        subtitle: activePlugins.isEmpty ? tr("Ninguno añadido")
                            : activePlugins.prefix(3).map { tr($0.config.name) }.joined(separator: ", "),
                        badge: tr("%@ activos", "\(activePlugins.count)"),
-                       status: activePlugins.isEmpty ? "Sin plugins" : "Disponibles", ok: !activePlugins.isEmpty,
-                       link: "Gestionar"),
+                       status: activePlugins.isEmpty ? "Opcional" : "Disponibles", ok: !activePlugins.isEmpty,
+                       link: "Gestionar", optional: true),
             HomeModule(screen: .tareas, icon: "clock", title: "Tareas",
                        subtitle: activeTasks.first.map { $0.schedule.summary() } ?? tr("Nada programado"),
                        badge: "\(activeTasks.count)",
-                       status: activeTasks.isEmpty ? "Sin tareas" : "Programadas", ok: !activeTasks.isEmpty,
-                       link: "Ver"),
+                       status: activeTasks.isEmpty ? "Opcional" : "Programadas", ok: !activeTasks.isEmpty,
+                       link: "Ver", optional: true),
         ]
     }
 
@@ -200,6 +201,8 @@ struct HomeModule: Identifiable {
     /// Listo para usarse (cuadro relleno) o por configurar (contorno).
     var ok: Bool
     var link: String
+    /// Un extra: vacío no cuenta como «por configurar».
+    var optional = false
 }
 
 /// Tarjeta de módulo: icono y dato arriba, nombre y detalle, y abajo el estado con su enlace.

@@ -6,6 +6,24 @@ All notable changes to SaySo are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- /stop in the bot stops what the agent is doing; anything already done stays done
+- A voice note sent to the bot gets «🎙 …» with what was understood before the answer
+- While the agent works on a voice request, the pill says what it is doing («Searching the web»…)
+- If SaySo can't open its data at launch, the window says so, with Try again, Show folder and Create report, instead of empty screens
+
+### Changed
+
+- Dictation follows the app's language instead of always expecting Spanish
+- The first time you speak, the pill shows the speech model download (about 480 MB) instead of «Transcribing…» for minutes; the welcome guide warns about it
+- The welcome guide has a «Restart SaySo» button when a permission doesn't show as granted, and comes back to the same step
+- Home no longer counts Plugins and Tasks as «to set up» when empty: they are optional
+- When nothing was heard, the pill says «I didn't hear you» instead of closing silently
+- The pill uses green while listening, and the permission window no longer shows the red brand square
+- Errors say what was being done («Couldn't delete the task: …»), and saving something no longer hides an unrelated error
+- The agent picks better between a Mac reminder, a scheduled task and a scheduled Telegram message
+
 ## [0.4.2] — 2026-11-22
 
 ### Added

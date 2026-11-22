@@ -162,7 +162,9 @@ public struct SettingsRootView: View {
 
     public var body: some View {
         Group {
-            if model.showOnboarding {
+            if let databaseError = model.databaseError {
+                DatabaseErrorView(model: model, message: databaseError)
+            } else if model.showOnboarding {
                 OnboardingView(model: model, initialStep: Self.forcedOnboardingStep ?? .welcome)
             } else {
                 HStack(spacing: 0) {

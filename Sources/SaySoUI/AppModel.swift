@@ -66,6 +66,8 @@ public final class AppModel {
     public var systemPermissions: [SystemPermissionKind: Bool] = [:]
     /// Estado del modelo de transcripción («Descargando 40 %», «Listo»…); `nil` si no aplica.
     public var transcriberStatus: String?
+    /// La base de datos no se pudo abrir al arrancar: la ventana enseña solo el aviso.
+    public var databaseError: String?
 
     // Modelo
     public var accounts: [ProviderAccount] = []

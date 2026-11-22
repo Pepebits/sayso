@@ -171,7 +171,10 @@ final class AppController: AppActions {
             schedulerTimer?.tolerance = 5
             tickScheduler()
         } catch {
-            model.lastError = tr("No se pudo abrir la base de datos: %@", "\(error.localizedDescription)")
+            // Sin base de datos no funciona nada: en vez de una app a medias, una pantalla que lo
+            // dice y deja reintentar, ver la carpeta o preparar un informe.
+            model.databaseError = error.localizedDescription
+            model.log(.error, LogCategory.app, tr("No se pudo abrir la base de datos: %@", "\(error.localizedDescription)"))
         }
     }
 
@@ -429,8 +432,25 @@ final class AppController: AppActions {
         NSWorkspace.shared.activateFileViewerSelecting([logFile.url])
     }
 
-    private func attempt(_ work: () throws -> Void) {
-        do { try work(); model.lastError = nil } catch { model.lastError = error.localizedDescription }
+    /// Último error puesto por `attempt`: al salir bien otro intento solo se quita ese, no los
+    /// de otras partes de la app (bot, máquina Linux…).
+    private var attemptError: String?
+
+    /// Hace un cambio y, si falla, lo dice con el contexto delante («No se pudo guardar el cambio: …»).
+    private func attempt(_ context: String? = nil, _ work: () throws -> Void) {
+        do {
+            try work()
+            if let attemptError, model.lastError == attemptError { model.lastError = nil }
+            attemptError = nil
+        } catch {
+            let message = Self.attemptMessage(context ?? tr("No se pudo guardar el cambio"), error)
+            attemptError = message
+            model.lastError = message
+        }
+    }
+
+    static func attemptMessage(_ context: String, _ error: Error) -> String {
+        "\(context): \(error.localizedDescription)"
     }
 
     // MARK: - Dictado
@@ -451,7 +471,10 @@ final class AppController: AppActions {
                 self.hud.show(phase, transcript: self.liveTranscript)
                 self.speakIfNeeded(phase)
             },
-            onTranscriberStatus: { [weak self] status in self?.model.transcriberStatus = status })
+            onTranscriberStatus: { [weak self] status in
+                self?.model.transcriberStatus = status
+                self?.hud.modelStatus = status
+            })
         // Texto en vivo: se repinta la píldora con lo reconocido hasta el momento.
         dictation?.onPartial = { [weak self] text in
             guard let self else { return }
@@ -517,7 +540,14 @@ final class AppController: AppActions {
                 let answer = try await loop.respond(
                     to: text, chatID: "voz",
                     useFastModel: AgentLoop.prefersFastModel(for: text, store: services.store), origin: "voz",
-                    instructions: AgentPrompts.voice, maxTokens: 600)
+                    instructions: AgentPrompts.voice, maxTokens: 600,
+                    onStep: { step in
+                        // La píldora dice qué hace el agente («🔎 Buscando en la web») mientras piensa.
+                        Task { @MainActor in
+                            guard let self, case .agentThinking = self.model.dictationPhase else { return }
+                            self.hud.step = step
+                        }
+                    })
                 Timings.note("voz", ["preparar": prepared.timeIntervalSince(started),
                                      "modelo": Date().timeIntervalSince(prepared)],
                              detail: "\(loop.tools.count) herramientas")
@@ -1111,7 +1141,7 @@ final class AppController: AppActions {
     func addTask(instruction: String, schedule: TaskSchedule, recipients: [TaskRecipient], sendWithoutAsking: Bool) {
         let text = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        attempt {
+        attempt(tr("No se pudo crear la tarea")) {
             try store?.addTask(ScheduledTask(instruction: text, schedule: schedule,
                                              nextRun: schedule.next(after: Date()), recipients: recipients,
                                              sendWithoutAsking: sendWithoutAsking && !recipients.isEmpty))
@@ -1173,7 +1203,7 @@ final class AppController: AppActions {
     }
 
     func deleteTask(id: Int64) {
-        attempt { try store?.deleteTask(id: id) }
+        attempt(tr("No se pudo borrar la tarea")) { try store?.deleteTask(id: id) }
         refresh()
     }
 
@@ -1623,7 +1653,7 @@ final class AppController: AppActions {
     }
 
     func setOpenAtLogin(_ enabled: Bool) {
-        attempt { try LoginItem.set(enabled) }
+        attempt(tr("No se pudo cambiar «Abrir al iniciar sesión»")) { try LoginItem.set(enabled) }
         model.openAtLogin = LoginItem.isEnabled
     }
 
@@ -2058,7 +2088,7 @@ final class AppController: AppActions {
     // MARK: - Modelo
 
     private func saveAccounts() {
-        attempt {
+        attempt(tr("No se pudo guardar la cuenta de IA")) {
             try store?.setCodableSetting(model.accounts, for: SettingsKey.accounts)
             try store?.setSetting(model.activeAccountID?.uuidString, for: SettingsKey.activeAccount)
         }
@@ -2165,7 +2195,7 @@ final class AppController: AppActions {
 
     func disconnectTelegram() {
         stopTelegram()
-        attempt {
+        attempt(tr("No se pudo quitar el bot")) {
             try vault.removeValue(for: KeychainName.telegramBotToken)
             // Sin token, el emparejamiento deja de tener sentido: otro bot exige emparejar de nuevo.
             try store?.setSetting(nil, for: SettingsKey.telegramOwnerID)
@@ -2416,7 +2446,7 @@ final class AppController: AppActions {
             self.telegramUserGeneration += 1
             self.telegramUser.session = nil
             self.telegramUser.ready = false
-            self.attempt {
+            self.attempt(tr("No se pudo cerrar la sesión de Telegram")) {
                 try self.vault.removeValue(for: KeychainName.telegramAPIHash)
                 try self.vault.removeValue(for: KeychainName.tdlibDatabaseKey)
                 try self.store?.setSetting(nil, for: SettingsKey.telegramAPIID)
@@ -2509,7 +2539,7 @@ final class AppController: AppActions {
     }
 
     func clearActivity(scope: String) {
-        attempt { try store?.clearActivity(scope: scope) }
+        attempt(tr("No se pudo vaciar el registro")) { try store?.clearActivity(scope: scope) }
         activityLimits[scope] = nil
         refresh()
     }
@@ -2527,7 +2557,7 @@ final class AppController: AppActions {
     func storeSecret(name: String, value: String, reason: String) {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, !value.isEmpty else { return }
-        attempt {
+        attempt(tr("No se pudo guardar el secreto")) {
             try vault.setValue(value, for: KeychainName.workSecret(name))
             let existing = try store?.secrets().first { $0.name == name }
             try store?.upsertSecret(SecretMeta(name: name, reason: reason.isEmpty ? (existing?.reason ?? "") : reason,
@@ -2539,7 +2569,7 @@ final class AppController: AppActions {
     }
 
     func forgetSecret(name: String) {
-        attempt {
+        attempt(tr("No se pudo olvidar el secreto")) {
             try vault.removeValue(for: KeychainName.workSecret(name))
             try store?.deleteSecret(name: name)
         }
@@ -2557,14 +2587,14 @@ final class AppController: AppActions {
     func addNote(_ text: String, kind: MemoryNote.Kind) {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        attempt { try store?.addNote(MemoryNote(text: text, source: "usuario", kind: kind)) }
+        attempt(tr("No se pudo guardar la nota")) { try store?.addNote(MemoryNote(text: text, source: "usuario", kind: kind)) }
         refresh()
     }
 
     func updateNote(id: Int64, text: String, kind: MemoryNote.Kind) {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, let store else { return }
-        attempt {
+        attempt(tr("No se pudo guardar la nota")) {
             try store.updateNoteText(text, id: id)
             try store.setNoteKind(kind, id: id)
         }
@@ -2687,13 +2717,13 @@ final class AppController: AppActions {
 
     func newConversation(chatID: String) {
         guard let store else { return }
-        attempt { try NewConversationTool.reset(chatID: chatID, store: store) }
+        attempt(tr("No se pudo empezar una conversación nueva")) { try NewConversationTool.reset(chatID: chatID, store: store) }
         model.log(.info, LogCategory.app, tr("Conversación nueva: historial borrado"))
         model.contexts = Self.contexts(from: store)
     }
 
     func forgetNote(id: Int64) {
-        attempt { try store?.deleteNote(id: id) }
+        attempt(tr("No se pudo borrar la nota")) { try store?.deleteNote(id: id) }
         refresh()
     }
 }

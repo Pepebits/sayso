@@ -66,9 +66,19 @@ struct OnboardingView: View {
     @State private var token = ""
     @AccessibilityFocusState private var titleFocused: Bool
 
+    /// Paso al que volver tras «Reiniciar SaySo» desde la guía.
+    static let resumeKey = "onboarding.resumeStep"
+
     init(model: AppModel, initialStep: OnboardingStep = .welcome) {
         self.model = model
-        _step = State(initialValue: initialStep)
+        var start = initialStep
+        let defaults = UserDefaults.standard
+        if initialStep == .welcome, let saved = defaults.object(forKey: Self.resumeKey) as? Int,
+           let resumed = OnboardingStep(rawValue: saved) {
+            start = resumed
+        }
+        defaults.removeObject(forKey: Self.resumeKey)
+        _step = State(initialValue: start)
     }
 
     var body: some View {
@@ -205,8 +215,9 @@ struct OnboardingView: View {
     }
 
     private var permissions: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.l) {
         SettingsSection("Para el dictado",
-                        footer: "macOS abre Ajustes del Sistema para algunos permisos. Si SaySo no los detecta al volver, ciérralo y ábrelo de nuevo.") {
+                        footer: "macOS abre Ajustes del Sistema para algunos permisos. Si al volver no sale como concedido, reinicia SaySo.") {
             SettingsCard {
                 let kinds = OnboardingStep.neededPermissions(model)
                 ForEach(Array(kinds.enumerated()), id: \.element) { index, kind in
@@ -222,6 +233,25 @@ struct OnboardingView: View {
                         }
                     }
                 }
+                // macOS a veces no avisa a la app de un permiso recién dado: reiniciar lo resuelve.
+                if OnboardingStep.neededPermissions(model).contains(where: { model.systemPermissions[$0] != true }) {
+                    CardDivider()
+                    SettingRow(icon: "arrow.clockwise", title: "¿Ya lo diste y no sale?",
+                               detail: "SaySo se cierra y se vuelve a abrir en este paso.") {
+                        BlockButton("Reiniciar SaySo", systemImage: "arrow.clockwise", compact: true) {
+                            UserDefaults.standard.set(OnboardingStep.permissions.rawValue, forKey: Self.resumeKey)
+                            model.actions?.relaunch()
+                        }
+                    }
+                }
+            }
+        }
+            // La primera vez que se habla se descarga Whisper: avisarlo evita creer que se ha colgado.
+            if model.dictation.engine == .whisper {
+                InlineNote(model.transcriberStatus.map { tr("Modelo de voz: %@", tr($0)) }
+                           ?? tr("La primera vez que hables, SaySo descarga el modelo de voz (unos 480 MB). La píldora enseña el progreso."),
+                           systemImage: "arrow.down.circle")
+                    .padding(.horizontal, 2)
             }
         }
     }
