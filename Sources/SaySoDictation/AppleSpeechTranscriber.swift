@@ -25,7 +25,10 @@ public final class AppleSpeechTranscriber: Transcriber {
                            vocabulary: [String]) async throws -> String {
         guard SFSpeechRecognizer.authorizationStatus() == .authorized else { throw AppleSpeechError.notAuthorized }
         let locale = language.map { Locale(identifier: $0) } ?? Locale.current
-        guard let recognizer = SFSpeechRecognizer(locale: locale), recognizer.isAvailable else {
+        // Apple no reconoce gallego: el español es lo más cercano (Whisper sí lo entiende).
+        let fallback = locale.language.languageCode?.identifier == "gl" ? Locale(identifier: "es-ES") : nil
+        guard let recognizer = SFSpeechRecognizer(locale: locale) ?? fallback.flatMap({ SFSpeechRecognizer(locale: $0) }),
+              recognizer.isAvailable else {
             throw AppleSpeechError.unavailable(locale.identifier)
         }
         guard !samples.isEmpty, sampleRate > 0,

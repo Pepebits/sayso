@@ -121,6 +121,7 @@ final class DictationControllerTests: XCTestCase {
         var timing = DictationController.Timing()
         timing.correctionTimeout = correctionTimeout
         timing.failureDisplay = 0.05
+        timing.noticeDisplay = 0.05
         let controller = DictationController(
             settings: settings, corrector: corrector,
             hotkey: hotkey, recorder: recorder,
@@ -510,6 +511,25 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertEqual(phases.last, .idle)
     }
 
+    func testSaysItDidNotHearAnythingInsteadOfGoingQuietlyIdle() async {
+        let controller = makeController(transcriber: FakeTranscriber(text: "   "))
+        hotkey.send(.startListening)
+        hotkey.send(.stopAndTranscribe)
+        await waitFor { self.phases.contains(.notice(tr("No te he oído"))) }
+        XCTAssertTrue(phases.contains(.notice(tr("No te he oído"))))
+        // No es un error y se quita solo.
+        XCTAssertFalse(phases.contains { if case .failed = $0 { return true }; return false })
+        await waitFor { self.finishedIdle }
+        XCTAssertEqual(controller.phase, .idle)
+
+        // Un toque demasiado corto no avisa: suele ser sin querer.
+        phases = []
+        recorder.samples = [Float](repeating: 0, count: 3_000)
+        hotkey.send(.startListening)
+        hotkey.send(.stopAndTranscribe)
+        XCTAssertFalse(phases.contains { if case .notice = $0 { return true }; return false })
+    }
+
     // «Corregir con IA» solo toca el «Dictar texto» de la app: lo que va al agente no se corrige.
 
     /// Dicta con el botón de la app; el texto final queda en `inserter.inserted`.
@@ -626,7 +646,20 @@ final class DictationControllerTests: XCTestCase {
         await waitFor { self.finishedIdle }
         XCTAssertEqual(engines, [.apple])
         XCTAssertEqual(transcriber.calls.count, 1)
-        if let call = transcriber.calls.first { XCTAssertNil(call.language) }
+        // Sin idioma elegido se habla en el de la app (en los tests, español).
+        if let call = transcriber.calls.first { XCTAssertEqual(call.language, "es-ES") }
+    }
+
+    func testDictationLanguageFollowsTheAppUnlessChosen() throws {
+        // Hasta la 0.4.2 se guardaba siempre «es-ES» sin que nadie lo eligiera: ya no fija el idioma.
+        let old = try JSONDecoder().decode(DictationSettings.self, from: Data(#"{"language":"es-ES"}"#.utf8))
+        XCTAssertNil(old.language)
+        let chosen = try JSONDecoder().decode(DictationSettings.self, from: Data(#"{"language":"en-GB"}"#.utf8))
+        XCTAssertEqual(chosen.spokenLanguage, "en-GB")
+        XCTAssertNil(DictationSettings().language)
+        XCTAssertEqual(DictationSettings.spokenLanguage(forApp: "gl"), "gl-ES")
+        XCTAssertEqual(DictationSettings.spokenLanguage(forApp: "fr"), "fr-FR")
+        XCTAssertEqual(DictationSettings.spokenLanguage(forApp: "xx"), "es-ES")
     }
 
     func testUpdateSettings() throws {

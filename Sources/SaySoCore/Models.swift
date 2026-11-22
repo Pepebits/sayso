@@ -195,7 +195,7 @@ public struct DictationSettings: Hashable, Codable, Sendable {
     public var side: OptionKeySide
     public var aiCorrection: Bool
     public var engine: TranscriberEngine
-    /// Código BCP-47 («es-ES»); `nil` para detección automática.
+    /// Código BCP-47 («es-ES») elegido a mano; `nil` sigue el idioma de la app (`spokenLanguage`).
     public var language: String?
     public var voiceMode: VoiceMode
     /// El agente lee su respuesta en voz alta.
@@ -208,7 +208,7 @@ public struct DictationSettings: Hashable, Codable, Sendable {
     public var replacements: [TextReplacement]
 
     public init(enabled: Bool = true, side: OptionKeySide = .any, aiCorrection: Bool = false,
-                engine: TranscriberEngine = .whisper, language: String? = "es-ES",
+                engine: TranscriberEngine = .whisper, language: String? = nil,
                 voiceMode: VoiceMode = .agent, speakReplies: Bool = true, shortcut: DictationShortcut = .option,
                 vocabulary: [String] = [], replacements: [TextReplacement] = []) {
         self.shortcut = shortcut
@@ -221,6 +221,17 @@ public struct DictationSettings: Hashable, Codable, Sendable {
         self.language = language
         self.voiceMode = voiceMode
         self.speakReplies = speakReplies
+    }
+
+    /// Idioma en el que se habla: el elegido o, si no, el de la app («gl» → «gl-ES»).
+    public var spokenLanguage: String {
+        if let language, !language.isEmpty { return language }
+        return Self.spokenLanguage(forApp: L10n.languageCode)
+    }
+
+    /// Código de voz para un idioma de la interfaz: «gl» → «gl-ES», «en» → «en-GB».
+    public static func spokenLanguage(forApp code: String) -> String {
+        (L10n.regions[code] ?? "es_ES").replacingOccurrences(of: "_", with: "-")
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -236,7 +247,9 @@ public struct DictationSettings: Hashable, Codable, Sendable {
         side = try c.decodeIfPresent(OptionKeySide.self, forKey: .side) ?? .any
         aiCorrection = try c.decodeIfPresent(Bool.self, forKey: .aiCorrection) ?? false
         engine = try c.decodeIfPresent(TranscriberEngine.self, forKey: .engine) ?? .whisper
-        language = try c.decodeIfPresent(String.self, forKey: .language)
+        // Hasta la 0.4.2 se guardaba siempre «es-ES», que nadie podía cambiar: no era una elección.
+        let stored = try c.decodeIfPresent(String.self, forKey: .language)
+        language = stored == "es-ES" ? nil : stored
         speakReplies = try c.decodeIfPresent(Bool.self, forKey: .speakReplies) ?? true
         vocabulary = try c.decodeIfPresent([String].self, forKey: .vocabulary) ?? []
         replacements = try c.decodeIfPresent([TextReplacement].self, forKey: .replacements) ?? []
@@ -282,6 +295,8 @@ public enum DictationPhase: Hashable, Sendable {
     /// «Corregir con IA» está repasando el texto.
     case correcting
     case failed(String)
+    /// Aviso breve que no es un error («No te he oído»); se quita solo.
+    case notice(String)
     /// El usuario le está hablando al agente (no dicta).
     case agentListening(level: Float, handsFree: Bool)
     /// El agente trabaja en lo que se le ha dicho; lleva la frase transcrita.

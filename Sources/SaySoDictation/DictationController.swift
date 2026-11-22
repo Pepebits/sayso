@@ -9,6 +9,7 @@ public final class DictationController {
         var minimumDuration: TimeInterval = 0.3
         var correctionTimeout: TimeInterval = 4
         var failureDisplay: TimeInterval = 3
+        var noticeDisplay: TimeInterval = 1.8
         var minimumReplyDisplay: TimeInterval = 6
         var partialInterval: TimeInterval = 0.9
         /// En conversación: nivel a partir del cual se entiende que el usuario está hablando.
@@ -175,7 +176,7 @@ public final class DictationController {
     /// idioma del dictado.
     public func transcribe(samples: [Float]) async throws -> String {
         let text = try await transcriber(for: settings.engine)
-            .transcribe(samples: samples, sampleRate: AudioMath.targetSampleRate, language: settings.language,
+            .transcribe(samples: samples, sampleRate: AudioMath.targetSampleRate, language: settings.spokenLanguage,
                         vocabulary: settings.vocabulary)
         return DictationVocabulary.apply(text, vocabulary: settings.vocabulary, replacements: settings.replacements)
     }
@@ -296,7 +297,7 @@ public final class DictationController {
         partialTask?.cancel()
         let generation = recordingGeneration
         let transcriber = transcriber(for: settings.engine)
-        let language = settings.language
+        let language = settings.spokenLanguage
         let interval = timing.partialInterval
         partialTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -361,7 +362,7 @@ public final class DictationController {
         busy = true
         setPhase(.transcribing)
         let transcriber = transcriber(for: settings.engine)
-        let language = settings.language
+        let language = settings.spokenLanguage
         let vocabulary = settings.vocabulary
         let replacements = settings.replacements
         let forAgent = recordingForAgent
@@ -402,7 +403,8 @@ public final class DictationController {
     private func deliver(_ text: String, manual: Bool = false) {
         busy = false
         guard !text.isEmpty else {
-            setPhase(.idle)
+            // Se grabó, pero no se reconoció nada: mejor decirlo que volver a reposo sin más.
+            notice(tr("No te he oído"))
             return
         }
         // Solo llega aquí el «Dictar texto» de la app: el texto va al portapapeles, nunca al cursor.
@@ -434,7 +436,7 @@ public final class DictationController {
         guard !text.isEmpty, let agentHandler else {
             busy = false
             setConversing(false)
-            setPhase(.idle)
+            if text.isEmpty { notice(tr("No te he oído")) } else { setPhase(.idle) }
             return
         }
         if conversing { onConversationTurn?(true, text) }
@@ -511,6 +513,20 @@ public final class DictationController {
 
     private func fail(_ error: Error) {
         fail(message: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+    }
+
+    /// Aviso que no es un error, como «No te he oído»: se quita solo, igual que un fallo, pero
+    /// no se apunta como error.
+    private func notice(_ message: String) {
+        failureGeneration += 1
+        let generation = failureGeneration
+        setPhase(.notice(message))
+        DispatchQueue.main.asyncAfter(deadline: .now() + timing.noticeDisplay) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.failureGeneration == generation, case .notice = self.phase else { return }
+                self.setPhase(.idle)
+            }
+        }
     }
 
     private func fail(message: String) {

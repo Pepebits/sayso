@@ -11,6 +11,10 @@ public final class DictationHUDState: ObservableObject {
     @Published public var transcript = ""
     /// El atajo, tal como se dibuja en la píldora.
     @Published public var keySymbol = "⌥"
+    /// Qué hace el agente ahora mismo («🔎 Buscando en la web»), mientras piensa.
+    @Published public var step: String?
+    /// Estado del modelo de voz mientras se descarga o carga («Descargando modelo… 34 %»).
+    @Published public var modelStatus: String?
     public init() {}
 }
 
@@ -23,7 +27,8 @@ public struct DictationHUDStage: View {
     public init(state: DictationHUDState) { self.state = state }
 
     public var body: some View {
-        DictationHUDView(phase: state.phase, transcript: state.transcript, keySymbol: state.keySymbol)
+        DictationHUDView(phase: state.phase, transcript: state.transcript, keySymbol: state.keySymbol,
+                         step: state.step, modelStatus: state.modelStatus)
             .frame(width: Self.size.width, height: Self.size.height, alignment: .bottom)
     }
 }
@@ -33,12 +38,17 @@ public struct DictationHUDView: View {
     /// Lo reconocido hasta ahora: en vivo mientras se habla y definitivo al terminar.
     var transcript: String
     var keySymbol: String
+    var step: String?
+    var modelStatus: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    public init(phase: DictationPhase, transcript: String = "", keySymbol: String = "⌥") {
+    public init(phase: DictationPhase, transcript: String = "", keySymbol: String = "⌥",
+                step: String? = nil, modelStatus: String? = nil) {
         self.phase = phase
         self.transcript = transcript
         self.keySymbol = keySymbol
+        self.step = step
+        self.modelStatus = modelStatus
     }
 
     public var body: some View {
@@ -103,7 +113,7 @@ public struct DictationHUDView: View {
         case let .agentThinking(question): return question
         case .listening, .agentListening, .transcribing, .correcting:
             return transcript.isEmpty ? nil : transcript
-        case .idle, .failed: return nil
+        case .idle, .failed, .notice: return nil
         }
     }
 
@@ -113,10 +123,11 @@ public struct DictationHUDView: View {
         case let .agentListening(level, handsFree):
             Waveform(level: CGFloat(level), animated: !reduceMotion)
             label(handsFree ? "Agente · manos libres" : "Te escucha el agente")
-            Bit(size: 8)
+            Bit(size: 8, tone: .running)
         case .agentThinking:
             ProgressView().controlSize(.small).tint(Theme.fixedBone)
-            label("El agente está en ello…")
+            // El paso en curso, si lo hay, dice qué hace en vez de un «en ello» genérico.
+            label(step ?? "El agente está en ello…", translate: step == nil)
         case .agentReply:
             Bit(size: 8, tone: .running)
             label("Agente")
@@ -125,13 +136,20 @@ public struct DictationHUDView: View {
         case let .listening(level, handsFree):
             Waveform(level: CGFloat(level), animated: !reduceMotion)
             label(handsFree ? "Manos libres" : "Escuchando")
-            Bit(size: 8)
+            Bit(size: 8, tone: .running)
         case .transcribing:
             Waveform(level: 0, animated: false)
-            label("Transcribiendo…")
+            // La primera vez el modelo se descarga (~480 MB): mejor decirlo que «transcribiendo» minutos.
+            label(modelStatus ?? tr("Transcribiendo…"), translate: false)
         case .correcting:
             Waveform(level: 0, animated: false)
             label("Corrigiendo")
+        case let .notice(message):
+            Image(systemName: "ear")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Theme.fixedBone)
+                .accessibilityHidden(true)
+            label(message, translate: false)
         case let .failed(message):
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 11, weight: .bold))
@@ -145,8 +163,8 @@ public struct DictationHUDView: View {
         }
     }
 
-    private func label(_ text: String, dimmed: Bool = false) -> some View {
-        Text(tr(text))
+    private func label(_ text: String, dimmed: Bool = false, translate: Bool = true) -> some View {
+        Text(verbatim: translate ? tr(text) : text)
             .font(Theme.text(12.5, weight: .semibold))
             .foregroundStyle(Theme.fixedBone.opacity(dimmed ? 0.6 : 1))
             .lineLimit(1)
@@ -155,11 +173,14 @@ public struct DictationHUDView: View {
     private var accessibilityText: String {
         switch phase {
         case .agentListening: return tr("Te escucha el agente")
-        case let .agentThinking(question): return tr("El agente está trabajando en: %@", question)
+        case let .agentThinking(question):
+            if let step { return tr("El agente está trabajando en: %@", question) + ". " + step }
+            return tr("El agente está trabajando en: %@", question)
         case let .agentReply(answer): return tr("Respuesta del agente: %@", answer)
         case .idle: return "Dictado en espera"
         case let .listening(_, handsFree): return handsFree ? "Dictado manos libres" : "Escuchando"
-        case .transcribing: return "Transcribiendo"
+        case .transcribing: return modelStatus ?? tr("Transcribiendo")
+        case let .notice(message): return message
         case .correcting: return "Corrigiendo"
         case let .failed(message): return tr("Error de dictado: %@", tr(message))
         }

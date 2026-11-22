@@ -18,8 +18,21 @@ final class DictationHUD {
         set { state.keySymbol = newValue }
     }
 
+    /// Qué hace el agente mientras piensa; se borra al cambiar de fase.
+    var step: String? {
+        get { state.step }
+        set { state.step = newValue }
+    }
+
+    /// Descarga o carga del modelo de voz; `nil` cuando está listo.
+    var modelStatus: String? {
+        get { state.modelStatus }
+        set { state.modelStatus = newValue }
+    }
+
     func show(_ phase: DictationPhase, transcript: String = "") {
         if case .idle = phase { return hide() }
+        if case .agentThinking = phase {} else { state.step = nil }
         state.phase = phase
         state.transcript = transcript
         let panel = self.panel ?? makePanel()
@@ -40,6 +53,7 @@ final class DictationHUD {
         panel?.orderOut(nil)
         state.phase = .idle
         state.transcript = ""
+        state.step = nil
     }
 
     private func makePanel() -> NSPanel {

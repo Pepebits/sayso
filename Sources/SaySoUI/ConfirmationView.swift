@@ -53,7 +53,6 @@ public struct ConfirmationView: View {
                         .accessibilityAddTraits(.isHeader)
                 }
                 Spacer(minLength: 0)
-                Bit(size: 9)
             }
 
             if let guardReason {
