@@ -78,7 +78,12 @@ public struct MacReminderTool: AgentTool {
     let runner: MacScriptRunning
     public init(runner: MacScriptRunning) { self.runner = runner }
     public var name: String { "mac_reminder" }
-    public var description: String { "Añade un recordatorio en la app Recordatorios del Mac." }
+    public var description: String {
+        "Añade un recordatorio en la app Recordatorios del Mac (se sincroniza con el iPhone y avisa allí). " +
+        "Úsala cuando el usuario quiere un recordatorio para sí mismo («recuérdame llamar a las cinco»). " +
+        "Para algo que tengas que hacer tú a una hora usa schedule_task; para un mensaje a otra persona a una hora, " +
+        "telegram_send_message con «send_at»."
+    }
     public var inputSchema: JSONValue {
         .objectSchema([
             "title": .property("string", "Texto del recordatorio"),

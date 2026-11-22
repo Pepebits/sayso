@@ -68,8 +68,10 @@ public struct ScheduleTaskTool: AgentTool {
     public var description: String {
         """
         Programa una tarea que ejecutarás tú mismo más adelante, sin el usuario delante, y cuyo resultado se le \
-        envía por Telegram. Úsala para recordatorios y encargos periódicos («envíame el calendario cada mañana a \
-        las 9»). Si el resultado es para otras personas o grupos («dale los buenos días a Lucas y a Anna cada \
+        envía por Telegram. Úsala para encargos que exigen que hagas algo a su hora, una vez o periódicos \
+        («envíame el calendario cada mañana a las 9», «mira el tiempo el viernes y dime si llueve»). Para un simple \
+        «recuérdame X» usa mac_reminder; para mandar un texto ya escrito a otra persona a una hora, \
+        telegram_send_message con «send_at» (sale aunque el Mac esté apagado). Si el resultado es para otras personas o grupos («dale los buenos días a Lucas y a Anna cada \
         lunes»), pon sus nombres o @alias en «recipients»: cada vez se les enviará el mismo mensaje desde la \
         cuenta del usuario y a él le llegará un aviso. Las horas son locales del Mac. Solo se ejecuta con el Mac despierto.
         """

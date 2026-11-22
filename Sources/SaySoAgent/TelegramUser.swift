@@ -463,7 +463,7 @@ public struct SendMessageTool: AgentTool {
     var ownBotID: @Sendable () -> Int64? = { nil }
     public var name: String { "telegram_send_message" }
     public var description: String {
-        "Envía un mensaje de texto desde la cuenta de Telegram del usuario. En «chat» pon directamente el nombre de la persona o del grupo, o su @alias: la herramienta lo busca en sus contactos y chats. Nunca le pidas un identificador al usuario. Si hay varias coincidencias te las devuelve para que se las ofrezcas. El usuario confirma el envío en el Mac salvo que haya cambiado la regla. Redacta el texto final exacto. Con «send_at» queda programado en Telegram y sale a esa hora aunque el Mac esté apagado."
+        "Envía un mensaje de texto desde la cuenta de Telegram del usuario. En «chat» pon directamente el nombre de la persona o del grupo, o su @alias: la herramienta lo busca en sus contactos y chats. Nunca le pidas un identificador al usuario. Si hay varias coincidencias te las devuelve para que se las ofrezcas. El usuario confirma el envío en el Mac salvo que haya cambiado la regla. Redacta el texto final exacto. Con «send_at» queda programado en Telegram y sale a esa hora aunque el Mac esté apagado: úsalo cuando el texto ya está decidido; si hay que preparar algo en ese momento, schedule_task, y para recordarle algo al propio usuario, mac_reminder."
     }
     public var inputSchema: JSONValue {
         .objectSchema([
