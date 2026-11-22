@@ -105,6 +105,7 @@ public actor TelegramBotService {
          ("pause", tr("Pausar las tareas programadas y los avisos")),
          ("resume", tr("Reanudar las tareas programadas y los avisos")),
          ("new", tr("Empezar una conversación nueva")),
+         ("stop", tr("Parar lo que el agente está haciendo")),
          ("help", tr("Qué puedo hacer y estos comandos"))]
     }
 
@@ -329,12 +330,28 @@ public actor TelegramBotService {
         chatQueues[chatID] = Task {
             await previous?.value
             await self.markBusy(chatID, true)
-            await self.process(update)
+            // En una tarea aparte para que /stop pueda cancelar este turno sin tocar la cola.
+            let turn = Task { await self.process(update) }
+            await self.setTurn(turn, for: chatID)
+            await turn.value
+            await self.setTurn(nil, for: chatID)
             await self.markBusy(chatID, false)
         }
     }
 
-    static let immediateCommands: Set<String> = ["status", "tasks", "pause", "resume", "help"]
+    static let immediateCommands: Set<String> = ["status", "tasks", "pause", "resume", "help", "stop"]
+    /// Turno en curso de cada chat, para /stop.
+    private var turns: [Int64: Task<Void, Never>] = [:]
+
+    private func setTurn(_ turn: Task<Void, Never>?, for chatID: Int64) { turns[chatID] = turn }
+
+    /// Cancela lo que el agente hace en este chat. Lo ya hecho (un mensaje enviado) no se deshace.
+    func stopTurn(in chatID: Int64) -> Bool {
+        guard let turn = turns[chatID] else { return false }
+        turn.cancel()
+        turns[chatID] = nil
+        return true
+    }
     private var busyChats: [Int64: Date] = [:]
     private var noticedChats: Set<Int64> = []
 
@@ -381,6 +398,11 @@ public actor TelegramBotService {
                     // Igual que «nueva conversación» con el agente: también la voz y el resumen.
                     try? NewConversationTool.reset(chatID: String(chatID), store: store)
                     await send(chatID, tr("Conversación nueva. He olvidado el historial de este chat (la memoria se mantiene)."))
+                    return
+                case "stop":
+                    let stopped = stopTurn(in: chatID)
+                    await send(chatID, stopped ? tr("Parado. Lo que ya estuviera hecho se queda hecho.")
+                                               : tr("No estaba haciendo nada."))
                     return
                 case "help":
                     let lines = Self.menu.map { "/\($0.command) — \($0.description)" }
@@ -488,10 +510,13 @@ public actor TelegramBotService {
                                                 onStep: { step in Task { await progress.add(step) } })
             typing.cancel()
             await progress.finish()
+            if Task.isCancelled { return } // parado con /stop mientras terminaba
             await send(chatID, answer, retries: 3)
         } catch {
             typing.cancel()
             await progress.finish()
+            // Parado con /stop: ya se ha contestado «Parado».
+            if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled { return }
             await send(chatID, tr("No he podido responder: %@", "\(error.localizedDescription)"), retries: 3)
         }
     }
@@ -518,6 +543,8 @@ public actor TelegramBotService {
             await send(chatID, tr("No he entendido la nota de voz."))
             return
         }
+        // Lo entendido va primero: si la transcripción falló, se ve antes de que el agente actúe.
+        await send(chatID, "🎙 " + String(text.prefix(3500)))
         await reply(to: text, chatID: chatID, forwarded: forwarded)
     }
 

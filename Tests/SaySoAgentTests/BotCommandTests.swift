@@ -50,6 +50,18 @@ final class BotCommandTests: XCTestCase {
         let body = try XCTUnwrap(helper.calls(t, "setMyCommands").first)
         XCTAssertEqual(body["scope"]?["type"]?.stringValue, "all_private_chats")
         let names = body["commands"]?.arrayValue?.compactMap { $0["command"]?.stringValue }
-        XCTAssertEqual(names, ["status", "tasks", "pause", "resume", "new", "help"])
+        XCTAssertEqual(names, ["status", "tasks", "pause", "resume", "new", "stop", "help"])
+    }
+
+    func testStopWithNothingRunningSaysSo() async throws {
+        let store = MemoryStore()
+        store.settings[SettingsKey.telegramOwnerID] = String(TelegramTests.owner)
+        let t = helper.botTransport()
+        let provider = FakeProvider([])
+        let service = helper.makeService(store: store, transport: t, provider: provider)
+        await service.process(try helper.privateText(from: TelegramTests.owner, "/stop"))
+        XCTAssertEqual(helper.calls(t, "sendMessage").last?["text"]?.stringValue, tr("No estaba haciendo nada."))
+        XCTAssertTrue(provider.requests.get().isEmpty)
+        XCTAssertTrue(TelegramBotService.immediateCommands.contains("stop"))
     }
 }

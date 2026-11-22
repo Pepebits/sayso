@@ -356,6 +356,8 @@ public final class AgentLoop: Sendable {
             }
         }
         for _ in 0..<maxIterations {
+            // /stop en el bot o Esc en la voz: no se empieza otro paso.
+            try Task.checkCancellation()
             let request = ModelRequest(model: model, system: system, messages: messages,
                                        tools: specs, maxTokens: maxTokens)
             let response = try await send(request)
@@ -408,6 +410,7 @@ public final class AgentLoop: Sendable {
                 continue
             }
             for call in calls {
+                try Task.checkCancellation()
                 onStep?(Self.stepLabel(call.name, call.input))
                 let (block, succeeded, images) = await GuardContext.$current.withValue(guardContext) {
                     await run(call, context: context, guard: &guardContext)

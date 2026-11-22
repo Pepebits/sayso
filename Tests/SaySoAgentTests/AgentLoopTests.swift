@@ -45,6 +45,24 @@ final class AgentLoopTests: XCTestCase {
         XCTAssertEqual(req.messages, [.user("antes"), .assistant("vale"), .user("ahora")])
     }
 
+    func testCancelledTurnStopsBeforeAskingTheModel() async throws {
+        // /stop en el bot o Esc en la voz cancelan la tarea: el bucle no empieza otro paso.
+        let provider = FakeProvider([.tool("echo", ["text": "x"]), .text("hecho")])
+        let loop = AgentLoop(provider: provider, tools: [FakeTool()], store: MemoryStore())
+        let task = Task {
+            try await Task.sleep(nanoseconds: 50_000_000)
+            return try await loop.respond(to: "haz algo", chatID: "1")
+        }
+        task.cancel()
+        do {
+            _ = try await task.value
+            XCTFail("Debería haberse cancelado")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
+        XCTAssertTrue(provider.requests.get().isEmpty)
+    }
+
     func testPermissionDeniedGoesBackToModel() async throws {
         let store = MemoryStore()
         let provider = FakeProvider([.tool("echo", ["text": "x"]), .text("No me dejan")])
