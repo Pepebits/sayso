@@ -74,6 +74,8 @@ public final class AppModel {
 
     // Modelo
     public var accounts: [ProviderAccount] = []
+    /// Resultado de probar cada cuenta (una petición mínima al modelo rápido).
+    public var accountChecks: [UUID: AccountCheck] = [:]
     public var activeAccountID: UUID?
     public var autoSpeed = true
 
@@ -81,6 +83,8 @@ public final class AppModel {
     /// Lo que ocupa SaySo en disco y memoria; `nil` hasta que se mide.
     public var resources: ResourceUsage?
     public var computerState: ComputerState = .notInstalled { didSet { logComputer(from: oldValue) } }
+    /// La descarga de Debian quedó a medias: «Instalar» sigue desde ahí.
+    public var computerPartialDownload = false
     public var computerStats: ComputerStats?
     /// Núcleos, memoria y disco de la máquina Linux para el siguiente arranque.
     public var computerResources = ComputerResources()
@@ -240,10 +244,14 @@ public protocol AppActions: AnyObject {
     func setAutoSpeed(_ enabled: Bool)
     /// Dice si el modelo de una cuenta ve imágenes (fotos de Telegram, imágenes de la máquina Linux).
     func setAccountVision(id: UUID, _ enabled: Bool)
+    /// Prueba la cuenta con una petición mínima: así «Lista» quiere decir que responde.
+    func testAccount(id: UUID)
 
     // Ordenador
     /// Descarga la imagen si falta y arranca la máquina.
     func startComputer()
+    /// Para la descarga de Debian; lo bajado se guarda.
+    func cancelComputerInstall()
     func stopComputer()
     func runComputerCommand(_ command: String)
     /// Cierra la sesión de consola (mata lo que esté corriendo) y vuelve a ~/sayso.
@@ -346,4 +354,11 @@ public enum UpdateState: Equatable, Sendable {
     /// Compilación de desarrollo o sin clave pública: no se actualiza sola.
     case unavailable
     case ready(automatic: Bool, lastCheck: Date?)
+}
+
+/// Estado de la prueba de una cuenta de IA.
+public enum AccountCheck: Equatable, Sendable {
+    case checking
+    case ok
+    case failed(String)
 }

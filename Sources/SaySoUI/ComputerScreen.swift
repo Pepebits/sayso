@@ -134,7 +134,7 @@ struct ComputerScreen: View {
             case .notInstalled:
                 SettingRow(icon: "shippingbox", title: "Debian 13 para el agente",
                            detail: "Descarga de unos 300 MB desde debian.org, verificada por hash. Usa 2 núcleos, 4 GB de memoria y hasta 16 GB de disco.") {
-                    BlockButton("Instalar", systemImage: "arrow.down", kind: .primary) { model.actions?.startComputer() }
+                    BlockButton(model.computerPartialDownload ? "Seguir descargando" : "Instalar", systemImage: "arrow.down", kind: .primary) { model.actions?.startComputer() }
                 }
             case let .preparing(text, progress):
                 VStack(alignment: .leading, spacing: Theme.Space.s) {
@@ -143,6 +143,10 @@ struct ComputerScreen: View {
                         Spacer()
                         if let progress {
                             Text(verbatim: "\(Int(progress * 100)) %").font(Theme.mono(12)).foregroundStyle(Theme.secondary)
+                        }
+                        if progress != nil {
+                            BlockButton("Cancelar", compact: true) { model.actions?.cancelComputerInstall() }
+                                .help(tr("Lo descargado se guarda: al volver a instalar, sigue donde se quedó."))
                         }
                     }
                     if let progress {

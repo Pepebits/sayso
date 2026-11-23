@@ -77,6 +77,7 @@ final class AppController: AppActions {
                 config: Self.vmConfig(resources),
                 onState: { [weak self] state in
                     self?.model.computerState = state
+                    self?.model.computerPartialDownload = self?.computer?.hasPartialDownload ?? false
                     if state != .running { self?.model.computerStats = nil }
                     // Tras arrancar con más disco, el mínimo para reducir sube.
                     if state == .running, let size = self?.computer?.files.diskSize { self?.model.computerDiskGB = Int(size >> 30) }
@@ -85,6 +86,7 @@ final class AppController: AppActions {
                 })
             self.computer = computer
             model.computerState = computer.state
+            model.computerPartialDownload = computer.hasPartialDownload
             model.computerResources = resources
             model.computerDiskGB = computer.files.diskSize.map { Int($0 >> 30) } ?? resources.diskGB
             desktopWindow.onClose = { [weak self] in self?.stopDesktopSession() }
@@ -134,6 +136,8 @@ final class AppController: AppActions {
             }
             reloadSecretCache()
             loadSettings()
+            // La cuenta activa se prueba al arrancar (unos pocos tokens): así «Funciona» es verdad.
+            if let active = model.activeAccountID { testAccount(id: active) }
             model.log(.info, LogCategory.dictation, "Permisos al arrancar: \(SystemPermissions.diagnosis())")
             // Después de cargar los ajustes, para que salga en el idioma elegido.
             let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.0"
@@ -820,6 +824,31 @@ final class AppController: AppActions {
                 // El motivo ya queda en el estado `.failed` que pinta la pantalla.
             }
         }
+    }
+
+    /// Guarda un archivo del agente en Descargas/SaySo, sin pisar otro con el mismo nombre, y lo
+    /// enseña en el Finder.
+    nonisolated static func saveToDownloads(_ data: Data, _ filename: String) async throws -> URL {
+        let fm = FileManager.default
+        let folder = try fm.url(for: .downloadsDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+            .appendingPathComponent("SaySo", isDirectory: true)
+        try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        let safe = (filename as NSString).lastPathComponent.replacingOccurrences(of: ":", with: "-")
+        let base = (safe as NSString).deletingPathExtension, ext = (safe as NSString).pathExtension
+        var url = folder.appendingPathComponent(safe.isEmpty ? "archivo" : safe)
+        var n = 2
+        while fm.fileExists(atPath: url.path) {
+            url = folder.appendingPathComponent(ext.isEmpty ? "\(base) \(n)" : "\(base) \(n).\(ext)")
+            n += 1
+        }
+        try data.write(to: url, options: .atomic)
+        let shown = url
+        await MainActor.run { NSWorkspace.shared.activateFileViewerSelecting([shown]) }
+        return url
+    }
+
+    func cancelComputerInstall() {
+        computer?.cancelInstall()
     }
 
     func stopComputer() {
@@ -2130,12 +2159,39 @@ final class AppController: AppActions {
         model.accounts.append(account)
         if model.activeAccountID == nil { model.activeAccountID = account.id }
         saveAccounts()
+        testAccount(id: account.id)
+    }
+
+    /// Una petición mínima al modelo rápido de la cuenta: comprueba clave, dirección y modelo.
+    /// No cuenta para el límite de gasto (son unos pocos tokens).
+    func testAccount(id: UUID) {
+        guard let account = model.accounts.first(where: { $0.id == id }) else { return }
+        model.accountChecks[id] = .checking
+        let vault = vault
+        Task { [weak self] in
+            let result: AccountCheck
+            do {
+                let provider = try ProviderFactory.make(account: account, vault: vault, transport: URLSessionTransport())
+                let model = account.fastModel.isEmpty ? provider.fullModel : provider.fastModel
+                _ = try await provider.complete(ModelRequest(model: model, system: "", messages: [.user("Di solo: ok")],
+                                                             maxTokens: 16))
+                result = .ok
+            } catch {
+                result = .failed((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+            }
+            guard let self, self.model.accounts.contains(where: { $0.id == id }) else { return }
+            self.model.accountChecks[id] = result
+            if case let .failed(message) = result {
+                self.model.log(.warning, LogCategory.app, tr("La cuenta «%@» no responde: %@", account.name, message))
+            }
+        }
     }
 
     func removeAccount(id: UUID) {
         guard let account = model.accounts.first(where: { $0.id == id }) else { return }
         if let key = account.keychainKey { try? vault.removeValue(for: key) }
         model.accounts.removeAll { $0.id == id }
+        model.accountChecks[id] = nil
         if model.activeAccountID == id { model.activeAccountID = model.accounts.first?.id }
         saveAccounts()
     }
@@ -2922,7 +2978,7 @@ final class AgentServices: Sendable {
         // Mandar archivos solo tiene sentido con ordenador del que sacarlos.
         if vmFiles.isInstalled {
             tools.append(SendFileTool(computer: computer, outbox: outbox, broker: broker, userAPI: userSession,
-                                      limiter: sendLimiter, ownBotID: ownBotID))
+                                      limiter: sendLimiter, ownBotID: ownBotID, saveOnMac: AppController.saveToDownloads))
         }
         // Los chats del usuario solo existen para el agente con la sesión iniciada.
         if let userSession {

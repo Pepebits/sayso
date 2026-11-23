@@ -18,6 +18,8 @@ public final class ComputerManager: NSObject, VZVirtualMachineDelegate {
 
     private var machine: VZVirtualMachine?
     private var startTask: Task<Void, Error>?
+    /// La descarga e instalación en curso, para poder cancelarla.
+    private var installTask: Task<Void, Error>?
     private let activity = ActivityClock()
     private var requestsInFlight = 0
     /// Apagado en curso. Una orden que llega entonces espera a que termine y vuelve a arrancar:
@@ -64,24 +66,40 @@ public final class ComputerManager: NSObject, VZVirtualMachineDelegate {
             try await task.value
         } catch {
             await tearDown()
-            state = .failed(error.localizedDescription)
+            // Cancelar la descarga no es un fallo: se vuelve a «sin instalar», con lo bajado guardado.
+            if (error as? VMImageError) == .cancelled || error is CancellationError, !files.isInstalled {
+                state = .notInstalled
+            } else {
+                state = .failed(error.localizedDescription)
+            }
             throw error
         }
     }
+
+    /// Para la descarga de la imagen; lo bajado se conserva y la próxima instalación sigue desde ahí.
+    public func cancelInstall() {
+        installTask?.cancel()
+    }
+
+    /// Hay una descarga de la imagen a medias.
+    public var hasPartialDownload: Bool { files.hasPartialDownload }
 
     private func performStart() async throws {
         if !files.isInstalled {
             state = .preparing("Descargando Debian", progress: 0)
             let files = self.files
             let config = self.config
-            try await Task.detached {
+            let install = Task.detached {
                 try await files.install(config: config) { text, fraction in
                     Task { @MainActor [weak self] in
                         guard let self, self.state.isBusy else { return }
                         self.state = .preparing(text, progress: fraction)
                     }
                 }
-            }.value
+            }
+            installTask = install
+            defer { installTask = nil }
+            try await install.value
         }
         state = .starting
         let files = self.files

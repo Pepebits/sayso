@@ -31,6 +31,8 @@ public struct VMBaseImage: Hashable, Sendable {
 
 public enum VMImageError: Error, LocalizedError, Equatable {
     case download(String)
+    /// Descarga parada a petición del usuario; lo bajado se conserva para seguir después.
+    case cancelled
     case hashMismatch
     case tool(String, Int32, String)
     case missingDisk
@@ -38,6 +40,7 @@ public enum VMImageError: Error, LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case let .download(reason): return tr("No se pudo descargar la imagen de Linux: %@", "\(reason)")
+        case .cancelled: return tr("Descarga cancelada. Al volver a instalar, sigue donde se quedó.")
         case .hashMismatch: return tr("La imagen descargada no coincide con el hash esperado y se ha descartado.")
         case let .tool(name, code, output): return tr("%@ falló (%@): %@", "\(name)", "\(code)", "\(output)")
         case .missingDisk: return tr("El archivo descargado no contenía un disco.")
@@ -59,6 +62,10 @@ public struct VMFiles: Sendable {
     public var consoleLog: URL { directory.appendingPathComponent("console.log") }
 
     public var isInstalled: Bool { FileManager.default.fileExists(atPath: disk.path) }
+    /// Lo necesario para seguir una descarga cortada (`URLSession` la reanuda desde ahí).
+    var resumeData: URL { directory.appendingPathComponent("download.resume") }
+    /// Hay una descarga a medias que se puede seguir.
+    public var hasPartialDownload: Bool { FileManager.default.fileExists(atPath: resumeData.path) }
 
     /// Descarga y prepara el disco si falta. `progress` recibe un texto y una fracción opcional.
     public func install(image: VMBaseImage = .debian13, config: VMConfig,
@@ -72,8 +79,16 @@ public struct VMFiles: Sendable {
         try? fm.removeItem(at: archive)
 
         progress("Descargando Debian", 0)
-        try await Downloader.download(image.url, to: archive, expectedSize: image.size) { fraction in
-            progress("Descargando Debian", fraction)
+        let resume = try? Data(contentsOf: resumeData)
+        do {
+            try await Downloader.download(image.url, resumeData: resume, to: archive, expectedSize: image.size) { fraction in
+                progress("Descargando Debian", fraction)
+            }
+            try? fm.removeItem(at: resumeData)
+        } catch let failure as DownloadFailure {
+            // Se guarda lo bajado: la próxima vez sigue donde se quedó en vez de empezar de cero.
+            if let data = failure.resumeData { try? data.write(to: resumeData) } else { try? fm.removeItem(at: resumeData) }
+            throw failure.error
         }
 
         progress("Verificando la descarga", nil)
@@ -160,7 +175,28 @@ public struct VMFiles: Sendable {
     }
 }
 
-/// Descarga a disco con progreso.
+/// Una descarga fallida o cancelada, con lo necesario para reanudarla.
+struct DownloadFailure: Error {
+    let error: VMImageError
+    let resumeData: Data?
+}
+
+extension VMImageError {
+    /// Un error de red en palabras claras, en vez del texto técnico de `URLError`.
+    static func download(_ error: URLError) -> VMImageError {
+        switch error.code {
+        case .cancelled: return .cancelled
+        case .notConnectedToInternet: return .download(tr("no hay conexión a internet. Al volver a instalar, sigue donde se quedó."))
+        case .networkConnectionLost, .timedOut:
+            return .download(tr("se cortó la conexión. Al volver a instalar, sigue donde se quedó."))
+        case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed:
+            return .download(tr("no se puede llegar a debian.org. Revisa la conexión o inténtalo más tarde."))
+        default: return .download(error.localizedDescription)
+        }
+    }
+}
+
+/// Descarga a disco con progreso; se puede reanudar y cancelar guardando lo bajado.
 private final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
     private let destination: URL
     private let expectedSize: Int64
@@ -175,19 +211,20 @@ private final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked
         self.onProgress = onProgress
     }
 
-    static func download(_ url: URL, to destination: URL, expectedSize: Int64,
+    static func download(_ url: URL, resumeData: Data?, to destination: URL, expectedSize: Int64,
                          onProgress: @escaping @Sendable (Double) -> Void) async throws {
         let delegate = Downloader(destination: destination, expectedSize: expectedSize, onProgress: onProgress)
         let session = URLSession(configuration: .ephemeral, delegate: delegate, delegateQueue: nil)
         defer { session.finishTasksAndInvalidate() }
-        let task = session.downloadTask(with: url)
+        let task = resumeData.map { session.downloadTask(withResumeData: $0) } ?? session.downloadTask(with: url)
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 delegate.continuation = continuation
                 task.resume()
             }
         } onCancel: {
-            task.cancel()
+            // Cancelar guarda lo bajado: llega a `didCompleteWithError` con los datos para reanudar.
+            task.cancel(byProducingResumeData: { _ in })
         }
     }
 
@@ -213,7 +250,10 @@ private final class Downloader: NSObject, URLSessionDownloadDelegate, @unchecked
         let continuation = self.continuation
         self.continuation = nil
         if let error {
-            continuation?.resume(throwing: VMImageError.download(error.localizedDescription))
+            let urlError = error as? URLError
+            let resume = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data
+            let reason = urlError.map(VMImageError.download) ?? .download(error.localizedDescription)
+            continuation?.resume(throwing: DownloadFailure(error: reason, resumeData: resume))
         } else if let moveError {
             continuation?.resume(throwing: moveError)
         } else {

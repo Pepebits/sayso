@@ -262,7 +262,13 @@ struct OnboardingView: View {
                 if let active = model.activeAccount {
                     SettingRow(icon: "square.stack.3d.up", title: active.name,
                                detail: active.fullModel.isEmpty ? active.kind.title : active.fullModel) {
-                        StatusTag("Lista", kind: .active)
+                        AccountCheckTag(check: model.accountChecks[active.id])
+                    }
+                    if case let .failed(message) = model.accountChecks[active.id] {
+                        CardDivider()
+                        SettingRow(icon: "exclamationmark.triangle", title: "No responde", detail: message) {
+                            BlockButton("Probar otra vez", systemImage: "arrow.clockwise") { model.actions?.testAccount(id: active.id) }
+                        }
                     }
                 } else {
                     SettingRow(icon: "square.stack.3d.up", title: "Añade una cuenta",
@@ -385,7 +391,7 @@ struct OnboardingView: View {
                 case .notInstalled:
                     SettingRow(icon: "shippingbox", title: "Debian 13 para el agente",
                                detail: "Descarga unos 300 MB, verificados por hash. Puedes instalarla más tarde desde Ordenador.") {
-                        BlockButton("Instalar", systemImage: "arrow.down", kind: .primary) { model.actions?.startComputer() }
+                        BlockButton(model.computerPartialDownload ? "Seguir descargando" : "Instalar", systemImage: "arrow.down", kind: .primary) { model.actions?.startComputer() }
                     }
                 case let .preparing(text, progress):
                     VStack(alignment: .leading, spacing: Theme.Space.s) {
@@ -394,6 +400,10 @@ struct OnboardingView: View {
                             Spacer()
                             if let progress {
                                 Text(verbatim: "\(Int(progress * 100)) %").font(Theme.mono(12)).foregroundStyle(Theme.secondary)
+                            }
+                            if progress != nil {
+                                BlockButton("Cancelar", compact: true) { model.actions?.cancelComputerInstall() }
+                                    .help(tr("Lo descargado se guarda: al volver a instalar, sigue donde se quedó."))
                             }
                         }
                         if let progress { BlockProgress(value: progress, label: text) } else { ProgressView().controlSize(.small) }

@@ -33,11 +33,13 @@ final class PreviewActions: AppActions {
     }
     func removeAccount(id: UUID) { model.accounts.removeAll { $0.id == id } }
     func selectAccount(id: UUID) { model.activeAccountID = id }
+    func testAccount(id: UUID) { model.accountChecks[id] = .ok }
     func setAccountVision(id: UUID, _ enabled: Bool) {
         if let i = model.accounts.firstIndex(where: { $0.id == id }) { model.accounts[i].vision = enabled }
     }
     func setAutoSpeed(_ enabled: Bool) { model.autoSpeed = enabled }
     func startComputer() { model.computerState = .running }
+    func cancelComputerInstall() { model.computerState = .notInstalled }
     func stopComputer() { model.computerState = .stopped }
     func runComputerCommand(_ command: String) {
         model.terminal.append(TerminalEntry(command: command, output: "ok", exitCode: 0))

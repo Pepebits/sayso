@@ -90,7 +90,7 @@ struct ModelScreen: View {
                                 .tracking(-0.3)
                                 .foregroundStyle(Theme.ink)
                                 .lineLimit(1)
-                            StatusTag("Activa", kind: .active)
+                            AccountCheckTag(check: model.accountChecks[active.id])
                         }
                         Text(verbatim: host(active))
                             .font(Theme.mono(11.5))
@@ -108,6 +108,19 @@ struct ModelScreen: View {
                 .frame(maxWidth: .infinity)
             }
             .padding(Theme.Space.l)
+            if case let .failed(message) = model.accountChecks[active.id] {
+                CardDivider()
+                InlineNote(tr("No responde: %@", message), systemImage: "exclamationmark.triangle")
+                    .padding(Theme.Space.m)
+            }
+            CardDivider()
+            SettingRow(title: "Probar la cuenta",
+                       detail: "Una petición mínima comprueba la clave, la dirección y el modelo rápido. Se hace sola al añadir la cuenta.") {
+                BlockButton("Probar", systemImage: "checkmark.circle", compact: true) {
+                    model.actions?.testAccount(id: active.id)
+                }
+                .disabled(model.accountChecks[active.id] == .checking)
+            }
             CardDivider()
             SettingRow(title: "Velocidad automática",
                        detail: "Usa el modelo rápido para los mensajes cortos y el completo para los largos. La voz usa siempre el rápido.") {
@@ -352,5 +365,19 @@ struct AddAccountSheet: View {
         onAdd(account, key)
         apiKey = ""
         dismiss()
+    }
+}
+
+/// Estado de una cuenta de IA: «Activa» solo cuando ha respondido a la prueba.
+struct AccountCheckTag: View {
+    var check: AccountCheck?
+
+    var body: some View {
+        switch check {
+        case .ok: StatusTag("Funciona", kind: .active)
+        case .checking: StatusTag("Probando…", kind: .connecting)
+        case .failed: StatusTag("No responde", kind: .error)
+        case nil: StatusTag("Sin probar", kind: .neutral)
+        }
     }
 }
