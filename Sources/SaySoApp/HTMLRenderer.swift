@@ -78,8 +78,12 @@ final class HTMLRenderer: NSObject, WKNavigationDelegate {
         window.setContentSize(NSSize(width: width, height: 10))
         webView.frame = NSRect(x: 0, y: 0, width: width, height: 10)
         try await Task.sleep(nanoseconds: 150_000_000)
-        let measured = try await webView.evaluateJavaScript(
-            "Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0)") as? Double ?? 900
+        // Un script que no acaba (un bucle infinito) dejaba colgadas la medida y la captura sin
+        // límite: cada paso tiene ahora su tope.
+        let measured: Double = try await Self.limited(Self.stepTimeout) {
+            try await webView.evaluateJavaScript(
+                "Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0)") as? Double ?? 900
+        }
         let height = min(max(CGFloat(measured), 200), Self.maxHeight)
         window.setContentSize(NSSize(width: width, height: height))
         webView.frame = NSRect(x: 0, y: 0, width: width, height: height)
@@ -89,17 +93,41 @@ final class HTMLRenderer: NSObject, WKNavigationDelegate {
         case .pdf:
             let pdf = WKPDFConfiguration()
             pdf.rect = rect
-            return try await webView.pdf(configuration: pdf)
+            return try await Self.limited(Self.stepTimeout) { try await webView.pdf(configuration: pdf) }
         case .png:
             let snapshot = WKSnapshotConfiguration()
             snapshot.rect = rect
             snapshot.afterScreenUpdates = true
-            let image = try await webView.takeSnapshot(configuration: snapshot)
+            let image = try await Self.limited(Self.stepTimeout) { try await SendableImage(webView.takeSnapshot(configuration: snapshot)) }.image
             guard let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff),
                   let png = bitmap.representation(using: .png, properties: [:]) else {
                 throw HTMLRenderError.failed("no se pudo guardar la imagen")
             }
             return png
+        }
+    }
+
+    /// Tope de cada paso tras la carga (medir, capturar), en segundos.
+    static let stepTimeout: Double = 20
+
+    /// Ejecuta `operation` y falla si tarda más de `seconds`, sin esperar a que termine.
+    static func limited<T: Sendable>(_ seconds: Double, _ operation: @escaping @MainActor () async throws -> T) async throws -> T {
+        let once = RenderOnce()
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<T, Error>) in
+            let work = Task { @MainActor in
+                do {
+                    let value = try await operation()
+                    if once.claim() { continuation.resume(returning: value) }
+                } catch {
+                    if once.claim() { continuation.resume(throwing: error) }
+                }
+            }
+            Task {
+                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                guard once.claim() else { return }
+                work.cancel()
+                continuation.resume(throwing: HTMLRenderError.failed("la página no respondió en \(Int(seconds)) s"))
+            }
         }
     }
 
@@ -131,4 +159,17 @@ final class HTMLRenderer: NSObject, WKNavigationDelegate {
     nonisolated func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         Task { @MainActor in self.finished?.resume(throwing: error); self.finished = nil }
     }
+}
+
+/// Garantiza una sola reanudación entre la tarea y su tope.
+private final class RenderOnce: @unchecked Sendable {
+    private let lock = NSLock()
+    private var done = false
+    func claim() -> Bool { lock.lock(); defer { lock.unlock() }; if done { return false }; done = true; return true }
+}
+
+/// `NSImage` no es `Sendable`; solo se usa en el hilo principal.
+private struct SendableImage: @unchecked Sendable {
+    let image: NSImage
+    init(_ image: NSImage) { self.image = image }
 }

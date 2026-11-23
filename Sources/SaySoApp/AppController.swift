@@ -568,7 +568,7 @@ final class AppController: AppActions {
     private func speakIfNeeded(_ phase: DictationPhase) {
         switch phase {
         case let .agentReply(text):
-            if model.dictation.speakReplies { speaker.speak(text, language: model.dictation.language) }
+            if model.dictation.speakReplies { speaker.speak(text, language: model.dictation.spokenLanguage) }
         case .agentListening, .listening:
             speaker.stop()
         default:
@@ -1744,14 +1744,21 @@ final class AppController: AppActions {
     /// habla mientras se dicta.
     private func speakAlert(_ text: String) {
         guard model.speakAlerts else { return }
-        Task { [weak self] in
+        // En cola: dos avisos seguidos esperaban a la vez y el segundo cortaba al primero.
+        let previous = alertQueue
+        alertQueue = Task { [weak self] in
+            await previous?.value
             guard let self else { return }
             await self.speaker.waitUntilFinished()
             for _ in 0..<60 where self.model.dictationPhase != .idle { try? await Task.sleep(nanoseconds: 1_000_000_000) }
             guard self.model.dictationPhase == .idle else { return }
-            self.speaker.speak(text, language: self.model.dictation.language)
+            self.speaker.speak(text, language: self.model.dictation.spokenLanguage)
+            await self.speaker.waitUntilFinished()
         }
     }
+
+    /// Último aviso hablado en cola.
+    private var alertQueue: Task<Void, Never>?
 
     func setKeepAwake(_ enabled: Bool) {
         model.keepAwake = enabled

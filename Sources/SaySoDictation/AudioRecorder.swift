@@ -46,12 +46,34 @@ public final class AudioRecorder: AudioRecording, @unchecked Sendable {
     private let lock = NSLock()
     private var buffer: [Float] = []
     private var sourceRate: Double = AudioMath.targetSampleRate
+    /// Lo grabado antes de cambiar de micrófono, ya a 16 kHz.
+    private var earlier: [Float] = []
     private var running = false
+    private var configurationObserver: NSObjectProtocol?
 
-    public init() {}
+    public init() {
+        // Conectar o quitar unos AirPods cambia la entrada y macOS para el motor: antes la
+        // grabación se cortaba ahí. Ahora se guarda lo grabado y se sigue con la entrada nueva.
+        configurationObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
+            self?.inputChanged()
+        }
+    }
+
+    deinit {
+        if let configurationObserver { NotificationCenter.default.removeObserver(configurationObserver) }
+    }
 
     public func start() throws {
         guard !running else { return }
+        lock.lock()
+        earlier = []
+        lock.unlock()
+        try startEngine()
+        running = true
+    }
+
+    private func startEngine() throws {
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else { throw AudioRecorderError.noInput }
@@ -71,7 +93,19 @@ public final class AudioRecorder: AudioRecording, @unchecked Sendable {
             input.removeTap(onBus: 0)
             throw AudioRecorderError.engine(error.localizedDescription)
         }
-        running = true
+    }
+
+    /// La entrada ha cambiado a mitad de grabación: lo grabado pasa a `earlier` y se vuelve a
+    /// escuchar con el formato nuevo. Si no hay entrada, se sigue con lo que hay hasta que se pare.
+    private func inputChanged() {
+        guard running else { return }
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+        lock.lock()
+        earlier += AudioMath.resample(buffer, from: sourceRate)
+        buffer = []
+        lock.unlock()
+        try? startEngine()
     }
 
     public func stop() -> [Float] {
@@ -79,39 +113,44 @@ public final class AudioRecorder: AudioRecording, @unchecked Sendable {
         lock.lock()
         let raw = buffer
         let rate = sourceRate
+        let before = earlier
         buffer = []
+        earlier = []
         lock.unlock()
-        return AudioMath.resample(raw, from: rate)
+        return before + AudioMath.resample(raw, from: rate)
     }
 
     public func snapshot() -> [Float] {
         lock.lock()
         let raw = buffer
         let rate = sourceRate
+        let before = earlier
         lock.unlock()
-        return AudioMath.resample(raw, from: rate)
+        return before + AudioMath.resample(raw, from: rate)
     }
 
     public func snapshot(lastSeconds seconds: Double) -> [Float] {
         lock.lock()
         let rate = sourceRate
         let raw = Array(buffer.suffix(Int(seconds * rate)))
+        let missing = Int(seconds * AudioMath.targetSampleRate) - Int(Double(raw.count) / rate * AudioMath.targetSampleRate)
+        let before = missing > 0 ? Array(earlier.suffix(missing)) : []
         lock.unlock()
-        return AudioMath.resample(raw, from: rate)
+        return before + AudioMath.resample(raw, from: rate)
     }
 
     public var recordedSeconds: Double {
         lock.lock()
         defer { lock.unlock() }
-        return rate(buffer.count)
+        let current = sourceRate > 0 ? Double(buffer.count) / sourceRate : 0
+        return AudioMath.duration(of: earlier.count) + current
     }
-
-    private func rate(_ count: Int) -> Double { sourceRate > 0 ? Double(count) / sourceRate : 0 }
 
     public func cancel() {
         halt()
         lock.lock()
         buffer = []
+        earlier = []
         lock.unlock()
     }
 

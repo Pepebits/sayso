@@ -354,6 +354,9 @@ public final class DictationController {
         guard recording else { return }
         recording = false
         manualRecording = false
+        // Cancelar una escucha termina también la conversación: si no, quedaba «En marcha» sin
+        // nadie escuchando (al desactivar el dictado o al grabar un atajo nuevo).
+        setConversing(false)
         partialTask?.cancel()
         onPartial?("")
         recorder.cancel()
