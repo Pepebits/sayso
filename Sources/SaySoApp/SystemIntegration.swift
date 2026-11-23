@@ -30,6 +30,9 @@ final class DictationHUD {
         set { state.modelStatus = newValue }
     }
 
+    /// Lo que enseña ahora, con el nivel del micrófono.
+    var phase: DictationPhase { state.phase }
+
     func show(_ phase: DictationPhase, transcript: String = "") {
         if case .idle = phase { return hide() }
         if case .agentThinking = phase {} else { state.step = nil }

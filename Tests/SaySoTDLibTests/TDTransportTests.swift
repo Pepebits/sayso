@@ -18,4 +18,14 @@ final class TDTransportTests: XCTestCase {
         TDLibTransport.stopReceiving(timeout: 3)
         XCTAssertLessThan(Date().timeIntervalSince(started), 0.2)
     }
+
+    func testUnusedUpdatesAreSkippedBeforeParsing() {
+        XCTAssertEqual(TDUpdateFilter.leadingType(#"{"@type":"updateChatReadInbox","chat_id":1,"@client_id":1}"#), "updateChatReadInbox")
+        XCTAssertFalse(TDUpdateFilter.isWanted("updateChatReadInbox"))
+        XCTAssertFalse(TDUpdateFilter.isWanted("updateUserStatus"))
+        XCTAssertTrue(TDUpdateFilter.isWanted("updateNewMessage"))
+        XCTAssertTrue(TDUpdateFilter.isWanted("chats"), "las respuestas pasan siempre")
+        XCTAssertTrue(TDUpdateFilter.isWanted("error"))
+        XCTAssertNil(TDUpdateFilter.leadingType(#"{"chat_id":1,"@type":"x"}"#), "si no va primero, se analiza entero")
+    }
 }

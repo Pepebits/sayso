@@ -21,9 +21,21 @@ public protocol AudioRecording: AnyObject {
     func start() throws
     /// Lo grabado hasta ahora, a 16 kHz mono, sin detener la grabación.
     func snapshot() -> [Float]
+    /// Los últimos `seconds` segundos, a 16 kHz mono, sin copiar ni remuestrear el resto.
+    func snapshot(lastSeconds seconds: Double) -> [Float]
+    /// Segundos grabados hasta ahora.
+    var recordedSeconds: Double { get }
     /// Detiene y devuelve las muestras a 16 kHz mono.
     func stop() -> [Float]
     func cancel()
+}
+
+public extension AudioRecording {
+    func snapshot(lastSeconds seconds: Double) -> [Float] {
+        Array(snapshot().suffix(Int(seconds * AudioMath.targetSampleRate)))
+    }
+
+    var recordedSeconds: Double { AudioMath.duration(of: snapshot().count) }
 }
 
 /// Captura con `AVAudioEngine`. Acumula a la frecuencia nativa y remuestrea a 16 kHz al parar.
@@ -79,6 +91,22 @@ public final class AudioRecorder: AudioRecording, @unchecked Sendable {
         lock.unlock()
         return AudioMath.resample(raw, from: rate)
     }
+
+    public func snapshot(lastSeconds seconds: Double) -> [Float] {
+        lock.lock()
+        let rate = sourceRate
+        let raw = Array(buffer.suffix(Int(seconds * rate)))
+        lock.unlock()
+        return AudioMath.resample(raw, from: rate)
+    }
+
+    public var recordedSeconds: Double {
+        lock.lock()
+        defer { lock.unlock() }
+        return rate(buffer.count)
+    }
+
+    private func rate(_ count: Int) -> Double { sourceRate > 0 ? Double(count) / sourceRate : 0 }
 
     public func cancel() {
         halt()

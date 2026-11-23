@@ -462,7 +462,9 @@ final class AppController: AppActions {
             corrector: services.map { [vocabularyBox] in FastModelCorrector(services: $0, vocabulary: { vocabularyBox.current }) },
             onPhase: { [weak self] phase in
                 guard let self else { return }
-                self.model.dictationPhase = phase
+                // La app solo ve cambios de fase; el nivel del micrófono va solo a la píldora.
+                let stage = phase.withoutLevel
+                if self.model.dictationPhase != stage { self.model.dictationPhase = stage }
                 if phase == .idle { self.liveTranscript = "" }
                 if self.model.manualDictation, self.dictation?.manualRecording != true {
                     // Terminó de grabar: el botón vuelve a «empezar» aunque siga transcribiendo.
@@ -480,7 +482,7 @@ final class AppController: AppActions {
             guard let self else { return }
             self.liveTranscript = text
             if self.dictation?.manualRecording == true, !text.isEmpty { self.model.manualTranscript = text }
-            self.hud.show(self.model.dictationPhase, transcript: text)
+            self.hud.show(self.hud.phase, transcript: text)
         }
         dictation?.onConversation = { [weak self] active in
             self?.model.conversing = active
@@ -835,13 +837,30 @@ final class AppController: AppActions {
         appendConsole(entry)
         model.consoleBusy = true
         Task { [weak self] in
-            do {
-                let finished = try await console.run(command) { line in
-                    Task { @MainActor in self?.updateConsole(entry.id) { $0.output += ($0.output.isEmpty ? "" : "\n") + line } }
+            // La salida se pinta cada 100 ms en bloque, no una vez por línea: un «find /» con miles
+            // de líneas creaba miles de tareas y redibujaba la consola entera en cada una.
+            let pending = LineCollector()
+            let flush: @MainActor () -> Void = {
+                let lines = pending.take()
+                guard !lines.isEmpty else { return }
+                self?.updateConsole(entry.id) { $0.output += ($0.output.isEmpty ? "" : "\n") + lines.joined(separator: "\n") }
+            }
+            let ticker = Task { @MainActor in
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                    flush()
                 }
+            }
+            defer { ticker.cancel() }
+            do {
+                let finished = try await console.run(command) { pending.add($0) }
+                ticker.cancel()
+                flush()
                 self?.updateConsole(entry.id) { $0.exitCode = finished.exitCode }
                 self?.model.consoleDirectory = finished.directory
             } catch {
+                ticker.cancel()
+                flush()
                 self?.updateConsole(entry.id) { $0.error = error.localizedDescription }
                 self?.model.consoleDirectory = "~/sayso"
             }
@@ -2763,6 +2782,8 @@ final class LineCollector: @unchecked Sendable {
     private var lines: [String] = []
     func add(_ line: String) { lock.lock(); lines.append(line); lock.unlock() }
     var text: String { lock.lock(); defer { lock.unlock() }; return lines.joined(separator: "\n") }
+    /// Devuelve lo juntado y empieza de cero.
+    func take() -> [String] { lock.lock(); defer { lock.unlock() }; let out = lines; lines = []; return out }
 }
 
 /// Numera los avisos de estado de una sesión en el orden en que se producen.

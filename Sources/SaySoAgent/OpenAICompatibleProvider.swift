@@ -44,7 +44,7 @@ public struct OpenAICompatibleProvider: ModelProvider {
 
     static func body(for request: ModelRequest, disableThinking: Bool = false, completionTokens: Bool = false) -> JSONValue {
         var messages: [JSONValue] = []
-        if !request.system.isEmpty { messages.append(["role": "system", "content": .string(request.system)]) }
+        if !request.fullSystem.isEmpty { messages.append(["role": "system", "content": .string(request.fullSystem)]) }
         for message in request.messages { messages.append(contentsOf: encode(message)) }
         var body: [String: JSONValue] = [
             "model": .string(request.model),

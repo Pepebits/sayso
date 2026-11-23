@@ -126,7 +126,11 @@ public final class TDLibTransport: TDTransport, @unchecked Sendable {
             while !shouldExit() {
                 // Espera larga: mientras no llega nada, el hilo despierta una vez por segundo.
                 guard let raw = td_receive(1.0) else { continue }
-                guard let message = try? JSONValue.parse(String(cString: raw)),
+                let text = String(cString: raw)
+                // TDLib manda cientos de actualizaciones que la app no usa (estados de chats,
+                // lecturas, usuarios en línea): se descartan sin analizar el JSON entero.
+                if let type = TDUpdateFilter.leadingType(text), !TDUpdateFilter.isWanted(type) { continue }
+                guard let message = try? JSONValue.parse(text),
                       let id = message["@client_id"]?.intValue else { continue }
                 lock.lock()
                 let target = clients[Int32(id)]
@@ -134,5 +138,28 @@ public final class TDLibTransport: TDTransport, @unchecked Sendable {
                 target?.yield(message)
             }
         }
+    }
+}
+
+/// Filtro barato de lo que llega de TDLib, antes de analizar el JSON.
+enum TDUpdateFilter {
+    /// Actualizaciones que la sesión usa. Las respuestas a peticiones no empiezan por «update»
+    /// y pasan siempre.
+    static let wantedUpdates: Set<String> = [
+        "updateAuthorizationState", "updateMessageSendSucceeded", "updateMessageSendFailed",
+        "updateNewMessage", "updateChatFolders", "updateUser",
+    ]
+
+    static func isWanted(_ type: String) -> Bool {
+        !type.hasPrefix("update") || wantedUpdates.contains(type)
+    }
+
+    /// El `@type` del objeto, si es la primera clave (TDLib siempre lo pone primero).
+    static func leadingType(_ json: String) -> String? {
+        let prefix = #"{"@type":""#
+        guard json.hasPrefix(prefix) else { return nil }
+        let rest = json.utf8.dropFirst(prefix.utf8.count).prefix(80)
+        guard let end = rest.firstIndex(of: UInt8(ascii: "\"")) else { return nil }
+        return String(decoding: rest[..<end], as: UTF8.self)
     }
 }

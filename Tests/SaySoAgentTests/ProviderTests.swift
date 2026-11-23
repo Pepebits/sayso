@@ -29,10 +29,39 @@ final class ProviderTests: XCTestCase {
         XCTAssertEqual(req.value(forHTTPHeaderField: "x-api-key"), "k-1")
         XCTAssertEqual(req.value(forHTTPHeaderField: "anthropic-version"), "2023-06-01")
         let body = try XCTUnwrap(transport.bodies().first)
-        XCTAssertEqual(body["system"], "sys")
+        XCTAssertEqual(body["system"]?[0]?["text"], "sys")
+        XCTAssertNil(body["system"]?[0]?["cache_control"])
         XCTAssertEqual(body["max_tokens"]?.intValue, 100)
         XCTAssertEqual(body["tools"]?[0]?["input_schema"]?["type"], "object")
         XCTAssertEqual(body["messages"]?[0]?["content"]?[0]?["text"], "hi")
+    }
+
+    func testAnthropicCachesStableSystemAndLastMessage() {
+        let request = ModelRequest(model: "m", stableSystem: "fijo", system: "Fecha: hoy",
+                                   messages: [.user("hola"), .assistant("¿sí?"), .user("busca")],
+                                   tools: tools, maxTokens: 100)
+        let body = AnthropicProvider.body(for: request)
+        XCTAssertEqual(body["system"]?[0]?["text"], "fijo")
+        XCTAssertEqual(body["system"]?[0]?["cache_control"]?["type"], "ephemeral")
+        XCTAssertEqual(body["system"]?[1]?["text"], "Fecha: hoy")
+        XCTAssertNil(body["system"]?[1]?["cache_control"])
+        XCTAssertEqual(body["messages"]?[2]?["content"]?[0]?["cache_control"]?["type"], "ephemeral")
+        XCTAssertNil(body["messages"]?[0]?["content"]?[0]?["cache_control"])
+        // Sin herramientas (una pregunta suelta) no compensa marcar los mensajes.
+        let plain = AnthropicProvider.body(for: ModelRequest(model: "m", system: "s", messages: [.user("x")]))
+        XCTAssertNil(plain["messages"]?[0]?["content"]?[0]?["cache_control"])
+        // Para OpenAI y compatibles, las dos partes juntas.
+        XCTAssertEqual(request.fullSystem, "fijo\n\nFecha: hoy")
+    }
+
+    func testAnthropicCacheReadsCountAsContextButCostLess() throws {
+        let json = try JSONValue.parse(Data("""
+        {"content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn",
+         "usage":{"input_tokens":100,"cache_read_input_tokens":10000,"cache_creation_input_tokens":400,"output_tokens":20}}
+        """.utf8))
+        let r = try AnthropicProvider.parse(json)
+        XCTAssertEqual(r.inputTokens, 10_500)
+        XCTAssertEqual(r.billedInputTokens, 100 + 1_000 + 500)
     }
 
     func testAnthropicToolUseParsingAndToolResultEncoding() throws {
@@ -162,7 +191,7 @@ final class SpeedTests: XCTestCase {
         let sent = provider.requests.get()[0]
         XCTAssertEqual(sent.model, "fast-model")
         XCTAssertEqual(sent.maxTokens, 600)
-        XCTAssertTrue(sent.system.contains("una sola pregunta"))
+        XCTAssertTrue(sent.fullSystem.contains("una sola pregunta"))
     }
 }
 

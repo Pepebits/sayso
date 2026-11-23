@@ -22,6 +22,8 @@ public final class DictationController {
         var replyPause: TimeInterval = 0.4
         /// Tope de una petición de voz al agente.
         var agentTimeout: TimeInterval = 180
+        /// Tope de una grabación en manos libres: si se olvida abierta, no graba durante horas.
+        var maxHandsFree: TimeInterval = 300
     }
 
     public private(set) var settings: DictationSettings
@@ -292,6 +294,9 @@ public final class DictationController {
     /// Hay agente que escuche lo que se dice con el atajo.
     private var isAgentGesture: Bool { agentHandler != nil && agentAvailable() }
 
+    /// Segundos del final que se transcriben para el texto en vivo.
+    static let partialWindow: Double = 25
+
     /// Mientras se habla, se transcribe lo grabado hasta el momento cada poco para mostrarlo.
     private func startPartials() {
         partialTask?.cancel()
@@ -303,15 +308,17 @@ public final class DictationController {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
                 guard let self, !Task.isCancelled, self.recording, self.recordingGeneration == generation else { return }
-                let samples = self.recorder.snapshot()
-                let seconds = AudioMath.duration(of: samples.count)
-                // Muy poco audio no da nada útil; mucho, repetirlo entero cada vez sale caro.
-                guard seconds >= 0.8, seconds <= 30 else { continue }
+                // Muy poco audio no da nada útil. Con mucho, se transcribe solo el final: repetirlo
+                // entero cada vez sale caro (antes, a los 30 s el texto se quedaba congelado).
+                let seconds = self.recorder.recordedSeconds
+                guard seconds >= 0.8 else { continue }
+                let window = Self.partialWindow
+                let samples = self.recorder.snapshot(lastSeconds: window)
                 guard let text = try? await transcriber.transcribe(samples: samples, sampleRate: AudioMath.targetSampleRate,
                                                                    language: language) else { continue }
                 guard !Task.isCancelled, self.recording, self.recordingGeneration == generation else { return }
                 let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !clean.isEmpty { self.onPartial?(clean) }
+                if !clean.isEmpty { self.onPartial?(seconds > window ? "… " + clean : clean) }
             }
         }
     }
@@ -324,6 +331,12 @@ public final class DictationController {
     private func levelChanged(_ level: Float) {
         guard recording else { return }
         setPhase(listeningPhase(level: level))
+        if handsFree, !manualRecording, Date().timeIntervalSince(listenStart) >= timing.maxHandsFree {
+            // Se entrega lo grabado y el atajo vuelve a reposo (si no, la siguiente pulsación sería «parar»).
+            hotkey.resetGesture()
+            finishRecording()
+            return
+        }
         guard conversing, manualRecording else { return }
         // En conversación nadie pulsa «Detener»: la frase acaba cuando el usuario se calla.
         let now = Date()

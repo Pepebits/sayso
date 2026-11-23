@@ -324,7 +324,7 @@ struct ComputerScreen: View {
                                 .font(Theme.mono(12))
                                 .foregroundStyle(Theme.fixedBone.opacity(0.7))
                         }
-                        ForEach(model.terminal) { entry in terminalEntry(entry) }
+                        ForEach(model.terminal) { entry in TerminalEntryView(entry: entry).equatable() }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(Theme.Space.m)
@@ -388,7 +388,23 @@ struct ComputerScreen: View {
         .buttonStyle(.plain)
     }
 
-    private func terminalEntry(_ entry: TerminalEntry) -> some View {
+    private func submit() {
+        let text = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        // En macOS, Intro da por terminada la edición: se devuelve el foco al campo.
+        keepPromptFocus = true
+        DispatchQueue.main.async { promptFocused = true }
+        guard !text.isEmpty, !model.consoleBusy else { return }
+        model.actions?.runComputerCommand(text)
+        command = ""
+    }
+}
+
+/// Una entrada de la consola, con vista propia: mientras llega salida solo se redibuja la que
+/// cambia, no las ochenta anteriores.
+private struct TerminalEntryView: View, Equatable {
+    let entry: TerminalEntry
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(verbatim: "\(entry.directory) $ \(entry.command)")
@@ -420,15 +436,5 @@ struct ComputerScreen: View {
         .textSelection(.enabled)
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .combine)
-    }
-
-    private func submit() {
-        let text = command.trimmingCharacters(in: .whitespacesAndNewlines)
-        // En macOS, Intro da por terminada la edición: se devuelve el foco al campo.
-        keepPromptFocus = true
-        DispatchQueue.main.async { promptFocused = true }
-        guard !text.isEmpty, !model.consoleBusy else { return }
-        model.actions?.runComputerCommand(text)
-        command = ""
     }
 }

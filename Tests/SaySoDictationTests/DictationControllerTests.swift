@@ -296,6 +296,26 @@ final class DictationControllerTests: XCTestCase {
         XCTAssertEqual(partials.last, "")
     }
 
+    func testHandsFreeStopsByItselfAfterTheLimit() async throws {
+        var timing = DictationController.Timing()
+        timing.maxHandsFree = 0.05
+        var asked: [String] = []
+        recorder.samples = Array(repeating: 0.2, count: 16_000)
+        let controller = DictationController(
+            settings: DictationSettings(), corrector: nil, hotkey: hotkey, recorder: recorder,
+            makeTranscriber: { _ in FakeTranscriber(text: "nota larga") }, timing: timing,
+            onPhase: { [unowned self] in self.phases.append($0) }, onTranscriberStatus: { _ in })
+        controller.agentHandler = { text in asked.append(text); return "Vale." }
+        current = controller
+        try controller.start()
+        hotkey.send(.enterHandsFree)
+        try await Task.sleep(nanoseconds: 80_000_000)
+        recorder.onLevel?(0.3)
+        await waitFor { asked == ["nota larga"] }
+        XCTAssertEqual(asked, ["nota larga"], "se entrega lo grabado")
+        XCTAssertGreaterThan(hotkey.resets, 0, "el atajo vuelve a reposo")
+    }
+
     func testAgentErrorsAreShownAndRecovered() async throws {
         struct Boom: LocalizedError { var errorDescription: String? { "sin cuenta" } }
         let controller = makeController()

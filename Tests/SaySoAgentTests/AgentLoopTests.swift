@@ -21,9 +21,9 @@ final class AgentLoopTests: XCTestCase {
         let reqs = provider.requests.get()
         XCTAssertEqual(reqs[0].model, "full-model")
         XCTAssertEqual(reqs[0].tools.map(\.name), ["echo"])
-        XCTAssertTrue(reqs[0].system.contains("SaySo"))
-        XCTAssertTrue(reqs[0].system.contains("Se llama Daniel"))
-        XCTAssertTrue(reqs[0].system.contains("no fiables"))
+        XCTAssertTrue(reqs[0].fullSystem.contains("SaySo"))
+        XCTAssertTrue(reqs[0].fullSystem.contains("Se llama Daniel"))
+        XCTAssertTrue(reqs[0].fullSystem.contains("no fiables"))
         // La segunda petición lleva el resultado de la herramienta.
         guard case let .toolResult(id, content, isError)? = reqs[1].messages.last?.content.first else {
             return XCTFail("falta tool_result")
@@ -95,10 +95,10 @@ final class AgentLoopTests: XCTestCase {
         let loop = AgentLoop(provider: provider, tools: [FakeTool()], store: store, redactor: FakeRedactor())
         _ = try await loop.respond(to: "usa sk-SECRETO", chatID: "1")
         for req in provider.requests.get() {
-            XCTAssertFalse(req.system.contains("sk-SECRETO"))
+            XCTAssertFalse(req.fullSystem.contains("sk-SECRETO"))
             XCTAssertFalse("\(req.messages)".contains("sk-SECRETO"), "fuga en \(req.messages)")
         }
-        XCTAssertTrue(provider.requests.get()[0].system.contains("[API_KEY]"))
+        XCTAssertTrue(provider.requests.get()[0].fullSystem.contains("[API_KEY]"))
     }
 
     func testUnknownToolIsErrorResult() async throws {
@@ -524,12 +524,12 @@ final class HonestyTests: XCTestCase {
         let saved: [String: ContextSummary] = try XCTUnwrap(try store.codableSetting(SettingsKey.contextSummaries))
         XCTAssertEqual(saved["voz"]?.text, "Hablasteis de los turnos 0 a 5.")
         let summarizing = provider.requests.get()[1]
-        XCTAssertTrue(summarizing.system.contains("Resumes conversaciones"))
+        XCTAssertTrue(summarizing.fullSystem.contains("Resumes conversaciones"))
         XCTAssertTrue(summarizing.messages.first?.content.description.contains("turno 0") ?? false)
 
         // La siguiente petición lleva el resumen en las instrucciones.
         _ = try await loop.respond(to: "Sigue", chatID: "voz")
-        XCTAssertTrue(provider.requests.get().last { !$0.system.contains("Resumes conversaciones") }?.system
+        XCTAssertTrue(provider.requests.get().last { !$0.fullSystem.contains("Resumes conversaciones") }?.fullSystem
             .contains("Hablasteis de los turnos 0 a 5.") ?? false)
     }
 
@@ -653,7 +653,7 @@ final class HonestyTests: XCTestCase {
         // Si el modelo copia la marca del historial, no llega al usuario.
         let second = try await loop.respond(to: "Hola", chatID: "c")
         XCTAssertEqual(second, "Hola")
-        XCTAssertTrue(provider.requests.get()[0].system.contains("Hechos, no promesas"))
+        XCTAssertTrue(provider.requests.get()[0].fullSystem.contains("Hechos, no promesas"))
     }
 
     func testEmptyAssistantTextIsNeverSentBack() {
@@ -676,4 +676,29 @@ final class HonestyTests: XCTestCase {
         XCTAssertEqual(second, .toolResult(toolUseID: "t1", content: AgentLoop.truncatedCallText, isError: true))
     }
 
+
+    func testLongToolResultsAreCappedAndOldOnesTrimmed() {
+        let capped = AgentLoop.capResult(String(repeating: "a", count: 25_000))
+        XCTAssertTrue(capped.hasPrefix(String(repeating: "a", count: 20_000)))
+        XCTAssertTrue(capped.contains("Resultado cortado"))
+        XCTAssertEqual(AgentLoop.capResult("corto"), "corto")
+
+        let big = String(repeating: "x", count: 20_000)
+        var messages: [ModelMessage] = [.user("busca")]
+        for step in 0..<4 {
+            messages.append(ModelMessage(role: .assistant, content: [.toolUse(id: "\(step)", name: "web_search", input: [:])]))
+            messages.append(ModelMessage(role: .user, content: [.toolResult(toolUseID: "\(step)", content: big, isError: false)]))
+        }
+        AgentLoop.trimOldResults(&messages)
+        guard case let .toolResult(_, first, _) = messages[2].content[0],
+              case let .toolResult(_, last, _) = messages[8].content[0] else { return XCTFail() }
+        XCTAssertLessThan(first.count, 2_000)
+        XCTAssertEqual(last.count, 20_000)
+
+        // Por debajo del presupuesto no se toca nada (así no se rompe la caché).
+        var small: [ModelMessage] = [.user("x"), ModelMessage(role: .user, content: [.toolResult(toolUseID: "1", content: big, isError: false)])]
+        let before = small
+        AgentLoop.trimOldResults(&small)
+        XCTAssertEqual(small, before)
+    }
 }

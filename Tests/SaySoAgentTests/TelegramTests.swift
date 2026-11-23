@@ -231,8 +231,8 @@ final class TelegramTests: XCTestCase {
         XCTAssertTrue(req.tools.isEmpty)
         XCTAssertEqual(req.model, "fast-model")
         XCTAssertEqual(req.messages, [.user("capital de Francia")])
-        XCTAssertFalse(req.system.contains("DATO_PRIVADO"))
-        XCTAssertFalse(req.system.contains("HISTORIAL_PRIVADO"))
+        XCTAssertFalse(req.fullSystem.contains("DATO_PRIVADO"))
+        XCTAssertFalse(req.fullSystem.contains("HISTORIAL_PRIVADO"))
         let answer = try XCTUnwrap(calls(t, "answerInlineQuery").first)
         XCTAssertEqual(answer["results"]?[0]?["input_message_content"]?["message_text"], "París")
         XCTAssertEqual(store.conversation.count, 1) // no guarda turnos
@@ -263,7 +263,7 @@ final class TelegramTests: XCTestCase {
         await service.process(try groupText(from: Self.owner, "/ask@sayso_bot ¿cuándo quedamos?"))
         let req = try XCTUnwrap(provider.requests.get().first)
         XCTAssertTrue(req.tools.isEmpty)
-        XCTAssertTrue(req.system.contains("no fiables"))
+        XCTAssertTrue(req.fullSystem.contains("no fiables"))
         XCTAssertTrue("\(req.messages)".contains("<mensajes_del_grupo"))
 
         // La respuesta va al chat privado del dueño, con dos botones; nada al grupo.

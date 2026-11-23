@@ -303,6 +303,16 @@ public enum DictationPhase: Hashable, Sendable {
     case agentThinking(String)
     /// Respuesta del agente, que se muestra y, si procede, se lee en voz alta.
     case agentReply(String)
+
+    /// La misma fase sin el nivel del micrófono: lo que necesitan las pantallas de la app, que no
+    /// tienen por qué redibujarse 20 veces por segundo mientras hablas (solo la píldora lo usa).
+    public var withoutLevel: DictationPhase {
+        switch self {
+        case let .listening(_, handsFree): return .listening(level: 0, handsFree: handsFree)
+        case let .agentListening(_, handsFree): return .agentListening(level: 0, handsFree: handsFree)
+        default: return self
+        }
+    }
 }
 
 /// Convierte audio PCM mono en texto.

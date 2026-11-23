@@ -34,15 +34,35 @@ public struct AnthropicProvider: ModelProvider {
         var body: [String: JSONValue] = [
             "model": .string(request.model),
             "max_tokens": .number(Double(request.maxTokens)),
-            "messages": .array(request.messages.map(encode)),
+            "messages": .array(cacheLastMessage(request.messages.map(encode), when: !request.tools.isEmpty)),
         ]
-        if !request.system.isEmpty { body["system"] = .string(request.system) }
+        // Caché de prompts: herramientas y parte fija del sistema se leen de caché desde la segunda
+        // petición (un 10 % del precio y menos espera); la parte variable va detrás, sin marca.
+        var system: [JSONValue] = []
+        if !request.stableSystem.isEmpty {
+            system.append(["type": "text", "text": .string(request.stableSystem), "cache_control": ephemeral])
+        }
+        if !request.system.isEmpty { system.append(["type": "text", "text": .string(request.system)]) }
+        if !system.isEmpty { body["system"] = .array(system) }
         if !request.tools.isEmpty {
             body["tools"] = .array(request.tools.map {
                 ["name": .string($0.name), "description": .string($0.description), "input_schema": $0.inputSchema]
             })
         }
         return .object(body)
+    }
+
+    static let ephemeral: JSONValue = ["type": "ephemeral"]
+
+    /// Marca el último bloque del último mensaje: en un turno con herramientas, cada paso lee de
+    /// caché todo lo de los pasos anteriores (resultados largos incluidos).
+    static func cacheLastMessage(_ messages: [JSONValue], when enabled: Bool) -> [JSONValue] {
+        guard enabled, var last = messages.last?.objectValue,
+              var blocks = last["content"]?.arrayValue, var block = blocks.last?.objectValue else { return messages }
+        block["cache_control"] = ephemeral
+        blocks[blocks.count - 1] = .object(block)
+        last["content"] = .array(blocks)
+        return messages.dropLast() + [.object(last)]
     }
 
     static func encode(_ message: ModelMessage) -> JSONValue {
@@ -89,10 +109,11 @@ public struct AnthropicProvider: ModelProvider {
         }
         // Lo leído de caché también ocupa contexto.
         let usage = json["usage"]
-        let input = usage?["input_tokens"]?.intValue.map {
-            $0 + (usage?["cache_read_input_tokens"]?.intValue ?? 0) + (usage?["cache_creation_input_tokens"]?.intValue ?? 0)
-        }
+        let read = usage?["cache_read_input_tokens"]?.intValue ?? 0
+        let written = usage?["cache_creation_input_tokens"]?.intValue ?? 0
+        let input = usage?["input_tokens"]?.intValue.map { $0 + read + written }
+        let billed = usage?["input_tokens"]?.intValue.map { $0 + Int((Double(read) * 0.1 + Double(written) * 1.25).rounded()) }
         return ModelResponse(content: blocks, stopReason: stop, inputTokens: input,
-                             outputTokens: usage?["output_tokens"]?.intValue)
+                             outputTokens: usage?["output_tokens"]?.intValue, billedInputTokens: billed)
     }
 }

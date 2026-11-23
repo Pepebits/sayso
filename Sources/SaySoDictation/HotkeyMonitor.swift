@@ -29,8 +29,10 @@ public protocol HotkeySource: AnyObject {
     func resetGesture()
 }
 
-/// Event tap de solo escucha sobre `flagsChanged` y `keyDown`. Usar desde el hilo principal.
-public final class HotkeyMonitor: HotkeySource {
+/// Event tap sobre `flagsChanged`, `keyDown` y `keyUp`. Se configura desde el hilo principal y las
+/// acciones llegan en él, pero el tap escucha en un hilo propio: si el hilo principal se atasca, el
+/// teclado del Mac no espera a SaySo y macOS no desactiva el tap.
+public final class HotkeyMonitor: HotkeySource, @unchecked Sendable {
     public var onAction: ((HotkeyStateMachine.Action) -> Void)?
     public var onEscape: (() -> Void)?
     public var side: OptionKeySide {
@@ -45,7 +47,10 @@ public final class HotkeyMonitor: HotkeySource {
             guard shortcut != oldValue else { return }
             machine.reset()
             timer?.cancel()
-            swallowing = false
+            tapLock.withLock {
+                tapShortcut = shortcut
+                swallowing = false
+            }
             // Una combinación con tecla necesita un tap que pueda quedarse el evento: se rehace.
             if tap != nil, (shortcut.kind == .combo) != (oldValue.kind == .combo) || hotKey != nil {
                 stop()
@@ -53,8 +58,14 @@ public final class HotkeyMonitor: HotkeySource {
             }
         }
     }
+    // Lo que lee el hilo del tap, protegido por `tapLock`.
+    private let tapLock = NSLock()
     /// Se está quedando la tecla de la combinación, para que no llegue también a la app activa.
     private var swallowing = false
+    private var tapShortcut: DictationShortcut = .option
+    private var tapHotKeyActive = false
+    /// Bucle del hilo del tap, para pararlo.
+    private var tapRunLoop: CFRunLoop?
 
     private var machine: HotkeyStateMachine
     private var tap: CFMachPort?
@@ -97,10 +108,23 @@ public final class HotkeyMonitor: HotkeySource {
             throw HotkeyMonitorError.tapUnavailable
         }
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        CGEvent.tapEnable(tap: tap, enable: true)
+        tapLock.withLock { tapShortcut = shortcut; swallowing = false }
+        let box = RunLoopBox()
+        let thread = Thread {
+            let loop = CFRunLoopGetCurrent()
+            CFRunLoopAddSource(loop, source, .commonModes)
+            CGEvent.tapEnable(tap: tap, enable: true)
+            box.loop = loop
+            box.ready.signal()
+            CFRunLoopRun()
+        }
+        thread.name = "SaySo hotkey"
+        thread.qualityOfService = .userInteractive
+        thread.start()
+        box.ready.wait()
         self.tap = tap
         self.source = source
+        self.tapRunLoop = box.loop
         if shortcut.kind == .combo, BuildFlavor.isAppStore { registerHotKey() }
     }
 
@@ -134,6 +158,7 @@ public final class HotkeyMonitor: HotkeySource {
         }
         hotKey = ref
         hotKeyHandler = handler
+        tapLock.withLock { tapHotKeyActive = true }
     }
 
     private func unregisterHotKey() {
@@ -141,6 +166,7 @@ public final class HotkeyMonitor: HotkeySource {
         if let hotKeyHandler { RemoveEventHandler(hotKeyHandler) }
         hotKey = nil
         hotKeyHandler = nil
+        tapLock.withLock { tapHotKeyActive = false }
     }
 
     fileprivate func hotKeyEvent(pressed: Bool) {
@@ -152,13 +178,17 @@ public final class HotkeyMonitor: HotkeySource {
         timer?.cancel()
         timer = nil
         unregisterHotKey()
-        if let source { CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes) }
         if let tap {
             CGEvent.tapEnable(tap: tap, enable: false)
             CFMachPortInvalidate(tap)
         }
+        if let source, let tapRunLoop {
+            CFRunLoopRemoveSource(tapRunLoop, source, .commonModes)
+            CFRunLoopStop(tapRunLoop)
+        }
         tap = nil
         source = nil
+        tapRunLoop = nil
         machine.reset()
     }
 
@@ -168,12 +198,15 @@ public final class HotkeyMonitor: HotkeySource {
         timer = nil
     }
 
-    /// Devuelve `true` si el evento es del atajo y no debe llegar a la app activa.
+    /// En el hilo del tap. Devuelve `true` si el evento es del atajo y no debe llegar a la app
+    /// activa; la entrada para la máquina de estados se pasa al hilo principal.
     fileprivate func handle(type: CGEventType, event: CGEvent) -> Bool {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
-            // El sistema desactivó el tap: se reactiva.
+            // El sistema desactivó el tap: se reactiva. Mientras estuvo apagado pudo perderse el
+            // soltar la tecla, y la grabación se quedaría abierta: se comprueba en el principal.
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            DispatchQueue.main.async { [weak self] in self?.tapWasReenabled() }
             return false
         default:
             break
@@ -181,26 +214,57 @@ public final class HotkeyMonitor: HotkeySource {
         let now = ProcessInfo.processInfo.systemUptime
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
-        // La tecla de la combinación la cuenta el atajo del sistema.
-        if hotKey != nil, keyCode == Int64(shortcut.keyCode), type == .keyDown || type == .keyUp { return false }
-        var consume = false
-        if shortcut.kind == .combo, keyCode == Int64(shortcut.keyCode) {
-            switch type {
-            case .keyDown:
-                if !isRepeat { swallowing = Self.matches(shortcut, flags: event.flags) }
-                consume = swallowing
-            case .keyUp:
-                consume = swallowing
-                swallowing = false
-            default:
-                break
+        let (shortcut, consume): (DictationShortcut, Bool) = tapLock.withLock {
+            let shortcut = tapShortcut
+            // La tecla de la combinación la cuenta el atajo del sistema.
+            if tapHotKeyActive, keyCode == Int64(shortcut.keyCode), type == .keyDown || type == .keyUp {
+                return (shortcut, false)
             }
+            var consume = false
+            if shortcut.kind == .combo, keyCode == Int64(shortcut.keyCode) {
+                switch type {
+                case .keyDown:
+                    if !isRepeat { swallowing = Self.matches(shortcut, flags: event.flags) }
+                    consume = swallowing
+                case .keyUp:
+                    consume = swallowing
+                    swallowing = false
+                default:
+                    break
+                }
+            }
+            return (shortcut, consume)
+        }
+        if tapLock.withLock({ tapHotKeyActive }), keyCode == Int64(shortcut.keyCode), type == .keyDown || type == .keyUp {
+            return false // la cuenta el atajo del sistema
         }
         if let input = Self.input(type: type, keyCode: keyCode, flags: event.flags, isRepeat: isRepeat,
                                   shortcut: shortcut, at: now) {
-            feed(input)
+            DispatchQueue.main.async { [weak self] in self?.feed(input) }
         }
         return consume
+    }
+
+    /// Tras reactivar el tap: si el gesto sigue abierto pero la tecla ya no está pulsada, se da por
+    /// soltada (si no, la grabación seguiría hasta la siguiente pulsación).
+    private func tapWasReenabled() {
+        switch machine.state {
+        case .pressed, .holding, .awaitingRelease:
+            guard !Self.isHeld(shortcut) else { return }
+            feed(.optionUp(machine.activeSide ?? .left, at: ProcessInfo.processInfo.systemUptime))
+        default:
+            break
+        }
+    }
+
+    /// La tecla del atajo está pulsada ahora mismo.
+    static func isHeld(_ shortcut: DictationShortcut) -> Bool {
+        let flags = CGEventSource.flagsState(.combinedSessionState).rawValue
+        switch shortcut.kind {
+        case .option: return flags & (leftOptionMask | rightOptionMask) != 0
+        case .modifier: return shortcut.modifierKey.map { flags & $0.deviceMask != 0 } ?? false
+        case .combo: return CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(shortcut.keyCode))
+        }
     }
 
     /// La pulsación lleva exactamente los modificadores de la combinación.
@@ -322,6 +386,12 @@ public final class HotkeyMonitor: HotkeySource {
         let delay = max(0, deadline - ProcessInfo.processInfo.systemUptime)
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
     }
+}
+
+/// El bucle del hilo del tap, que se pasa al hilo que lo crea.
+private final class RunLoopBox: @unchecked Sendable {
+    var loop: CFRunLoop?
+    let ready = DispatchSemaphore(value: 0)
 }
 
 private func hotkeyTapCallback(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent,

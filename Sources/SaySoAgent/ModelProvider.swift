@@ -40,17 +40,28 @@ public struct ToolSpec: Sendable, Hashable {
 
 public struct ModelRequest: Sendable, Hashable {
     public var model: String
+    /// Parte del sistema que no cambia entre peticiones (identidad, reglas): va primero y el
+    /// proveedor puede guardarla en caché junto con las herramientas.
+    public var stableSystem: String
+    /// Parte que cambia (fecha, memoria, instrucciones del canal).
     public var system: String
     public var messages: [ModelMessage]
     public var tools: [ToolSpec]
     public var maxTokens: Int
 
-    public init(model: String, system: String, messages: [ModelMessage], tools: [ToolSpec] = [], maxTokens: Int = 4096) {
+    public init(model: String, stableSystem: String = "", system: String, messages: [ModelMessage],
+                tools: [ToolSpec] = [], maxTokens: Int = 4096) {
         self.model = model
+        self.stableSystem = stableSystem
         self.system = system
         self.messages = messages
         self.tools = tools
         self.maxTokens = maxTokens
+    }
+
+    /// Las dos partes juntas, para proveedores sin caché explícita.
+    public var fullSystem: String {
+        [stableSystem, system].filter { !$0.isEmpty }.joined(separator: "\n\n")
     }
 }
 
@@ -71,12 +82,17 @@ public struct ModelResponse: Sendable, Hashable {
     /// Tokens de entrada y de salida, si el proveedor los dice.
     public var inputTokens: Int?
     public var outputTokens: Int?
+    /// Tokens de entrada al precio de un token normal: lo leído de caché cuenta un 10 % y lo
+    /// escrito en caché un 125 %. Es lo que se apunta para estadísticas y límite de gasto.
+    public var billedInputTokens: Int?
 
-    public init(content: [ContentBlock], stopReason: StopReason, inputTokens: Int? = nil, outputTokens: Int? = nil) {
+    public init(content: [ContentBlock], stopReason: StopReason, inputTokens: Int? = nil, outputTokens: Int? = nil,
+                billedInputTokens: Int? = nil) {
         self.content = content
         self.stopReason = stopReason
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
+        self.billedInputTokens = billedInputTokens
     }
 
     /// Texto concatenado de los bloques de texto.
@@ -229,7 +245,7 @@ public enum TokenMeter {
     public static func record(_ request: ModelRequest, _ response: ModelResponse, store: SaySoStoring?, on day: Date = Date()) {
         guard let store else { return }
         let estimated = response.inputTokens == nil || response.outputTokens == nil
-        let input = response.inputTokens ?? estimate(request)
+        let input = response.billedInputTokens ?? response.inputTokens ?? estimate(request)
         let output = response.outputTokens ?? Int(Double(response.text.count) / 3.5)
         try? store.recordTokens(model: request.model, input: input, output: output, estimated: estimated, on: day)
     }
@@ -237,6 +253,6 @@ public enum TokenMeter {
     static func estimate(_ request: ModelRequest) -> Int {
         let messages = request.messages.reduce(0) { $0 + String(describing: $1.content).count }
         let tools = request.tools.reduce(0) { $0 + String(describing: $1).count }
-        return Int(Double(request.system.count + messages + tools) / 3.5)
+        return Int(Double(request.fullSystem.count + messages + tools) / 3.5)
     }
 }
