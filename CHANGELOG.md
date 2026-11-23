@@ -12,8 +12,28 @@ All notable changes to SaySo are documented here. The format follows
 - A voice note sent to the bot gets «🎙 …» with what was understood before the answer
 - While the agent works on a voice request, the pill says what it is doing («Searching the web»…)
 - If SaySo can't open its data at launch, the window says so, with Try again, Show folder and Create report, instead of empty screens
+- Home has a «Write to the agent» box: the same conversation as voice, for people without the bot
+- Files sent to the bot (PDF, CSV, uncompressed photos, up to 20 MB) are saved in ~/sayso/recibidos on the Linux machine and handed to the agent
+- Without a bot, files the agent sends you land in Downloads/SaySo and open in Finder
+- The agent can forget or correct a memory note, and change, pause or resume a scheduled task
+- An interrupted long job can be relaunched by asking the agent; the Linux machine no longer shuts down for idleness while one runs
+- AI accounts are tested when added and at launch; Model says whether the account works and has a Test button
+- The Debian download can be cancelled and resumes where it stopped
+- The menu bar icon shows what SaySo is doing, and the menu can start a conversation, start a new one or open the permissions
+- Cmd-1 to Cmd-9 open the first nine screens, and Shift-Cmd-N starts a new conversation
 
 ### Changed
+
+- Requests to Claude reuse a prompt cache: from the second step of a turn, the fixed part and the earlier steps cost about a tenth and answer sooner. Usage and spending limits count cached tokens at their real price
+- Very long tool results are trimmed, so a turn with several large pages no longer resends them in full at every step
+- The agent remembers the ids it read in the previous turn («reply to the second one» works)
+- When the Mac wakes up, the bot reconnects at once, overdue tasks run, the Linux clock is set and the shortcut is reinstalled
+- Opening SaySo at login keeps it in the menu bar without opening the window
+- Switching microphones (connecting AirPods) no longer cuts a recording, and hands-free recording stops by itself after five minutes
+- Live text keeps following you after 30 seconds instead of freezing
+- Spoken alerts wait their turn instead of cutting each other off
+- The error band shows the time, can be closed and is read by VoiceOver; the pill's states are translated and announced
+- The shortcut listens on its own thread, so a busy SaySo never slows down the Mac's keyboard
 
 - Dictation follows the app's language instead of always expecting Spanish
 - The first time you speak, the pill shows the speech model download (about 480 MB) instead of «Transcribing…» for minutes; the welcome guide warns about it
