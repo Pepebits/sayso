@@ -6,7 +6,7 @@ public enum TaskTools {
     public static func all(tasks: TaskStoring, broker: PermissionBrokering, userAPI: TelegramUserAPI? = nil,
                            now: @escaping @Sendable () -> Date = { Date() }) -> [AgentTool] {
         [ScheduleTaskTool(tasks: tasks, broker: broker, userAPI: userAPI, now: now), ListTasksTool(tasks: tasks),
-         CancelTaskTool(tasks: tasks, broker: broker)]
+         CancelTaskTool(tasks: tasks, broker: broker), UpdateTaskTool(tasks: tasks, broker: broker, now: now)]
     }
 
     static func line(_ task: ScheduledTask) -> String {
@@ -142,6 +142,67 @@ public struct ListTasksTool: AgentTool {
     public func call(input: JSONValue, context: ToolContext) async throws -> String {
         let all = try tasks.tasks()
         return all.isEmpty ? "No hay tareas programadas." : all.map(TaskTools.line).joined(separator: "\n")
+    }
+}
+
+/// `update_task`: cambia el encargo o el horario de una tarea, o la pausa y la reanuda.
+public struct UpdateTaskTool: AgentTool {
+    let tasks: TaskStoring
+    let broker: PermissionBrokering
+    let now: @Sendable () -> Date
+
+    public var name: String { "update_task" }
+    public var description: String {
+        "Cambia una tarea programada por su número (el de list_tasks): el encargo («instruction»), el horario " +
+            "(«kind» con sus campos, como en schedule_task) o si está activa («enabled»: false la pausa, true la " +
+            "reanuda). Lo que no pases se queda igual. Para borrarla del todo, cancel_task."
+    }
+    public var inputSchema: JSONValue {
+        .objectSchema([
+            "id": ["type": "integer", "description": "Número de la tarea"],
+            "instruction": .property("string", "Encargo nuevo, completo"),
+            "enabled": ["type": "boolean", "description": "false: en pausa; true: activa"],
+            "kind": ["type": "string", "enum": ["daily", "interval", "once"], "description": "Horario nuevo, si cambia"],
+            "time": .property("string", "HH:MM en 24 horas (daily y once)"),
+            "date": .property("string", "AAAA-MM-DD (solo once)"),
+            "weekdays": ["type": "array", "items": ["type": "integer", "minimum": 1, "maximum": 7],
+                         "description": "Días para daily: 1 lunes … 7 domingo. Vacío: todos"],
+            "every_minutes": ["type": "integer", "minimum": .number(Double(TaskSchedule.minimumInterval)),
+                              "description": "Minutos entre ejecuciones (interval)"],
+        ], required: ["id"])
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        guard let id = input["id"]?.intValue else { throw ToolInputError("Falta el parámetro «id» (número).") }
+        guard var task = try tasks.tasks().first(where: { $0.id == Int64(id) }) else {
+            return "No existe la tarea #\(id)."
+        }
+        var changes: [String: String] = [:]
+        if let instruction = input["instruction"]?.stringValue {
+            let text = instruction.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty, text.count <= 2000 else { throw ToolInputError("«instruction» vacía o demasiado larga.") }
+            task.instruction = text
+            changes["Tarea"] = text
+        }
+        let date = now()
+        if input["kind"] != nil {
+            task.schedule = try TaskTools.schedule(from: input, now: date)
+            task.nextRun = task.schedule.next(after: date)
+            changes["Cuándo"] = task.schedule.summary()
+        }
+        if let enabled = input["enabled"]?.boolValue, enabled != task.enabled {
+            task.enabled = enabled
+            if enabled, task.nextRun == nil || task.nextRun! < date { task.nextRun = task.schedule.next(after: date) }
+            changes["Estado"] = enabled ? "activa" : "en pausa"
+        }
+        guard !changes.isEmpty else { return "No has indicado nada que cambiar en la tarea #\(id)." }
+        let request = ActionRequest(action: TaskAction.schedule,
+                                    summary: "Cambiar tarea #\(id): \(changes.values.sorted().joined(separator: " · ").prefix(160))",
+                                    parameters: changes, origin: context.origin)
+        let tasks = self.tasks
+        let updated = task
+        try await broker.run(request) { try tasks.updateTask(updated) }
+        return "Tarea cambiada. " + TaskTools.line(updated)
     }
 }
 

@@ -30,7 +30,9 @@ public enum AgentPrompts {
     «listo» sin ese resultado; si no has llamado a la herramienta, llámala ahora o di con claridad que no lo has \
     hecho. Cada acción nueva necesita su propia llamada, aunque sea igual que la anterior. En el historial, tus \
     respuestas pasadas terminan con una línea «[acciones realizadas: …]» que escribe el sistema: indica lo que de \
-    verdad se ejecutó en aquel turno y lo que se intentó y falló. No escribas tú esa línea ni la menciones. Tampoco anuncies: nada de «ahora \
+    verdad se ejecutó en aquel turno y lo que se intentó y falló; a veces sigue otra, «[datos del turno: …]», con \
+    el principio de lo que devolvieron las lecturas (ids de chats, mensajes, eventos): úsalos si hacen falta. No \
+    escribas tú esas líneas ni las menciones. Tampoco anuncies: nada de «ahora \
     lo hago», «voy a buscarlo» o «lo intento» como respuesta final. Si vas a hacer algo, llama a la herramienta en \
     este mismo turno y contesta después con el resultado. Si te falta un identificador, búscalo con las \
     herramientas en vez de pedírselo al usuario. Lo que no funcionó en turnos anteriores puede funcionar ahora: \
@@ -346,6 +348,8 @@ public final class AgentLoop: Sendable {
         var lastText = ""
         /// Herramientas que de verdad se han ejecutado sin error en este turno.
         var executed: [String] = []
+        /// Lo esencial de lo leído (ids sobre todo), para que el turno siguiente no lo pierda.
+        var readNotes: [String] = []
         /// Las que se han intentado y han dado error.
         var failed: [String] = []
         var nudged = false
@@ -431,6 +435,9 @@ public final class AgentLoop: Sendable {
                     await run(call, context: context, guard: &guardContext)
                 }
                 if succeeded { executed.append(call.name) } else { failed.append(call.name) }
+                if succeeded, case let .toolResult(_, output, _) = block, let note = Self.readNote(call, output) {
+                    readNotes.append(note)
+                }
                 results.append(block)
                 seen += images
             }
@@ -463,7 +470,8 @@ public final class AgentLoop: Sendable {
             try? store.setCodableSetting(all, for: SettingsKey.contextUsage)
         }
         try store.appendTurn(ConversationTurn(chatID: chatID, role: .assistant,
-                                              text: stored + Self.actionMarker(executed, failed: failed), date: now()))
+                                              text: stored + Self.actionMarker(executed, failed: failed)
+                                                + Self.readMarker(readNotes), date: now()))
         onGuard?(guardContext)
         // Lo que ya no cabe se resume aparte, sin hacer esperar la respuesta.
         let pending = dropped.filter { $0.date > (summary?.until ?? .distantPast) }
@@ -505,9 +513,47 @@ public final class AgentLoop: Sendable {
                                   with: "", options: .regularExpression)
     }
 
-    /// Quita la marca si el modelo la copia en su respuesta.
+    /// Quita las marcas si el modelo las copia en su respuesta.
     static func stripActionMarker(_ text: String) -> String {
         text.replacingOccurrences(of: #"\n?\[acciones realizadas:[^\]]*\]"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"\n?\[datos del turno:[^\n]*\]"#, with: "", options: .regularExpression)
+    }
+
+    // MARK: Lo leído en el turno
+
+    /// Herramientas de lectura cuyo resultado trae ids que el turno siguiente puede necesitar
+    /// («respóndele al segundo», «borra ese evento»). Antes el historial solo guardaba la respuesta
+    /// final y esos ids se perdían.
+    static func isRead(_ tool: String) -> Bool {
+        ["telegram_", "mac_calendar", "mac_reminder", "mac_note", "list_tasks", "memory_search", "computer_jobs"]
+            .contains { tool.hasPrefix($0) } && !tool.hasPrefix("telegram_send")
+    }
+
+    static func readNote(_ call: ToolCall, _ output: String, limit: Int = 240) -> String? {
+        guard isRead(call.name) else { return nil }
+        let flat = output.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "]", with: ")")
+            .trimmingCharacters(in: .whitespaces)
+        guard !flat.isEmpty else { return nil }
+        let args = call.input.objectValue.map { object in
+            object.keys.sorted().prefix(3).compactMap { key in
+                object[key]?.stringValue.map { "\(key)=\(String($0.prefix(30)))" } ?? object[key]?.intValue.map { "\(key)=\($0)" }
+            }.joined(separator: ", ")
+        } ?? ""
+        return "\(call.name)(\(args)) → " + String(flat.prefix(limit)) + (flat.count > limit ? "…" : "")
+    }
+
+    /// La línea con lo leído, como mucho ~900 caracteres.
+    static func readMarker(_ notes: [String], budget: Int = 900) -> String {
+        guard !notes.isEmpty else { return "" }
+        var kept: [String] = []
+        var used = 0
+        for note in notes.reversed() where used + note.count <= budget {
+            kept.insert(note, at: 0)
+            used += note.count + 2
+        }
+        guard !kept.isEmpty else { return "" }
+        return "\n[datos del turno: " + kept.joined(separator: "; ") + "]"
     }
 
     /// El usuario dice que sí (o insiste) y lo último que hizo el agente fue ofrecer o preguntar.
@@ -609,8 +655,8 @@ public final class AgentLoop: Sendable {
         case "render_html": return "🖼 " + tr("Preparando el documento")
         case "send_file": return "📎 " + tr("Enviando un archivo")
         case "telegram_transcribe": return "🎧 " + tr("Transcribiendo un audio")
-        case "remember", "memory_search": return "🧠 " + tr("Memoria")
-        case "schedule_task", "list_tasks", "cancel_task": return "⏰ " + tr("Tareas programadas")
+        case "remember", "memory_search", "memory_forget", "memory_update": return "🧠 " + tr("Memoria")
+        case "schedule_task", "list_tasks", "update_task", "cancel_task": return "⏰ " + tr("Tareas programadas")
         default: break
         }
         if tool.hasPrefix("fetch__") || tool.hasPrefix("browser__") { return "🌐 " + tr("Leyendo una página") }

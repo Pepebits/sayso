@@ -122,6 +122,26 @@ final class AgentLoopTests: XCTestCase {
         XCTAssertEqual(store.memory.count, 1)
     }
 
+    func testMemoryNotesCanBeForgottenOrCorrected() async throws {
+        let store = MemoryStore()
+        let saved = try store.addNote(MemoryNote(text: "Vive en Vigo", source: "usuario", kind: .fact))
+        let id = Int(saved.id ?? 0)
+        let found = try await MemorySearchTool(store: store).call(input: ["query": "Vigo"], context: ToolContext())
+        XCTAssertTrue(found.contains("#\(id)"), "la búsqueda da el número para corregir")
+        let update = MemoryEditTool(store: store, mode: .update)
+        _ = try await update.call(input: ["id": .number(Double(id)), "text": "Vive en Santiago"], context: ToolContext())
+        XCTAssertEqual(store.memory.first?.text, "Vive en Santiago")
+        // Tras leer contenido ajeno, no se toca la memoria.
+        let tainted = GuardContext(userRequest: "x", thirdPartySources: ["Telegram"])
+        let refused = try await GuardContext.$current.withValue(tainted) {
+            try await MemoryEditTool(store: store, mode: .forget).call(input: ["id": .number(Double(id))], context: ToolContext())
+        }
+        XCTAssertTrue(refused.contains("No cambiado"))
+        XCTAssertEqual(store.memory.count, 1)
+        _ = try await MemoryEditTool(store: store, mode: .forget).call(input: ["id": .number(Double(id))], context: ToolContext())
+        XCTAssertTrue(store.memory.isEmpty)
+    }
+
     func testRequestSecretStoresOnlyMetadata() async throws {
         let store = MemoryStore()
         let tool = RequestSecretTool(store: store)
@@ -700,5 +720,17 @@ final class HonestyTests: XCTestCase {
         let before = small
         AgentLoop.trimOldResults(&small)
         XCTAssertEqual(small, before)
+    }
+
+    func testReadResultsAreKeptShortInTheHistory() {
+        let call = ToolCall(id: "1", name: "telegram_read_chat", input: ["chat": "Anna", "limit": 5])
+        let note = AgentLoop.readNote(call, "id 4821: Hola\n  id 4822: ¿quedamos?") ?? ""
+        XCTAssertTrue(note.hasPrefix("telegram_read_chat(chat=Anna, limit=5) → id 4821: Hola id 4822"), note)
+        XCTAssertNil(AgentLoop.readNote(ToolCall(id: "2", name: "telegram_send_message", input: [:]), "ok"))
+        XCTAssertNil(AgentLoop.readNote(ToolCall(id: "3", name: "web_search", input: [:]), "mucho texto"))
+        let marker = AgentLoop.readMarker([note])
+        XCTAssertTrue(marker.hasPrefix("\n[datos del turno: telegram_read_chat"))
+        XCTAssertEqual(AgentLoop.stripActionMarker("Hola\n[acciones realizadas: x]" + marker), "Hola")
+        XCTAssertEqual(AgentLoop.readMarker([]), "")
     }
 }

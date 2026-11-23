@@ -152,6 +152,26 @@ final class WebToolsTests: XCTestCase {
         XCTAssertEqual(broker.requests.get().map(\.action), [SendFileTool.action])
     }
 
+    func testSendFileWithoutABotSavesItOnTheMac() async throws {
+        let computer = FileComputer()
+        computer.files["~/sayso/informe.pdf"] = Data([1, 2])
+        let saved = Locked<[String]>([])
+        let tool = SendFileTool(computer: computer, outbox: TelegramOutbox(), broker: FakeBroker(allow: true),
+                                saveOnMac: { data, name in
+                                    saved.update { $0.append(name) }
+                                    return URL(fileURLWithPath: "/Users/x/Downloads/SaySo/\(name)")
+                                })
+        let out = try await tool.call(input: ["path": "~/sayso/informe.pdf"], context: ToolContext(origin: "voz"))
+        XCTAssertEqual(saved.get(), ["informe.pdf"])
+        XCTAssertTrue(out.contains("Downloads/SaySo/informe.pdf"), out)
+        // Sin bot y sin dónde guardarlo, sigue siendo un error claro.
+        let without = SendFileTool(computer: computer, outbox: TelegramOutbox(), broker: FakeBroker(allow: true))
+        do {
+            _ = try await without.call(input: ["path": "~/sayso/informe.pdf"], context: ToolContext())
+            XCTFail("sin bot debía fallar")
+        } catch is ToolInputError {}
+    }
+
     func testSendFileToAnotherChatGoesFromTheUsersAccount() async throws {
         // Sacado del registro real: «no puedo adjuntar imágenes a otro chat».
         let computer = FileComputer()

@@ -218,22 +218,27 @@ public struct SendFileTool: AgentTool {
     let userAPI: TelegramUserAPI?
     let limiter: SendRateLimiter
     let ownBotID: @Sendable () -> Int64?
+    /// Sin bot, el archivo se guarda en el Mac (Descargas) y se enseña en el Finder: así quien
+    /// usa solo la voz también recibe lo que pide. Devuelve dónde ha quedado.
+    let saveOnMac: (@Sendable (Data, String) async throws -> URL)?
 
     public init(computer: AgentComputer, outbox: TelegramOutbox, broker: PermissionBrokering,
                 userAPI: TelegramUserAPI? = nil, limiter: SendRateLimiter = SendRateLimiter(),
-                ownBotID: @escaping @Sendable () -> Int64? = { nil }) {
+                ownBotID: @escaping @Sendable () -> Int64? = { nil },
+                saveOnMac: (@Sendable (Data, String) async throws -> URL)? = nil) {
         self.computer = computer
         self.outbox = outbox
         self.broker = broker
         self.userAPI = userAPI
         self.limiter = limiter
         self.ownBotID = ownBotID
+        self.saveOnMac = saveOnMac
     }
 
     public var name: String { "send_file" }
     public var description: String {
         "Envía por Telegram un archivo de tu ordenador Linux: una imagen, un PDF, un CSV… Sin «chat» le " +
-            "llega al usuario; con «chat» (nombre, @alias o identificador) se envía a esa persona o grupo " +
+            "llega al usuario (si no tiene bot, se guarda en la carpeta Descargas de su Mac); con «chat» (nombre, @alias o identificador) se envía a esa persona o grupo " +
             "desde la cuenta del usuario, igual que telegram_send_message. El tipo sale de la extensión: " +
             "jpg/png/webp foto, mp4/mov vídeo, gif animación, mp3/m4a/wav audio, ogg nota de voz y el resto " +
             "documento; con «as» puedes forzarlo. Varias fotos para el usuario: una llamada por foto. Tamaño máximo 8 MB. Para mandar algo de internet, " +
@@ -316,7 +321,15 @@ public struct SendFileTool: AgentTool {
         }
 
         guard let send = outbox.current else {
-            throw ToolInputError("No hay bot de Telegram conectado: no se pueden enviar archivos.")
+            guard let saveOnMac else {
+                throw ToolInputError("No hay bot de Telegram conectado: no se pueden enviar archivos.")
+            }
+            let data = try await readFile(path, origin: context.origin)
+            let request = ActionRequest(
+                action: Self.action, summary: "Guardar en Descargas el archivo \(filename) (\(data.count / 1024) KB)",
+                parameters: ["Archivo": path], origin: context.origin)
+            let saved = try await broker.run(request) { try await saveOnMac(data, filename) }
+            return "No hay bot: guardado en el Mac como \(saved.path) y abierto en el Finder. Díselo al usuario."
         }
         let data = try await readFile(path, origin: context.origin)
         let request = ActionRequest(

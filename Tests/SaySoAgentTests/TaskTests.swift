@@ -103,6 +103,28 @@ final class TaskTests: XCTestCase {
         XCTAssertTrue(tasks.items.get().isEmpty)
     }
 
+    func testUpdateTaskChangesPausesAndResumes() async throws {
+        let tasks = MemoryTasks()
+        let broker = FakeBroker(allow: true)
+        let now = date(2026, 11, 18, 8, 0)
+        let tools = TaskTools.all(tasks: tasks, broker: broker, now: { now })
+        let update = try XCTUnwrap(tools.first { $0.name == "update_task" })
+        _ = try await tools[0].call(input: ["instruction": "Resume las noticias", "kind": "daily", "time": "09:00"],
+                                    context: ToolContext())
+        let paused = try await update.call(input: ["id": 1, "enabled": false], context: ToolContext())
+        XCTAssertTrue(paused.contains("en pausa"), paused)
+        XCTAssertEqual(tasks.items.get().first?.enabled, false)
+        _ = try await update.call(input: ["id": 1, "enabled": true, "kind": "daily", "time": "20:30",
+                                          "instruction": "Resume las noticias de tecnología"], context: ToolContext())
+        let task = try XCTUnwrap(tasks.items.get().first)
+        XCTAssertTrue(task.enabled)
+        XCTAssertEqual(task.instruction, "Resume las noticias de tecnología")
+        XCTAssertEqual(task.nextRun, TaskSchedule.daily(hour: 20, minute: 30, weekdays: []).next(after: now))
+        XCTAssertEqual(broker.requests.get().last?.action, TaskAction.schedule, "cambiar pide el mismo permiso que programar")
+        let nothing = try await update.call(input: ["id": 1], context: ToolContext())
+        XCTAssertTrue(nothing.contains("nada que cambiar"))
+    }
+
     func testSchedulerRunsDueTasksOnceAndReschedules() async throws {
         // El programador usa el calendario del equipo; las fechas del test, también (CI va en UTC).
         func local(_ y: Int, _ m: Int, _ d: Int, _ h: Int, _ min: Int) -> Date {

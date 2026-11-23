@@ -83,8 +83,67 @@ public struct MemorySearchTool: AgentTool {
         f.locale = Locale(identifier: "es_ES")
         f.dateFormat = "d MMM yyyy"
         return scored.prefix(20).map { note, _ in
-            "- [\(note.kind == .instruction ? "instrucción" : "dato"), \(f.string(from: note.createdAt))] \(note.text)"
+            "- #\(note.id ?? 0) [\(note.kind == .instruction ? "instrucción" : "dato"), \(f.string(from: note.createdAt))] \(note.text)"
         }.joined(separator: "\n")
+    }
+}
+
+/// `memory_forget` y `memory_update`: borrar o corregir una nota por su número (el de memory_search).
+/// Tras leer contenido ajeno no se tocan las notas: un mensaje podría pedir «olvida tus reglas».
+public struct MemoryEditTool: AgentTool {
+    public enum Mode: Sendable { case forget, update }
+    let store: SaySoStoring
+    let mode: Mode
+    public init(store: SaySoStoring, mode: Mode) {
+        self.store = store
+        self.mode = mode
+    }
+
+    public var name: String { mode == .forget ? "memory_forget" : "memory_update" }
+    public var description: String {
+        switch mode {
+        case .forget:
+            return "Borra una nota de la memoria por su número (búscalo antes con memory_search). Úsala cuando el " +
+                "usuario diga que algo ya no es así o que lo olvides («ya no vivo en Vigo», «olvida eso de los perros»)."
+        case .update:
+            return "Corrige una nota de la memoria por su número (búscalo antes con memory_search): texto nuevo y, " +
+                "si cambia, «kind» (dato o instruccion). Mejor que borrar y guardar otra."
+        }
+    }
+    public var inputSchema: JSONValue {
+        switch mode {
+        case .forget:
+            return .objectSchema(["id": ["type": "integer", "description": "Número de la nota"]], required: ["id"])
+        case .update:
+            return .objectSchema([
+                "id": ["type": "integer", "description": "Número de la nota"],
+                "text": .property("string", "Texto nuevo de la nota, en una frase"),
+                "kind": ["type": "string", "enum": ["dato", "instruccion"], "description": "dato o instruccion"],
+            ], required: ["id", "text"])
+        }
+    }
+
+    public func call(input: JSONValue, context: ToolContext) async throws -> String {
+        guard let id = input["id"]?.intValue.map(Int64.init) else { throw ToolInputError("Falta «id» (número de la nota).") }
+        guard let note = try store.notes().first(where: { $0.id == id }) else {
+            return "No existe la nota #\(id): búscala con memory_search."
+        }
+        if GuardContext.current?.isTainted ?? false {
+            return "No cambiado: en este turno has leído contenido de otras personas. Si el usuario quiere cambiar la " +
+                "memoria, que te lo pida en otro mensaje o lo haga en SaySo → Memoria."
+        }
+        switch mode {
+        case .forget:
+            try store.deleteNote(id: id)
+            return "Nota #\(id) borrada: «\(String(note.text.prefix(120)))»."
+        case .update:
+            let text = try input.requiredString("text", maxLength: 1000)
+            try store.updateNoteText(text, id: id)
+            if let kind = input["kind"]?.stringValue.flatMap(MemoryNote.Kind.init(rawValue:)), kind != note.kind {
+                try store.setNoteKind(kind, id: id)
+            }
+            return "Nota #\(id) corregida."
+        }
     }
 }
 
@@ -131,8 +190,9 @@ public enum AgentTools {
     public static func standard(runner: MacScriptRunning, store: SaySoStoring,
                                 computer: AgentComputer? = nil, secrets: ComputerSecrets? = nil,
                                 vision: Bool = false) -> [AgentTool] {
-        MacTools.all(runner: runner) + [RememberTool(store: store), MemorySearchTool(store: store), NewConversationTool(store: store),
-                                        RequestSecretTool(store: store)]
+        MacTools.all(runner: runner) + [RememberTool(store: store), MemorySearchTool(store: store),
+                                        MemoryEditTool(store: store, mode: .forget), MemoryEditTool(store: store, mode: .update),
+                                        NewConversationTool(store: store), RequestSecretTool(store: store)]
             + (computer.map { ComputerTools.all(computer: $0, secrets: secrets, vision: vision, jobs: store) } ?? [])
     }
 }
