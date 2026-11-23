@@ -1375,7 +1375,7 @@
 "No he podido abrir la foto: %@" = "I couldn’t open the photo: %@";
 "Te mando esta foto." = "I’m sending you this photo.";
 "El modelo de tu cuenta no ve imágenes. Elige uno que sí lo haga en SaySo → Modelo, o descríbemela." = "Your account’s model can’t see images. Pick one that can in SaySo → Model, or describe it to me.";
-"De momento entiendo texto, notas de voz y fotos." = "For now I understand text, voice notes and photos.";
+"De momento entiendo texto, notas de voz, fotos y archivos." = "For now I understand text, voice notes, photos and files.";
 "Ese archivo no es una imagen que se pueda abrir." = "That file isn’t an image that can be opened.";
 "La imagen pasa de 20 MB." = "The image is over 20 MB.";
 "detector de inyecciones, en uso" = "prompt-injection detector, in use";
@@ -1558,7 +1558,7 @@
 "Agente: %@" = "Agent: %@";
 "Empezar una conversación nueva" = "Start a new conversation";
 "En pausa. /resume las reanuda." = "Paused. /resume restarts them.";
-"Escríbeme, mándame una nota de voz o una foto y lo hago. Además:" = "Write to me, send me a voice note or a photo and I'll get it done. Also:";
+"Escríbeme, mándame una nota de voz, una foto o un archivo y lo hago. Además:" = "Write to me, send me a voice note, a photo or a file and I'll get it done. Also:";
 "Estado de SaySo: agente, modelo, máquina Linux y gasto de hoy" = "SaySo status: agent, model, Linux machine and today's spend";
 "Este comando no está disponible ahora." = "This command is not available right now.";
 "Hola, soy SaySo. Escríbeme o mándame una nota de voz. /help muestra lo que puedo hacer." = "Hi, I'm SaySo. Write to me or send me a voice note. /help shows what I can do.";
@@ -1664,3 +1664,13 @@
 "no hay conexión a internet. Al volver a instalar, sigue donde se quedó." = "there’s no internet connection. Installing again picks up where it left off.";
 "se cortó la conexión. Al volver a instalar, sigue donde se quedó." = "the connection dropped. Installing again picks up where it left off.";
 "no se puede llegar a debian.org. Revisa la conexión o inténtalo más tarde." = "debian.org can’t be reached. Check the connection or try again later.";
+"Para recibir archivos hace falta la máquina Linux del agente (SaySo → Ordenador)." = "Receiving files needs the agent's Linux machine (SaySo → Computer).";
+"El archivo pasa de 20 MB, el máximo que deja recibir Telegram a un bot." = "The file is over 20 MB, the most Telegram lets a bot receive.";
+"No he podido guardar el archivo: %@" = "I couldn't save the file: %@";
+"Para lanzarlo otra vez, dile al agente «relanza el trabajo %@»." = "To run it again, tell the agent “restart the job %@”.";
+"El Mac ha despertado: se reconectan el bot, las tareas y el atajo" = "The Mac woke up: reconnecting the bot, tasks and shortcut";
+"Escribe al agente" = "Write to the agent";
+"Pídele algo: «resume mis mensajes de hoy»" = "Ask it something: “summarise today’s messages”";
+"Mensaje para el agente" = "Message for the agent";
+"Enviar" = "Send";
+"Añade una cuenta de IA en Modelo para hablar con el agente." = "Add an AI account in Model to talk to the agent.";

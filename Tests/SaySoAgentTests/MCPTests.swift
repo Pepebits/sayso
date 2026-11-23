@@ -384,6 +384,20 @@ final class BackgroundJobTests: XCTestCase {
         _ = try await jobs.call(input: ["action": "cancel", "id": .string(job.id)], context: ToolContext())
         XCTAssertFalse(BackgroundJob.load(store).first { $0.id == job.id }?.isRunning ?? true)
         XCTAssertTrue(computer.commands.get().last?.0.contains("kill -- -$(cat") ?? false)
+
+        // Cortado (la máquina se apagó): se puede relanzar con el mismo comando.
+        var all = BackgroundJob.load(store)
+        let index = try XCTUnwrap(all.firstIndex { $0.id == job.id })
+        all[index].exitCode = nil
+        BackgroundJob.save(all, store)
+        let listed = try await jobs.call(input: ["action": "list"], context: ToolContext())
+        XCTAssertTrue(listed.contains("relanzar"), listed)
+        _ = try await jobs.call(input: ["action": "cancel", "id": .string(BackgroundJob.load(store).first { $0.isRunning }!.id)],
+                                context: ToolContext())
+        let again = try await jobs.call(input: ["action": "restart", "id": .string(job.id)], context: ToolContext())
+        XCTAssertTrue(again.contains("relanzado"), again)
+        XCTAssertTrue(BackgroundJob.load(store).first { $0.id == job.id }?.isRunning ?? false)
+        XCTAssertTrue(computer.commands.get().last?.0.contains("setsid nohup") ?? false)
     }
 }
 

@@ -48,6 +48,9 @@ struct HomeScreen: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Space.xl) {
             hero
+            if model.activeAccount != nil, model.agentRunning {
+                DeskChat(model: model)
+            }
 
             VStack(alignment: .leading, spacing: Theme.Space.s) {
                 HStack(alignment: .firstTextBaseline) {
@@ -333,5 +336,60 @@ struct LinkTextStyle: ButtonStyle {
             .underline()
             .opacity(configuration.isPressed ? 0.6 : 1)
             .contentShape(Rectangle())
+    }
+}
+
+/// «Escribe al agente»: sin bot también se le puede pedir algo por escrito desde el Mac. Es la
+/// misma conversación que la voz.
+private struct DeskChat: View {
+    let model: AppModel
+    @State private var text = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Theme.Space.s) {
+            SectionLabel("Escribe al agente")
+            SettingsCard {
+                VStack(alignment: .leading, spacing: Theme.Space.s) {
+                    ForEach(model.deskChat.suffix(4)) { line in
+                        HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
+                            Text(tr(line.fromUser ? "Tú" : "SaySo").uppercased())
+                                .font(Theme.mono(11, weight: .bold))
+                                .foregroundStyle(Theme.secondary)
+                                .frame(width: 48, alignment: .leading)
+                            Text(verbatim: line.text)
+                                .font(Theme.body)
+                                .foregroundStyle(Theme.ink)
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                    if model.deskChatBusy {
+                        HStack(spacing: Theme.Space.s) {
+                            ProgressView().controlSize(.small)
+                            Text(verbatim: model.deskChatStep ?? tr("El agente está en ello…"))
+                                .font(Theme.caption)
+                                .foregroundStyle(Theme.secondary)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                    HStack(spacing: Theme.Space.s) {
+                        BlockField("Pídele algo: «resume mis mensajes de hoy»", text: $text, label: "Mensaje para el agente")
+                            .onSubmit(send)
+                        BlockButton("Enviar", systemImage: "arrow.up", kind: .primary, action: send)
+                            .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty || model.deskChatBusy)
+                    }
+                }
+                .padding(Theme.Space.m)
+            }
+        }
+    }
+
+    private func send() {
+        guard !model.deskChatBusy else { return }
+        let message = text
+        text = ""
+        model.actions?.askAgent(message)
     }
 }

@@ -59,6 +59,11 @@ public final class AppModel {
     /// Pantalla que pide abrir un atajo de teclado (⌘1…⌘9) o el menú de la barra; la ventana la
     /// abre y lo vuelve a poner a `nil`.
     public var requestedScreen: SettingsScreen?
+    /// Lo escrito al agente desde Inicio en esta sesión de la app, y sus respuestas.
+    public var deskChat: [DeskChatLine] = []
+    /// Qué hace el agente con lo escrito desde Inicio; `nil` si no está con nada.
+    public var deskChatStep: String?
+    public var deskChatBusy = false
     /// Lo dicho en la conversación en curso (o en la última), en orden.
     public var conversationLines: [ConversationLine] = []
     /// Hay un dictado manual (con el botón) en curso.
@@ -246,6 +251,8 @@ public protocol AppActions: AnyObject {
     func setAccountVision(id: UUID, _ enabled: Bool)
     /// Prueba la cuenta con una petición mínima: así «Lista» quiere decir que responde.
     func testAccount(id: UUID)
+    /// Escribe al agente desde la app, sin bot: misma conversación que la voz.
+    func askAgent(_ text: String)
 
     // Ordenador
     /// Descarga la imagen si falta y arranca la máquina.
@@ -361,4 +368,15 @@ public enum AccountCheck: Equatable, Sendable {
     case checking
     case ok
     case failed(String)
+}
+
+/// Una línea del chat con el agente en Inicio.
+public struct DeskChatLine: Identifiable, Hashable, Sendable {
+    public let id = UUID()
+    public var fromUser: Bool
+    public var text: String
+    public init(fromUser: Bool, text: String) {
+        self.fromUser = fromUser
+        self.text = text
+    }
 }

@@ -120,6 +120,14 @@ public final class ComputerManager: NSObject, VZVirtualMachineDelegate {
         Task { [weak self] in _ = await self?.trim() }
     }
 
+    /// Pone en hora la máquina con el reloj del Mac. Tras dormir el Mac, el reloj de dentro se
+    /// queda atrás y fallan las conexiones con certificados y las horas de los archivos.
+    public func syncClock() async {
+        guard state == .running else { return }
+        let epoch = Int(Date().timeIntervalSince1970)
+        _ = try? await send(.exec("sudo date -u -s @\(epoch) >/dev/null 2>&1", timeout: 10), receiveTimeout: 15)
+    }
+
     /// `fstrim /`: avisa al disco de qué bloques están libres y el Mac los recupera (el disco es un
     /// archivo disperso). Devuelve los bytes marcados como libres, o `nil` si no se pudo.
     @discardableResult

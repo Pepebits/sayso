@@ -98,6 +98,13 @@ public actor TelegramBotService {
         commandHandler = handler
     }
 
+    /// Guarda un archivo recibido (datos y nombre) y devuelve dónde ha quedado.
+    public typealias DocumentSaver = @Sendable (Data, String) async throws -> String
+    private var documentSaver: DocumentSaver?
+    public func setDocumentSaver(_ saver: DocumentSaver?) { documentSaver = saver }
+    /// Lo más que deja descargar la API de bots.
+    static let maxDocumentBytes = 20 * 1024 * 1024
+
     /// Comandos del menú del bot. Responden al momento, sin pasar por el modelo.
     static var menu: [(command: String, description: String)] {
         [("status", tr("Estado de SaySo: agente, modelo, máquina Linux y gasto de hoy")),
@@ -406,7 +413,7 @@ public actor TelegramBotService {
                     return
                 case "help":
                     let lines = Self.menu.map { "/\($0.command) — \($0.description)" }
-                    await send(chatID, tr("Escríbeme, mándame una nota de voz o una foto y lo hago. Además:") + "\n\n" + lines.joined(separator: "\n"))
+                    await send(chatID, tr("Escríbeme, mándame una nota de voz, una foto o un archivo y lo hago. Además:") + "\n\n" + lines.joined(separator: "\n"))
                     return
                 case "status", "tasks", "pause", "resume":
                     guard let handler = commandHandler else {
@@ -430,8 +437,10 @@ public actor TelegramBotService {
             await handleVoice(voice, chatID: chatID, forwarded: forwarded)
         } else if let photo = message.photo?.last {
             await handlePhoto(photo, caption: message.caption, chatID: chatID, forwarded: forwarded)
+        } else if let document = message.document {
+            await handleDocument(document, caption: message.caption, chatID: chatID, forwarded: forwarded)
         } else {
-            await send(chatID, tr("De momento entiendo texto, notas de voz y fotos."))
+            await send(chatID, tr("De momento entiendo texto, notas de voz, fotos y archivos."))
         }
     }
 
@@ -480,6 +489,46 @@ public actor TelegramBotService {
         let said = caption?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let text = said.isEmpty ? tr("Te mando esta foto.") : said
         await reply(to: text + "\n[foto adjunta]", chatID: chatID, images: [image], forwarded: forwarded)
+    }
+
+    /// Un archivo del dueño: se guarda en la máquina Linux y el agente sabe dónde está.
+    private func handleDocument(_ document: TGDocument, caption: String?, chatID: Int64, forwarded: Bool = false) async {
+        guard let documentSaver else {
+            await send(chatID, tr("Para recibir archivos hace falta la máquina Linux del agente (SaySo → Ordenador)."))
+            return
+        }
+        if let size = document.fileSize, size > Self.maxDocumentBytes {
+            await send(chatID, tr("El archivo pasa de 20 MB, el máximo que deja recibir Telegram a un bot."))
+            return
+        }
+        let name = Self.safeFilename(document.fileName ?? "archivo")
+        let typing = startTyping(chatID)
+        let path: String
+        let bytes: Int
+        do {
+            let file = try await client.getFile(fileID: document.fileId)
+            guard let remote = file.filePath else { throw TelegramError.invalidResponse }
+            let data = try await client.downloadFile(path: remote)
+            bytes = data.count
+            path = try await documentSaver(data, name)
+        } catch {
+            typing.cancel()
+            await send(chatID, tr("No he podido guardar el archivo: %@", "\(error.localizedDescription)"))
+            return
+        }
+        typing.cancel()
+        let said = caption?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let note = "[archivo recibido: «\(name)», \(max(1, bytes / 1024)) KB, guardado en \(path) de tu ordenador Linux]"
+        await reply(to: (said.isEmpty ? "Te mando este archivo." : said) + "\n" + note, chatID: chatID, forwarded: forwarded)
+    }
+
+    /// Un nombre de archivo sin rutas ni caracteres raros, para guardarlo tal cual.
+    static func safeFilename(_ raw: String) -> String {
+        let base = (raw as NSString).lastPathComponent
+        let cleaned = String(base.unicodeScalars.map { scalar -> Character in
+            CharacterSet.alphanumerics.contains(scalar) || " ._-()".unicodeScalars.contains(scalar) ? Character(scalar) : "_"
+        }).trimmingCharacters(in: CharacterSet(charactersIn: " ."))
+        return cleaned.isEmpty ? "archivo" : String(cleaned.prefix(120))
     }
 
     static let forwardedSource = "un mensaje reenviado de otra persona"

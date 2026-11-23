@@ -1365,7 +1365,7 @@
 "No he podido abrir la foto: %@" = "Je n’ai pas pu ouvrir la photo : %@";
 "Te mando esta foto." = "Je t’envoie cette photo.";
 "El modelo de tu cuenta no ve imágenes. Elige uno que sí lo haga en SaySo → Modelo, o descríbemela." = "Le modèle de votre compte ne voit pas les images. Choisissez-en un qui le fait dans SaySo → Modèle, ou décrivez-la-moi.";
-"De momento entiendo texto, notas de voz y fotos." = "Pour l’instant je comprends le texte, les notes vocales et les photos.";
+"De momento entiendo texto, notas de voz, fotos y archivos." = "Pour l’instant je comprends le texte, les notes vocales, les photos et les fichiers.";
 "Ese archivo no es una imagen que se pueda abrir." = "Ce fichier n’est pas une image qui puisse être ouverte.";
 "La imagen pasa de 20 MB." = "L’image dépasse 20 Mo.";
 "detector de inyecciones, en uso" = "détecteur d’injections, utilisé";
@@ -1548,7 +1548,7 @@
 "Agente: %@" = "Agent : %@";
 "Empezar una conversación nueva" = "Commencer une nouvelle conversation";
 "En pausa. /resume las reanuda." = "En pause. /resume les relance.";
-"Escríbeme, mándame una nota de voz o una foto y lo hago. Además:" = "Écrivez-moi, envoyez-moi une note vocale ou une photo et je m’en occupe. En plus :";
+"Escríbeme, mándame una nota de voz, una foto o un archivo y lo hago. Además:" = "Écrivez-moi, envoyez-moi une note vocale, une photo ou un fichier et je m’en occupe. En plus :";
 "Estado de SaySo: agente, modelo, máquina Linux y gasto de hoy" = "État de SaySo : agent, modèle, machine Linux et dépense du jour";
 "Este comando no está disponible ahora." = "Cette commande n’est pas disponible pour le moment.";
 "Hola, soy SaySo. Escríbeme o mándame una nota de voz. /help muestra lo que puedo hacer." = "Bonjour, je suis SaySo. Écrivez-moi ou envoyez-moi une note vocale. /help montre ce que je peux faire.";
@@ -1654,3 +1654,13 @@
 "no hay conexión a internet. Al volver a instalar, sigue donde se quedó." = "pas de connexion à Internet. En réinstallant, le téléchargement reprend là où il s’était arrêté.";
 "se cortó la conexión. Al volver a instalar, sigue donde se quedó." = "la connexion a été coupée. En réinstallant, le téléchargement reprend là où il s’était arrêté.";
 "no se puede llegar a debian.org. Revisa la conexión o inténtalo más tarde." = "impossible de joindre debian.org. Vérifiez la connexion ou réessayez plus tard.";
+"Para recibir archivos hace falta la máquina Linux del agente (SaySo → Ordenador)." = "Pour recevoir des fichiers, il faut la machine Linux de l’agent (SaySo → Ordinateur).";
+"El archivo pasa de 20 MB, el máximo que deja recibir Telegram a un bot." = "Le fichier dépasse 20 Mo, le maximum qu’un bot peut recevoir sur Telegram.";
+"No he podido guardar el archivo: %@" = "Je n’ai pas pu enregistrer le fichier : %@";
+"Para lanzarlo otra vez, dile al agente «relanza el trabajo %@»." = "Pour le relancer, dites à l’agent « relance la tâche %@ ».";
+"El Mac ha despertado: se reconectan el bot, las tareas y el atajo" = "Le Mac s’est réveillé : reconnexion du bot, des tâches et du raccourci";
+"Escribe al agente" = "Écrire à l’agent";
+"Pídele algo: «resume mis mensajes de hoy»" = "Demandez-lui quelque chose : « résume mes messages du jour »";
+"Mensaje para el agente" = "Message pour l’agent";
+"Enviar" = "Envoyer";
+"Añade una cuenta de IA en Modelo para hablar con el agente." = "Ajoutez un compte d’IA dans Modèle pour parler à l’agent.";

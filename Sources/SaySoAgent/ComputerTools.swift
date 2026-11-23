@@ -216,15 +216,21 @@ public struct StartJobTool: AgentTool {
         let dir = "~/.sayso-jobs/\(job.id)"
         try await computer.writeFile("\(dir)/run.sh", content: command + "\n", origin: context.origin)
         let workdir = cwd.isEmpty ? "$HOME/sayso" : "$HOME/sayso/\(cwd)"
-        // setsid + nohup: sobrevive a que el agente termine; el pid es el del grupo, para poder cancelarlo.
-        let launch = "mkdir -p \"\(workdir)\" && cd \"\(workdir)\" && setsid nohup bash -c " +
-            "'bash \(job.folder)/run.sh > \(job.folder)/out.log 2>&1; echo $? > \(job.folder)/exit' " +
-            ">/dev/null 2>&1 < /dev/null & echo $! > \(job.folder)/pid"
-        let result = try await computer.run(launch, cwd: nil, timeout: 30, origin: context.origin)
+        try await computer.writeFile("\(dir)/cwd", content: workdir + "\n", origin: context.origin)
+        let result = try await computer.run(Self.launch(job, workdir: workdir), cwd: nil, timeout: 30, origin: context.origin)
         guard result.exitCode == 0 else { return "No se pudo lanzar: " + ComputerTools.render(result) }
         jobs.append(job)
         BackgroundJob.save(jobs, store)
         return "Trabajo «\(name)» lanzado (id \(job.id)). Se avisará al usuario cuando termine; no hace falta que esperes."
+    }
+}
+
+extension StartJobTool {
+    /// setsid + nohup: sobrevive a que el agente termine; el pid es el del grupo, para poder cancelarlo.
+    static func launch(_ job: BackgroundJob, workdir: String) -> String {
+        "rm -f \(job.folder)/exit; mkdir -p \"\(workdir)\" && cd \"\(workdir)\" && setsid nohup bash -c " +
+            "'bash \(job.folder)/run.sh > \(job.folder)/out.log 2>&1; echo $? > \(job.folder)/exit' " +
+            ">/dev/null 2>&1 < /dev/null & echo $! > \(job.folder)/pid"
     }
 }
 
@@ -235,12 +241,13 @@ public struct JobsTool: AgentTool {
     public var name: String { "computer_jobs" }
     public var description: String {
         "Trabajos largos lanzados con computer_start_job: «list» los enseña con su estado; «log» da las últimas " +
-            "líneas de la salida de uno («id»); «cancel» lo detiene."
+            "líneas de la salida de uno («id»); «cancel» lo detiene; «restart» vuelve a lanzar uno interrumpido (por " +
+            "ejemplo, porque se apagó la máquina) con el mismo comando."
     }
     public var inputSchema: JSONValue {
         .objectSchema([
-            "action": ["type": "string", "enum": ["list", "log", "cancel"]],
-            "id": .property("string", "Para log y cancel"),
+            "action": ["type": "string", "enum": ["list", "log", "cancel", "restart"]],
+            "id": .property("string", "Para log, cancel y restart"),
         ], required: ["action"])
     }
 
@@ -250,13 +257,29 @@ public struct JobsTool: AgentTool {
         case "list":
             guard !jobs.isEmpty else { return "No hay trabajos." }
             return jobs.reversed().map { job in
-                let state = job.isRunning ? "en marcha" : (job.exitCode.map { $0 == 0 ? "terminado bien" : "terminado con código \($0)" } ?? "interrumpido")
+                let state = job.isRunning ? "en marcha" : (job.exitCode.map { $0 == 0 ? "terminado bien" : "terminado con código \($0)" } ?? "interrumpido, se puede relanzar con restart")
                 return "\(job.id) · \(job.name) · \(state)"
             }.joined(separator: "\n")
-        case "log", "cancel":
+        case "log", "cancel", "restart":
             let id = try input.requiredString("id", maxLength: 20)
             guard let index = jobs.firstIndex(where: { $0.id == id }) else { throw ToolInputError("No hay ningún trabajo \(id).") }
             let job = jobs[index]
+            if input["action"]?.stringValue == "restart" {
+                guard !job.isRunning else { return "«\(job.name)» sigue en marcha." }
+                guard jobs.filter(\.isRunning).count < BackgroundJob.maxRunning else {
+                    throw ToolInputError("Ya hay \(BackgroundJob.maxRunning) trabajos en marcha: espera a que acabe alguno.")
+                }
+                let saved = try await computer.run("cat \(job.folder)/cwd 2>/dev/null", cwd: nil, timeout: 30, origin: context.origin)
+                let workdir = saved.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+                let result = try await computer.run(StartJobTool.launch(job, workdir: workdir.isEmpty ? "$HOME/sayso" : workdir),
+                                                    cwd: nil, timeout: 30, origin: context.origin)
+                guard result.exitCode == 0 else { return "No se pudo relanzar: " + ComputerTools.render(result) }
+                jobs[index].finishedAt = nil
+                jobs[index].exitCode = nil
+                jobs[index].startedAt = Date()
+                BackgroundJob.save(jobs, store)
+                return "Trabajo «\(job.name)» relanzado (id \(job.id)). Se avisará al usuario cuando termine."
+            }
             if input["action"]?.stringValue == "log" {
                 let result = try await computer.run("tail -n 40 \(job.folder)/out.log 2>/dev/null", cwd: nil, timeout: 30,
                                                     origin: context.origin)

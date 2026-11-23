@@ -847,6 +847,42 @@ final class AppController: AppActions {
         return url
     }
 
+    /// Lo que se escribe al agente desde Inicio: misma conversación que la voz, con todas las
+    /// herramientas, y la respuesta en la pantalla. Para quien no tiene bot (o no lo quiere a mano).
+    func askAgent(_ text: String) {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !model.deskChatBusy, let services else { return }
+        guard model.agentRunning, model.activeAccount != nil else {
+            model.lastError = tr(model.activeAccount == nil ? "Añade una cuenta de IA en Modelo para hablar con el agente."
+                                                            : "El agente está detenido. Reanúdalo en Inicio.")
+            return
+        }
+        model.deskChat.append(DeskChatLine(fromUser: true, text: text))
+        model.deskChatBusy = true
+        Task { [weak self] in
+            let reply: String
+            do {
+                let loop = try await services.makeLoop()
+                reply = try await loop.respond(
+                    to: text, chatID: "voz", origin: "app", instructions: AgentPrompts.desk,
+                    onStep: { step in Task { @MainActor in self?.model.deskChatStep = step } })
+            } catch {
+                reply = tr("No he podido responder: %@", "\(error.localizedDescription)")
+            }
+            guard let self else { return }
+            self.model.deskChat.append(DeskChatLine(fromUser: false, text: reply))
+            if self.model.deskChat.count > 20 { self.model.deskChat.removeFirst(self.model.deskChat.count - 20) }
+            self.model.deskChatBusy = false
+            self.model.deskChatStep = nil
+            self.refresh()
+        }
+    }
+
+    /// El ordenador del agente, si la máquina está instalada.
+    var installedAgentComputer: VMComputer? {
+        computer?.isInstalled == true ? agentComputer : nil
+    }
+
     func cancelComputerInstall() {
         computer?.cancelInstall()
     }
@@ -925,7 +961,7 @@ final class AppController: AppActions {
 
     /// Los comandos que lanza el agente aparecen en la misma consola, para poder seguirle.
     private func mirrorAgentCommand(_ command: String, origin: String?, result: CommandResult?, error: String?) {
-        guard let origin, ["telegram", "voz", "tarea"].contains(where: origin.hasPrefix) else { return }
+        guard let origin, ["telegram", "voz", "tarea", "app"].contains(where: origin.hasPrefix) else { return }
         var entry = TerminalEntry(command: command, author: .agent)
         if let result {
             entry.output = [result.stdout, result.stderr].map { ConsoleText.clean($0).trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -962,6 +998,8 @@ final class AppController: AppActions {
     private func shutDownComputerIfIdle() {
         guard let computer, computer.state == .running, !desktopWindow.isVisible,
               model.desktopState != .installing,
+              // Con un trabajo largo en marcha no se apaga: antes se cortaba a medias.
+              !(store.map { BackgroundJob.load($0).contains(where: \.isRunning) } ?? false),
               computer.idleTime > Self.computerIdleLimit else { return }
         Task {
             await plugins?.closeAll()
@@ -1121,7 +1159,11 @@ final class AppController: AppActions {
             let state = item.code.map { $0 == 0 ? tr("ha terminado bien") : tr("ha terminado con error (código %@)", "\($0)") }
                 ?? tr("se ha interrumpido")
             let tail = (services?.redactor.redact(item.tail) ?? item.tail).trimmingCharacters(in: .whitespacesAndNewlines)
-            let text = "🛠 " + tr("El trabajo «%@» %@.", item.job.name, state) + (tail.isEmpty ? "" : "\n\n" + String(tail.suffix(1500)))
+            var text = "🛠 " + tr("El trabajo «%@» %@.", item.job.name, state) + (tail.isEmpty ? "" : "\n\n" + String(tail.suffix(1500)))
+            // Cortado a medias: se puede volver a lanzar igual, basta con pedirlo.
+            if item.code == nil {
+                text += "\n\n" + tr("Para lanzarlo otra vez, dile al agente «relanza el trabajo %@».", item.job.name)
+            }
             model.log(item.code == 0 ? .info : .warning, LogCategory.computer, tr("El trabajo «%@» %@.", item.job.name, state))
             speakAlert(tr("El trabajo «%@» %@.", item.job.name, state))
             // Por donde se pidió: el bot si vino de Telegram; si no, una notificación del Mac.
@@ -1945,6 +1987,10 @@ final class AppController: AppActions {
 
     /// macOS avisa de que la pantalla se bloquea y se desbloquea con estas dos notificaciones.
     private func observeScreenLock() {
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil,
+                                                          queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.macDidWake() }
+        }
         let center = DistributedNotificationCenter.default()
         center.addObserver(forName: Notification.Name("com.apple.screenIsLocked"), object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.macLocked() }
@@ -1961,6 +2007,23 @@ final class AppController: AppActions {
         model.lockPaused = true
         stopTelegram()
         model.log(.info, LogCategory.app, tr("Agente en pausa: el Mac está bloqueado"))
+    }
+
+    /// Al despertar el Mac nada se ponía al día: el bot esperaba su reintento más largo, las tareas
+    /// atrasadas a la siguiente vuelta, el reloj de la máquina Linux iba atrás y el atajo podía
+    /// haberse quedado desactivado por macOS.
+    private func macDidWake() {
+        model.log(.info, LogCategory.app, tr("El Mac ha despertado: se reconectan el bot, las tareas y el atajo"))
+        if model.agentRunning, !model.lockPaused, telegram != nil {
+            stopTelegram()
+            startTelegram()
+        }
+        tickScheduler()
+        if let computer { Task { await computer.syncClock() } }
+        if dictationStarted, model.dictation.enabled {
+            dictation?.suspendHotkey(true)
+            dictation?.suspendHotkey(false)
+        }
     }
 
     private func macUnlocked() {
@@ -2239,6 +2302,15 @@ final class AppController: AppActions {
             }
             await service.setGuestLoop { attachment in try await services.makeGuestLoop(attachment: attachment) }
             await service.setCommandHandler(AppBotCommands(controller: self))
+            // Los archivos que mandas al bot van a ~/sayso/recibidos de la máquina Linux.
+            await service.setDocumentSaver { [weak self] data, name in
+                guard let self, let computer = await self.installedAgentComputer else {
+                    throw ToolInputError("La máquina Linux no está instalada.")
+                }
+                let path = "~/sayso/recibidos/\(name)"
+                try await computer.writeData(path, data: data, origin: "telegram")
+                return path
+            }
         }
         services.outbox.set { [weak service] data, filename, caption in
             guard let service else { throw ToolInputError("El bot de Telegram no está conectado.") }

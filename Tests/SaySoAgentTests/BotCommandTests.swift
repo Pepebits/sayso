@@ -10,6 +10,19 @@ private final class FakeCommands: BotCommandHandling, @unchecked Sendable {
 }
 
 final class BotCommandTests: XCTestCase {
+    func testDocumentsAreDecodedAndGetASafeName() throws {
+        let json = #"{"message_id":1,"chat":{"id":5,"type":"private"},"document":{"file_id":"F1","file_name":"Informe Q3.pdf","mime_type":"application/pdf","file_size":2048}}"#
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let message = try decoder.decode(TGMessage.self, from: Data(json.utf8))
+        XCTAssertEqual(message.document?.fileName, "Informe Q3.pdf")
+        XCTAssertEqual(message.document?.fileSize, 2048)
+        XCTAssertEqual(TelegramBotService.safeFilename("Informe Q3.pdf"), "Informe Q3.pdf")
+        XCTAssertEqual(TelegramBotService.safeFilename("../../etc/passwd"), "passwd")
+        XCTAssertEqual(TelegramBotService.safeFilename("a;b`c$.csv"), "a_b_c_.csv")
+        XCTAssertEqual(TelegramBotService.safeFilename(".."), "archivo")
+    }
+
     private let helper = TelegramTests()
 
     func testCommandsAnswerWithoutTheModel() async throws {

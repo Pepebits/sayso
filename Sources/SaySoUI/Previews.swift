@@ -34,6 +34,7 @@ final class PreviewActions: AppActions {
     func removeAccount(id: UUID) { model.accounts.removeAll { $0.id == id } }
     func selectAccount(id: UUID) { model.activeAccountID = id }
     func testAccount(id: UUID) { model.accountChecks[id] = .ok }
+    func askAgent(_ text: String) { model.deskChat += [DeskChatLine(fromUser: true, text: text), DeskChatLine(fromUser: false, text: "Hecho.")] }
     func setAccountVision(id: UUID, _ enabled: Bool) {
         if let i = model.accounts.firstIndex(where: { $0.id == id }) { model.accounts[i].vision = enabled }
     }
