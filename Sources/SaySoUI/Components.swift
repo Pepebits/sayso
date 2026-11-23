@@ -732,19 +732,45 @@ public struct InlineNote: View {
 /// Banda discreta para el último error.
 public struct ErrorBand: View {
     var message: String
-    public init(_ message: String) { self.message = message }
+    var date: Date?
+    var onClose: (() -> Void)?
+    public init(_ message: String, date: Date? = nil, onClose: (() -> Void)? = nil) {
+        self.message = message
+        self.date = date
+        self.onClose = onClose
+    }
 
     public var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: Theme.Space.s) {
             Rectangle().fill(Theme.destructive).frame(width: 8, height: 8)
                 .alignmentGuide(.firstTextBaseline) { d in d[.bottom] - 1 }
                 .accessibilityHidden(true)
-            Text(tr(message))
-                .font(Theme.caption)
-                .foregroundStyle(Theme.ink)
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(tr(message))
+                    .font(Theme.caption)
+                    .foregroundStyle(Theme.ink)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let date {
+                    Text(date, style: .time)
+                        .font(Theme.caption)
+                        .foregroundStyle(Theme.secondary)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(tr("Error: %@", tr(message)))
+            if let onClose {
+                Button(action: onClose) {
+                    Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Theme.secondary)
+                        .frame(width: 20, height: 20)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(tr("Cerrar"))
+                .accessibilityLabel(tr("Cerrar el aviso de error"))
+            }
         }
         .padding(.horizontal, Theme.Space.m)
         .padding(.vertical, Theme.Space.s)
@@ -752,8 +778,13 @@ public struct ErrorBand: View {
         .overlay(alignment: .leading) { Rectangle().fill(Theme.red).frame(width: 2) }
         .overlay(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous).strokeBorder(Theme.border, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(tr("Error: %@", tr(message)))
+        .onAppear { announce() }
+        .onChange(of: message) { _, _ in announce() }
+    }
+
+    /// VoiceOver lo dice al aparecer: si no, un error se queda sin oír hasta que se llega a él.
+    private func announce() {
+        AccessibilityNotification.Announcement(tr("Error: %@", tr(message))).post()
     }
 }
 

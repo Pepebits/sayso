@@ -1638,3 +1638,12 @@
 "Sin ellos no funciona: ni el agente, ni las tareas, ni los ajustes." = "Sen eles non funciona nada: nin o axente, nin as tarefas, nin os axustes.";
 "Suele pasar si el disco está lleno o la carpeta de datos no tiene permisos. Libera espacio o revisa la carpeta y reintenta. No se ha borrado nada." = "Adoita pasar se o disco está cheo ou o cartafol de datos non ten permisos. Libera espazo ou revisa o cartafol e téntao de novo. Non se borrou nada.";
 "Mostrar carpeta" = "Mostrar cartafol";
+"Cerrar el aviso de error" = "Pechar o aviso de erro";
+"Agente detenido" = "Axente detido";
+"Conversación en marcha" = "Conversa en marcha";
+"Faltan permisos para el atajo" = "Faltan permisos para o atallo";
+"Ir" = "Ir";
+"Listo: mantén %@ para hablar" = "Listo: mantén %@ para falar";
+"Revisar permisos…" = "Revisar permisos…";
+"Te escucha" = "Escoitándote";
+"Terminar la conversación" = "Rematar a conversa";

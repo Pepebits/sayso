@@ -56,6 +56,9 @@ public final class AppModel {
     public var contexts: [ConversationContext] = []
     /// Hay una conversación hablada con el agente en curso.
     public var conversing = false
+    /// Pantalla que pide abrir un atajo de teclado (⌘1…⌘9) o el menú de la barra; la ventana la
+    /// abre y lo vuelve a poner a `nil`.
+    public var requestedScreen: SettingsScreen?
     /// Lo dicho en la conversación en curso (o en la última), en orden.
     public var conversationLines: [ConversationLine] = []
     /// Hay un dictado manual (con el botón) en curso.
@@ -135,8 +138,14 @@ public final class AppModel {
 
     /// Último error para mostrar al usuario.
     public var lastError: String? {
-        didSet { if let lastError, lastError != oldValue { log(.error, LogCategory.app, lastError) } }
+        didSet {
+            guard let lastError, lastError != oldValue else { return }
+            lastErrorDate = Date()
+            log(.error, LogCategory.app, lastError)
+        }
     }
+    /// Cuándo llegó el último error, para la banda.
+    public var lastErrorDate: Date?
 
     // Registros
     /// Entradas del registro de la app, de la más antigua a la más reciente.

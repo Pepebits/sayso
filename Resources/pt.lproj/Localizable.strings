@@ -1638,3 +1638,12 @@
 "Sin ellos no funciona: ni el agente, ni las tareas, ni los ajustes." = "Sem eles nada funciona: nem o agente, nem as tarefas, nem as definições.";
 "Suele pasar si el disco está lleno o la carpeta de datos no tiene permisos. Libera espacio o revisa la carpeta y reintenta. No se ha borrado nada." = "Costuma acontecer quando o disco está cheio ou a pasta de dados não tem permissões. Liberte espaço ou verifique a pasta e tente novamente. Nada foi apagado.";
 "Mostrar carpeta" = "Mostrar pasta";
+"Cerrar el aviso de error" = "Fechar o aviso de erro";
+"Agente detenido" = "Agente parado";
+"Conversación en marcha" = "Conversa em curso";
+"Faltan permisos para el atajo" = "Faltam permissões para o atalho";
+"Ir" = "Ir";
+"Listo: mantén %@ para hablar" = "Pronto: mantenha %@ para falar";
+"Revisar permisos…" = "Rever permissões…";
+"Te escucha" = "A ouvir";
+"Terminar la conversación" = "Terminar a conversa";

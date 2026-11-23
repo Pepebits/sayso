@@ -2,7 +2,7 @@ import SaySoCore
 import SwiftUI
 
 /// Pantallas de la ventana de ajustes.
-public enum SettingsScreen: String, CaseIterable, Identifiable, Hashable {
+public enum SettingsScreen: String, CaseIterable, Identifiable, Hashable, Sendable {
     case inicio, dictado, modelo, ordenador, plugins, tareas, memoria, telegram, mac, secretos, estadisticas, registros, ajustes
 
     public var id: String { rawValue }
@@ -18,7 +18,7 @@ public enum SettingsScreen: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    var title: String {
+    public var title: String {
         switch self {
         case .inicio: return "Inicio"
         case .dictado: return "Dictado"
@@ -181,6 +181,11 @@ public struct SettingsRootView: View {
         .background(Theme.paper)
         .frame(minWidth: 920, minHeight: 620)
         .sheet(isPresented: $showingPermissionGuide) { PermissionGuideSheet(model: model) }
+        .onChange(of: model.requestedScreen, initial: true) { _, screen in
+            guard let screen else { return }
+            open(screen)
+            model.requestedScreen = nil
+        }
         .appLanguage()
     }
 
@@ -299,7 +304,7 @@ public struct SettingsRootView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Space.xl) {
                     if let error = model.lastError {
-                        ErrorBand(error)
+                        ErrorBand(error, date: model.lastErrorDate) { model.lastError = nil }
                     }
                     dictationWarning
                     screenView(selection)

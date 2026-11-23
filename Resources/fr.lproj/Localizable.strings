@@ -1629,3 +1629,12 @@
 "Sin ellos no funciona: ni el agente, ni las tareas, ni los ajustes." = "Sans elles, rien ne fonctionne : ni l’agent, ni les tâches, ni les réglages.";
 "Suele pasar si el disco está lleno o la carpeta de datos no tiene permisos. Libera espacio o revisa la carpeta y reintenta. No se ha borrado nada." = "Cela arrive souvent quand le disque est plein ou que le dossier de données n’a pas les autorisations. Libérez de l’espace ou vérifiez le dossier, puis réessayez. Rien n’a été supprimé.";
 "Mostrar carpeta" = "Afficher le dossier";
+"Cerrar el aviso de error" = "Fermer l’avis d’erreur";
+"Agente detenido" = "Agent arrêté";
+"Conversación en marcha" = "Conversation en cours";
+"Faltan permisos para el atajo" = "Il manque des autorisations pour le raccourci";
+"Ir" = "Aller";
+"Listo: mantén %@ para hablar" = "Prêt : maintenez %@ pour parler";
+"Revisar permisos…" = "Vérifier les autorisations…";
+"Te escucha" = "À l’écoute";
+"Terminar la conversación" = "Terminer la conversation";

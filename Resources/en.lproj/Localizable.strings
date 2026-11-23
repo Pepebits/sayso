@@ -1639,3 +1639,12 @@
 "Sin ellos no funciona: ni el agente, ni las tareas, ni los ajustes." = "Without them nothing works: not the agent, the tasks or the settings.";
 "Suele pasar si el disco está lleno o la carpeta de datos no tiene permisos. Libera espacio o revisa la carpeta y reintenta. No se ha borrado nada." = "This usually happens when the disk is full or the data folder lacks permissions. Free up space or check the folder and try again. Nothing has been deleted.";
 "Mostrar carpeta" = "Show folder";
+"Cerrar el aviso de error" = "Close the error notice";
+"Agente detenido" = "Agent stopped";
+"Conversación en marcha" = "Conversation in progress";
+"Faltan permisos para el atajo" = "The shortcut is missing permissions";
+"Ir" = "Go";
+"Listo: mantén %@ para hablar" = "Ready: hold %@ to talk";
+"Revisar permisos…" = "Review permissions…";
+"Te escucha" = "Listening";
+"Terminar la conversación" = "End the conversation";

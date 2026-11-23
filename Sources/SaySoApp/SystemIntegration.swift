@@ -36,6 +36,7 @@ final class DictationHUD {
     func show(_ phase: DictationPhase, transcript: String = "") {
         if case .idle = phase { return hide() }
         if case .agentThinking = phase {} else { state.step = nil }
+        if phase.withoutLevel != state.phase.withoutLevel { announce(phase) }
         state.phase = phase
         state.transcript = transcript
         let panel = self.panel ?? makePanel()
@@ -50,6 +51,13 @@ final class DictationHUD {
             }
             panel.orderFrontRegardless()
         }
+    }
+
+    /// VoiceOver no lee la píldora por sí solo (el panel no toma el foco): cada fase nueva se anuncia.
+    private func announce(_ phase: DictationPhase) {
+        let text = DictationHUDView.accessibilityText(phase: phase, step: state.step, modelStatus: state.modelStatus)
+        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
+                             userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue])
     }
 
     func hide() {

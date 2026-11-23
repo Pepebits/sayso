@@ -6,7 +6,7 @@ import SwiftUI
 @main
 struct SaySoApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @State private var controller = AppController()
+    private var controller: AppController { delegate.controller }
 
     var body: some Scene {
         Window("SaySo", id: "settings") {
@@ -14,12 +14,74 @@ struct SaySoApp: App {
                 .task { controller.start() }
         }
         .windowResizability(.contentMinSize)
+        // Al abrirse con la sesión, SaySo se queda en la barra de menús sin abrir la ventana.
+        .defaultLaunchBehavior(AppDelegate.launchedAtLogin ? .suppressed : .automatic)
+        .commands { NavigationCommands(model: controller.model) }
 
-        MenuBarExtra("SaySo", systemImage: "quote.opening") {
+        MenuBarExtra {
             MenuContent(controller: controller)
                 .id(controller.model.language)
                 .appLanguage()
+        } label: {
+            Image(systemName: MenuStatus(model: controller.model).symbol)
+                .accessibilityLabel(MenuStatus(model: controller.model).summary)
         }
+    }
+}
+
+/// Estado de SaySo para la barra de menús: un icono por estado y una línea que lo explica.
+@MainActor
+struct MenuStatus {
+    let model: AppModel
+
+    var symbol: String {
+        switch model.dictationPhase {
+        case .listening, .agentListening: return "waveform"
+        case .transcribing, .correcting, .agentThinking: return "ellipsis.bubble"
+        case .failed: return "exclamationmark.bubble"
+        default: break
+        }
+        if model.databaseError != nil { return "exclamationmark.triangle" }
+        if !model.agentRunning { return "pause.circle" }
+        return "quote.opening"
+    }
+
+    var summary: String {
+        if model.databaseError != nil { return tr("SaySo no puede abrir sus datos") }
+        switch model.dictationPhase {
+        case .listening, .agentListening: return tr("Te escucha")
+        case .transcribing, .correcting: return tr("Transcribiendo…")
+        case .agentThinking: return tr("El agente está en ello…")
+        default: break
+        }
+        if !model.agentRunning { return tr("Agente detenido") }
+        if model.conversing { return tr("Conversación en marcha") }
+        if !model.missingDictationPermissions.isEmpty { return tr("Faltan permisos para el atajo") }
+        return tr("Listo: mantén %@ para hablar", model.dictation.shortcut.symbol)
+    }
+}
+
+/// Menú «Ir»: ⌘1…⌘9 abren las nueve primeras pantallas, y ⇧⌘N empieza una conversación nueva.
+private struct NavigationCommands: Commands {
+    let model: AppModel
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some Commands {
+        CommandMenu(tr("Ir")) {
+            ForEach(Array(SettingsScreen.allCases.prefix(9).enumerated()), id: \.element) { index, screen in
+                Button(tr(screen.title)) { show(screen) }
+                    .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
+            }
+            Divider()
+            Button(tr("Nueva conversación")) { model.actions?.newConversation(chatID: "voz") }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+        }
+    }
+
+    private func show(_ screen: SettingsScreen) {
+        NSApp.activate(ignoringOtherApps: true)
+        openWindow(id: "settings")
+        model.requestedScreen = screen
     }
 }
 
@@ -28,12 +90,21 @@ private struct MenuContent: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        Button("Abrir SaySo") {
-            NSApp.activate(ignoringOtherApps: true)
-            openWindow(id: "settings")
+        let model = controller.model
+        Text(verbatim: MenuStatus(model: model).summary)
+        Divider()
+        Button("Abrir SaySo") { open(nil) }
+        if model.agentRunning, model.activeAccount != nil {
+            Button(tr(model.conversing ? "Terminar la conversación" : "Conversar con el agente")) {
+                controller.toggleConversation()
+            }
+            Button(tr("Nueva conversación")) { controller.newConversation(chatID: "voz") }
         }
-        Button(tr(controller.model.agentRunning ? "Detener el agente" : "Reanudar el agente")) {
-            controller.setAgentRunning(!controller.model.agentRunning)
+        Button(tr(model.agentRunning ? "Detener el agente" : "Reanudar el agente")) {
+            controller.setAgentRunning(!model.agentRunning)
+        }
+        if !model.missingDictationPermissions.isEmpty {
+            Button(tr("Revisar permisos…")) { open(.dictado) }
         }
         if case .ready = controller.model.updates {
             Button("Buscar actualizaciones…") { controller.checkForUpdates() }
@@ -41,11 +112,37 @@ private struct MenuContent: View {
         Divider()
         Button("Salir de SaySo") { NSApp.terminate(nil) }
     }
+
+    private func open(_ screen: SettingsScreen?) {
+        NSApp.activate(ignoringOtherApps: true)
+        openWindow(id: "settings")
+        if let screen { controller.model.requestedScreen = screen }
+    }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// El controlador vive aquí y no en la ventana: arranca aunque la ventana no se abra (al
+    /// iniciar sesión). Antes todo arrancaba con la ventana.
+    @MainActor lazy var controller = AppController()
+
+    /// macOS ha abierto SaySo como ítem de inicio de sesión.
+    @MainActor static var launchedAtLogin = false
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        let event = NSAppleEventManager.shared().currentAppleEvent
+        Self.launchedAtLogin = event?.eventID == AEEventID(kAEOpenApplication)
+            && event?.paramDescriptor(forKeyword: AEKeyword(keyAEPropData))?.enumCodeValue == OSType(keyAELaunchedAsLogInItem)
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        controller.start()
+        if Self.launchedAtLogin {
+            // Por si la escena ya había abierto la ventana antes de saberlo.
+            DispatchQueue.main.async {
+                for window in NSApp.windows where window.identifier?.rawValue.hasPrefix("settings") == true { window.close() }
+            }
+        }
         // Ayuda de desarrollo: SAYSO_APPEARANCE=dark|light fuerza el modo para las capturas.
         switch ProcessInfo.processInfo.environment["SAYSO_APPEARANCE"] {
         case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)

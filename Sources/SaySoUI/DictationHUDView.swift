@@ -57,7 +57,8 @@ public struct DictationHUDView: View {
                 // Burbuja clara sobre la píldora: lo que has dicho o lo que contesta el agente.
                 Text(verbatim: text)
                     .font(Theme.text(isReply ? 14 : 13.5, weight: isReply ? .medium : .regular))
-                    .foregroundStyle(Theme.fixedInk.opacity(phase == .correcting ? 0.45 : 1))
+                    // Mientras se corrige, el texto va más tenue, pero con contraste AA (antes 0,45: 2,8:1).
+                    .foregroundStyle(Theme.fixedInk.opacity(phase == .correcting ? 0.7 : 1))
                     .lineLimit(isReply ? 12 : 4)
                     .truncationMode(.head)
                     .multilineTextAlignment(.leading)
@@ -87,7 +88,7 @@ public struct DictationHUDView: View {
         // burbuja cupiera en una línea y la píldora quedaba cortada. El panel mide con `fittingSize(in:)`.
         .environment(\.colorScheme, .dark)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityText)
+        .accessibilityLabel(Self.accessibilityText(phase: phase, step: step, modelStatus: modelStatus))
     }
 
     static let bubbleWidth: CGFloat = 460
@@ -170,18 +171,20 @@ public struct DictationHUDView: View {
             .lineLimit(1)
     }
 
-    private var accessibilityText: String {
+    /// Lo que dice VoiceOver de la píldora; también se anuncia al cambiar de fase, porque el panel
+    /// no toma el foco y si no nadie lo leería.
+    public static func accessibilityText(phase: DictationPhase, step: String? = nil, modelStatus: String? = nil) -> String {
         switch phase {
         case .agentListening: return tr("Te escucha el agente")
         case let .agentThinking(question):
             if let step { return tr("El agente está trabajando en: %@", question) + ". " + step }
             return tr("El agente está trabajando en: %@", question)
         case let .agentReply(answer): return tr("Respuesta del agente: %@", answer)
-        case .idle: return "Dictado en espera"
-        case let .listening(_, handsFree): return handsFree ? "Dictado manos libres" : "Escuchando"
+        case .idle: return tr("Dictado en espera")
+        case let .listening(_, handsFree): return tr(handsFree ? "Manos libres" : "Escuchando")
         case .transcribing: return modelStatus ?? tr("Transcribiendo")
         case let .notice(message): return message
-        case .correcting: return "Corrigiendo"
+        case .correcting: return tr("Corrigiendo")
         case let .failed(message): return tr("Error de dictado: %@", tr(message))
         }
     }
